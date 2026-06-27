@@ -1,0 +1,528 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Provenance:
+#   This vocabulary is the Microsoft GraphRAG RDF ontology originally
+#   published by Ian Ormesher under the namespace
+#   <http://ormynet.com/ns/msft-graphrag#>. This file vendors that
+#   ontology unchanged in terms of namespace, prefix (mg:) and term
+#   names; only the Apache license header and language tags on
+#   rdfs:comment have been added for use within Apache Jena.
+
+PREFIX dct:  <http://purl.org/dc/terms/>
+PREFIX owl:  <http://www.w3.org/2002/07/owl#>
+PREFIX rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX sh:   <http://www.w3.org/ns/shacl#>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+PREFIX sp:   <http://spinrdf.org/sp#>
+PREFIX mg:   <http://ormynet.com/ns/msft-graphrag#>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+
+mg:documentIds
+        rdf:type          owl:DatatypeProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "document_ids";
+        rdfs:comment      "List of source Document identifiers from which a Covariate was derived, enabling provenance tracing back to original source files (arXiv:2404.16130v2, §3.1.1: 'the documents in the corpus are split into text chunks' — provenance to source documents is implicit in the pipeline). Not named in the paper; from the GraphRAG open-source implementation."@en,
+                          "Liste des identifiants de Documents sources d'où une Covariable a été dérivée, permettant de tracer la provenance jusqu'aux fichiers sources d'origine (arXiv:2404.16130v2, §3.1.1 : « the documents in the corpus are split into text chunks » — la traçabilité jusqu'aux documents sources est implicite dans le pipeline). Non nommé dans l'article ; provient de l'implémentation open-source de GraphRAG."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-16T05:54:10.447Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-16T05:54:10.447Z"^^xsd:dateTime .
+
+mg:hasCovariate
+        rdf:type          owl:ObjectProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "has_covariate";
+        rdfs:comment      "Relates an Entity to a Covariate (claim) that makes a factual statement about it (arXiv:2404.16130v2, §3.1.2: 'The LLM can also be prompted to extract claims about detected entities — claims are important factual statements about entities, such as dates, events, and interactions with other entities')."@en,
+                          "Relie une Entité à une Covariable (revendication) qui formule un énoncé factuel à son sujet (arXiv:2404.16130v2, §3.1.2 : « The LLM can also be prompted to extract claims about detected entities — claims are important factual statements about entities, such as dates, events, and interactions with other entities »)."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-16T05:54:10.447Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-16T05:54:10.447Z"^^xsd:dateTime .
+
+mg:textUnitId
+        rdf:type          owl:DatatypeProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "text_unit_id";
+        rdfs:comment      "Foreign key linking an Entity or Covariate back to the specific Chunk from which it was extracted (arXiv:2404.16130v2, §3.1.2: 'the LLM is prompted to extract instances of important entities … from a given chunk'). Not named in the paper; from the GraphRAG open-source implementation."@en,
+                          "Clé étrangère reliant une Entité ou une Covariable au Chunk spécifique à partir duquel elle a été extraite (arXiv:2404.16130v2, §3.1.2 : « the LLM is prompted to extract instances of important entities … from a given chunk »). Non nommé dans l'article ; provient de l'implémentation open-source de GraphRAG."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-16T05:54:10.447Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-16T05:54:10.447Z"^^xsd:dateTime .
+
+mg:FindingShape
+        rdf:type        sh:NodeShape;
+        sh:property     [ sh:datatype  xsd:string;
+                          sh:path      mg:finding
+                        ];
+        sh:property     [ sh:datatype  xsd:string;
+                          sh:path      mg:id
+                        ];
+        sh:targetClass  mg:Finding .
+
+mg:finding
+        rdf:type          owl:DatatypeProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "finding";
+        rdfs:comment      "Serialized text content of a Finding — one key insight within a CommunityReport consisting of a short summary sentence and a grounded explanatory paragraph (arXiv:2404.16130v2, Appendix E.2: 'DETAILED FINDINGS: A list of 5-10 key insights about the community. Each insight should have a short summary followed by multiple paragraphs of explanatory text grounded according to the grounding rules')."@en,
+                          "Contenu textuel sérialisé d'un Constat — un élément-clé d'observation au sein d'un CommunityReport, constitué d'une phrase de résumé courte et d'un paragraphe explicatif sourcé (arXiv:2404.16130v2, Annexe E.2 : « DETAILED FINDINGS: A list of 5-10 key insights about the community. Each insight should have a short summary followed by multiple paragraphs of explanatory text grounded according to the grounding rules »)."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-09T11:34:41.734Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-09T11:34:41.734Z"^^xsd:dateTime .
+
+mg:Finding
+        rdf:type          owl:Class;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "Finding"@en, "Constat"@fr;
+        rdfs:comment      "One key insight within a CommunityReport: a short summary sentence plus a grounded explanatory paragraph (arXiv:2404.16130v2, Appendix E.2: 'DETAILED FINDINGS: A list of 5-10 key insights about the community. Each insight should have a short summary followed by multiple paragraphs of explanatory text'). Findings are the most granular output unit of the community report generation step."@en,
+                          "Élément-clé d'observation au sein d'un CommunityReport : une phrase de résumé courte suivie d'un paragraphe explicatif sourcé (arXiv:2404.16130v2, Annexe E.2 : « DETAILED FINDINGS: A list of 5-10 key insights about the community. Each insight should have a short summary followed by multiple paragraphs of explanatory text »). Les constats sont l'unité de sortie la plus fine de l'étape de génération du rapport de communauté."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-09T11:34:41.734Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-09T11:34:41.734Z"^^xsd:dateTime .
+
+mg:hasFinding
+        rdf:type          owl:ObjectProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "has_finding";
+        rdfs:comment      "Relates a Community to a Finding — one of the 5-10 key insight objects in the community report's findings array (arXiv:2404.16130v2, Appendix E.2: 'DETAILED FINDINGS: A list of 5-10 key insights about the community … [{\"summary\": …, \"explanation\": …}]')."@en,
+                          "Relie une Communauté à un Constat — l'un des 5 à 10 éléments-clés d'observation dans le tableau « findings » du rapport de communauté (arXiv:2404.16130v2, Annexe E.2 : « DETAILED FINDINGS: A list of 5-10 key insights about the community … [{\"summary\": …, \"explanation\": …}] »)."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:37:33.470Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-06T06:37:33.470Z"^^xsd:dateTime .
+
+mg:inCommunity
+        rdf:type          owl:ObjectProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "in_community";
+        rdfs:comment      "Relates an Entity to the Community to which it belongs at a given hierarchy level; the community partition is mutually exclusive and collectively exhaustive at each level (arXiv:2404.16130v2, §3.1.4: 'partition the graph into communities of strongly connected nodes … each level of this hierarchy provides a community partition that covers the nodes in a mutually exclusive, collectively exhaustive way')."@en,
+                          "Relie une Entité à la Communauté à laquelle elle appartient à un niveau de hiérarchie donné ; la partition en communautés est mutuellement exclusive et collectivement exhaustive à chaque niveau (arXiv:2404.16130v2, §3.1.4 : « partition the graph into communities of strongly connected nodes … each level of this hierarchy provides a community partition that covers the nodes in a mutually exclusive, collectively exhaustive way »)."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:36:26.557Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-06T06:36:26.557Z"^^xsd:dateTime .
+
+mg:relatedTo
+        rdf:type          owl:ObjectProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "related_to";
+        rdfs:comment      "Relates one Entity to another via an extracted Relationship edge in the knowledge graph; edge multiplicity becomes edge weight (arXiv:2404.16130v2, §3.1.2: 'identify all pairs of (source entity, target entity) that are clearly related'; §3.1.3: 'the number of duplicates for a given relationship becomes edge weights')."@en,
+                          "Relie une Entité à une autre par une arête de Relation extraite dans le graphe de connaissances ; la multiplicité de l'arête devient son poids (arXiv:2404.16130v2, §3.1.2 : « identify all pairs of (source entity, target entity) that are clearly related » ; §3.1.3 : « the number of duplicates for a given relationship becomes edge weights »)."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:35:58.331Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-06T06:35:58.331Z"^^xsd:dateTime .
+
+mg:hasEntity
+        rdf:type          owl:ObjectProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "has_entity";
+        rdfs:comment      "Relates a Chunk to an Entity extracted from its text by the LLM, enabling provenance tracking from entity back to source chunk (arXiv:2404.16130v2, §3.1.2: 'the LLM is prompted to extract instances of important entities … from a given chunk')."@en,
+                          "Relie un Chunk à une Entité extraite de son texte par le LLM, permettant de tracer la provenance de l'entité jusqu'au fragment source (arXiv:2404.16130v2, §3.1.2 : « the LLM is prompted to extract instances of important entities … from a given chunk »)."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:35:10.670Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-06T06:35:10.670Z"^^xsd:dateTime .
+
+mg:partOf
+        rdf:type          owl:ObjectProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "part_of";
+        rdfs:comment      "Relates a Chunk to the Document from which it was split; inverse of the document-splitting operation (arXiv:2404.16130v2, §3.1.1: 'the documents in the corpus are split into text chunks'). A Chunk must belong to at least one Document (sh:minCount 1)."@en,
+                          "Relie un Chunk au Document à partir duquel il a été découpé ; inverse de l'opération de découpage du document (arXiv:2404.16130v2, §3.1.1 : « the documents in the corpus are split into text chunks »). Un Chunk doit appartenir à au moins un Document (sh:minCount 1)."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:34:28.515Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-06T06:34:28.515Z"^^xsd:dateTime .
+
+mg:CovariateShape
+        rdf:type        sh:NodeShape;
+        sh:property     [ sh:datatype  xsd:string;
+                          sh:path      mg:documentIds
+                        ];
+        sh:property     [ sh:datatype  xsd:string;
+                          sh:path      mg:id
+                        ];
+        sh:property     [ sh:datatype  xsd:integer;
+                          sh:path      mg:nTokens
+                        ];
+        sh:property     [ sh:datatype  xsd:string;
+                          sh:path      mg:textUnitId
+                        ];
+        sh:targetClass  mg:Covariate .
+
+mg:Covariate
+        rdf:type          owl:Class;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "Covariate"@en, "Covariable"@fr;
+        rdfs:comment      "A factual statement (claim) about an entity — such as a date, event or interaction — extracted by the LLM from a chunk and attached to the entity node (arXiv:2404.16130v2, §3.1.2: 'The LLM can also be prompted to extract claims about detected entities'; Figure 1: 'covariates (e.g., claims)'). The paper uses 'covariate' and 'claim' interchangeably."@en,
+                          "Énoncé factuel (revendication, « claim ») à propos d'une entité — telle qu'une date, un événement ou une interaction — extrait par le LLM à partir d'un fragment et rattaché au nœud-entité (arXiv:2404.16130v2, §3.1.2 : « The LLM can also be prompted to extract claims about detected entities » ; Figure 1 : « covariates (e.g., claims) »). L'article emploie « covariate » et « claim » de manière interchangeable."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:33:44.855Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-16T05:54:10.447Z"^^xsd:dateTime .
+
+mg:CommunityShape
+        rdf:type        sh:NodeShape;
+        sh:property     [ sh:datatype  xsd:string;
+                          sh:path      mg:id
+                        ];
+        sh:property     [ sh:datatype  xsd:float;
+                          sh:path      mg:rank
+                        ];
+        sh:property     [ sh:datatype  xsd:string;
+                          sh:path      mg:summary
+                        ];
+        sh:property     [ sh:datatype  xsd:string;
+                          sh:path      mg:fullContent
+                        ];
+        sh:property     [ sh:datatype  xsd:integer;
+                          sh:path      mg:level
+                        ];
+        sh:property     [ sh:datatype  xsd:string;
+                          sh:path      mg:title
+                        ];
+        sh:property     [ sh:class  mg:Finding;
+                          sh:path   mg:hasFinding
+                        ];
+        sh:property     [ sh:datatype  xsd:string;
+                          sh:path      mg:rankExplanation
+                        ];
+        sh:targetClass  mg:Community .
+
+mg:Community
+        rdf:type          owl:Class;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "Community"@en, "Communauté"@fr;
+        rdfs:comment      "A group of strongly connected entity nodes detected hierarchically by the Leiden algorithm; each level provides a mutually exclusive, collectively exhaustive partition of the knowledge graph (arXiv:2404.16130v2, §3.1.4: 'partition the graph into communities of strongly connected nodes … each level of this hierarchy provides a community partition that covers the nodes in a mutually exclusive, collectively exhaustive way')."@en,
+                          "Groupe de nœuds-entités fortement connectés détectés hiérarchiquement par l'algorithme de Leiden ; chaque niveau fournit une partition mutuellement exclusive et collectivement exhaustive du graphe de connaissances (arXiv:2404.16130v2, §3.1.4 : « partition the graph into communities of strongly connected nodes … each level of this hierarchy provides a community partition that covers the nodes in a mutually exclusive, collectively exhaustive way »)."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:32:04.987Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-09T11:34:41.734Z"^^xsd:dateTime .
+
+mg:summary
+        rdf:type          owl:DatatypeProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "summary";
+        rdfs:comment      "LLM-generated executive summary of a CommunityReport providing a concise overview of the community's entity structure, inter-entity relationships, and key associated information (arXiv:2404.16130v2, Appendix E.2: 'SUMMARY: An executive summary of the community\'s overall structure, how its entities are related to each other, and significant information associated with its entities')."@en,
+                          "Résumé exécutif généré par le LLM pour un CommunityReport, fournissant un aperçu concis de la structure des entités de la communauté, des relations inter-entités et des informations clés associées (arXiv:2404.16130v2, Annexe E.2 : « SUMMARY: An executive summary of the community's overall structure, how its entities are related to each other, and significant information associated with its entities »)."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:32:04.987Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-06T06:32:04.987Z"^^xsd:dateTime .
+
+mg:rankExplanation
+        rdf:type          owl:DatatypeProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "rank_explanation";
+        rdfs:comment      "A single-sentence LLM-generated justification for the community's rank score (arXiv:2404.16130v2, Appendix E.2: 'RATING EXPLANATION: Give a single sentence explanation of the IMPACT severity rating'). Named 'rating_explanation' in the paper's JSON schema."@en,
+                          "Justification en une seule phrase, générée par le LLM, du score de rang de la communauté (arXiv:2404.16130v2, Annexe E.2 : « RATING EXPLANATION: Give a single sentence explanation of the IMPACT severity rating »). Nommé « rating_explanation » dans le schéma JSON de l'article."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:32:04.987Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-06T06:32:04.987Z"^^xsd:dateTime .
+
+mg:level
+        rdf:type          owl:DatatypeProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "level";
+        rdfs:comment      "Integer depth of a Community in the Leiden hierarchical partition; level 0 is the root with maximum modularity, with increasing levels revealing finer sub-community structure (arXiv:2404.16130v2, §3.1.4: 'each level of this hierarchy provides a community partition'; Appendix B: 'Root communities at level 0 … Sub-communities at level 1')."@en,
+                          "Profondeur entière d'une Communauté dans la partition hiérarchique de Leiden ; le niveau 0 est la racine avec modularité maximale, les niveaux croissants révélant une structure de sous-communautés plus fine (arXiv:2404.16130v2, §3.1.4 : « each level of this hierarchy provides a community partition » ; Annexe B : « Root communities at level 0 … Sub-communities at level 1 »)."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:32:04.987Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-06T06:32:04.987Z"^^xsd:dateTime .
+
+mg:fullContent
+        rdf:type          owl:DatatypeProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "full_content";
+        rdfs:comment      "Complete serialized JSON output of the community report generation prompt, containing all fields: title, summary, rating, rating_explanation, and findings (arXiv:2404.16130v2, Appendix E.2 defines this JSON structure). Not named in the paper; from the GraphRAG open-source implementation as storage of the full LLM-generated community report string."@en,
+                          "Sortie JSON sérialisée complète du prompt de génération de rapport de communauté, contenant tous les champs : title, summary, rating, rating_explanation et findings (arXiv:2404.16130v2, Annexe E.2 définit cette structure JSON). Non nommé dans l'article ; provient de l'implémentation open-source de GraphRAG, où il sert à stocker la chaîne complète du rapport généré par le LLM."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:32:04.987Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-06T06:32:04.987Z"^^xsd:dateTime .
+
+mg:rank
+        rdf:type          owl:DatatypeProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "rank";
+        rdfs:comment      "A 0–10 float score reflecting the impact/importance of a Community as judged by the LLM during report generation (arXiv:2404.16130v2, Appendix E.2: 'IMPACT SEVERITY RATING: a float score between 0-10 that represents the severity of IMPACT posed by entities within the community'). Named 'rating' in the paper's JSON schema."@en,
+                          "Score flottant entre 0 et 10 reflétant l'impact/importance d'une Communauté telle qu'évaluée par le LLM lors de la génération du rapport (arXiv:2404.16130v2, Annexe E.2 : « IMPACT SEVERITY RATING: a float score between 0-10 that represents the severity of IMPACT posed by entities within the community »). Nommé « rating » dans le schéma JSON de l'article."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:32:04.987Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-06T06:32:04.987Z"^^xsd:dateTime .
+
+mg:descriptionEmbedding
+        rdf:type          owl:DatatypeProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "description_embedding";
+        rdfs:comment      "Dense vector representation of an Entity's or Relationship's aggregated description, used for vector similarity search in local-search mode (arXiv:2404.16130v2, §2.1: 'A common approach to conventional RAG is to use text embeddings, retrieving records closest to the query in vector space'). Not named in the paper; from the GraphRAG open-source implementation."@en,
+                          "Représentation vectorielle dense de la description agrégée d'une Entité ou d'une Relation, utilisée pour la recherche par similarité vectorielle en mode local-search (arXiv:2404.16130v2, §2.1 : « A common approach to conventional RAG is to use text embeddings, retrieving records closest to the query in vector space »). Non nommé dans l'article ; provient de l'implémentation open-source de GraphRAG."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:28:39.603Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-06T06:28:39.603Z"^^xsd:dateTime .
+
+mg:humanReadableId
+        rdf:type          owl:DatatypeProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "human_readable_id";
+        rdfs:comment      "Sequential integer providing a human-friendly reference to a graph element, complementing the UUID-based id field (arXiv:2404.16130v2, Appendix E.2: 'the id (not the index) of the relevant data record' implies a distinction between integer ids and positional indices). Not named in the paper; from the GraphRAG open-source implementation."@en,
+                          "Entier séquentiel fournissant une référence humainement lisible à un élément du graphe, en complément du champ id basé sur UUID (arXiv:2404.16130v2, Annexe E.2 : « the id (not the index) of the relevant data record » implique la distinction entre id entiers et indices positionnels). Non nommé dans l'article ; provient de l'implémentation open-source de GraphRAG."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:28:39.603Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-06T06:28:39.603Z"^^xsd:dateTime .
+
+mg:description
+        rdf:type          owl:DatatypeProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "description";
+        rdfs:comment      "LLM-generated natural-language summary of an Entity's attributes/activities or a Relationship's nature; descriptions from multiple extraction instances are aggregated into a single node/edge description (arXiv:2404.16130v2, §3.1.2: 'the LLM generates short descriptions for the entities and relationships'; §3.1.3: 'Entity descriptions are aggregated and summarized for each node and edge')."@en,
+                          "Résumé en langage naturel généré par le LLM des attributs/activités d'une Entité ou de la nature d'une Relation ; les descriptions issues de plusieurs instances d'extraction sont agrégées en une seule description par nœud ou arête (arXiv:2404.16130v2, §3.1.2 : « the LLM generates short descriptions for the entities and relationships » ; §3.1.3 : « Entity descriptions are aggregated and summarized for each node and edge »)."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:28:39.603Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-06T06:28:39.603Z"^^xsd:dateTime .
+
+mg:name
+        rdf:type          owl:DatatypeProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "name";
+        rdfs:comment      "Capitalized string identifier of an Entity as extracted by the LLM from a text chunk, used for exact-match deduplication across extraction instances (arXiv:2404.16130v2, §3.1.2: 'entity name: Name of the entity, capitalized'; Appendix A.1: 'identifies all entities … including their name, type, and description')."@en,
+                          "Identifiant textuel capitalisé d'une Entité tel qu'extrait par le LLM à partir d'un fragment textuel, utilisé pour la déduplication par correspondance exacte entre instances d'extraction (arXiv:2404.16130v2, §3.1.2 : « entity name: Name of the entity, capitalized » ; Annexe A.1 : « identifies all entities … including their name, type, and description »)."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:28:39.603Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-06T06:28:39.603Z"^^xsd:dateTime .
+
+mg:text
+        rdf:type          owl:DatatypeProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "text";
+        rdfs:comment      "Raw string content of a Chunk as it appears after document splitting, passed verbatim to the LLM for entity and relationship extraction (arXiv:2404.16130v2, §3.1.1, Appendix E.1: 'Given a text document … identify all entities of those types from the text')."@en,
+                          "Contenu textuel brut d'un Chunk tel qu'il apparaît après découpage du document, transmis tel quel au LLM pour l'extraction d'entités et de relations (arXiv:2404.16130v2, §3.1.1, Annexe E.1 : « Given a text document … identify all entities of those types from the text »)."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:26:51.923Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-06T06:26:51.923Z"^^xsd:dateTime .
+
+mg:EntityShape
+        rdf:type        sh:NodeShape;
+        sh:property     [ sh:datatype  xsd:string;
+                          sh:path      mg:id
+                        ];
+        sh:property     [ sh:datatype  xsd:string;
+                          sh:path      mg:name
+                        ];
+        sh:property     [ sh:class  mg:Community;
+                          sh:path   mg:inCommunity
+                        ];
+        sh:property     [ sh:datatype  xsd:string;
+                          sh:path      mg:description
+                        ];
+        sh:property     [ sh:class  mg:Entity;
+                          sh:path   mg:relatedTo
+                        ];
+        sh:property     [ sh:datatype  xsd:string;
+                          sh:path      mg:humanReadableId
+                        ];
+        sh:property     [ sh:datatype  xsd:string;
+                          sh:path      mg:descriptionEmbedding
+                        ];
+        sh:targetClass  mg:Entity .
+
+mg:Entity
+        rdf:type          owl:Class;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "Entity"@en, "Entité"@fr;
+        rdfs:comment      "A named concept (person, place, organization, etc.) extracted by the LLM from a text chunk; becomes a node in the knowledge graph with a name, type and aggregated description (arXiv:2404.16130v2, §3.1.2: 'the LLM is prompted to extract instances of important entities … the broad class of named entities like people, places, and organizations')."@en,
+                          "Concept nommé (personne, lieu, organisation, etc.) extrait par le LLM à partir d'un fragment textuel ; devient un nœud du graphe de connaissances doté d'un nom, d'un type et d'une description agrégée (arXiv:2404.16130v2, §3.1.2 : « the LLM is prompted to extract instances of important entities … the broad class of named entities like people, places, and organizations »)."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:26:29.280Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-06T06:36:26.557Z"^^xsd:dateTime .
+
+mg:ChunkShape
+        rdf:type        sh:NodeShape;
+        sh:property     [ sh:datatype  xsd:string;
+                          sh:path      mg:text
+                        ];
+        sh:property     [ sh:class  mg:Entity;
+                          sh:path   mg:hasEntity
+                        ];
+        sh:property     [ sh:datatype  xsd:string;
+                          sh:path      mg:id
+                        ];
+        sh:property     [ sh:class  mg:Covariate;
+                          sh:path   mg:hasCovariate
+                        ];
+        sh:property     [ sh:class     mg:Document;
+                          sh:minCount  1;
+                          sh:path      mg:partOf
+                        ];
+        sh:property     [ sh:datatype  xsd:integer;
+                          sh:path      mg:nTokens
+                        ];
+        sh:targetClass  mg:Chunk .
+
+mg:Chunk
+        rdf:type          owl:Class;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "Chunk"@en, "Fragment textuel"@fr;
+        rdfs:comment      "A fixed-size, overlapping sub-segment of a Document used as the LLM extraction unit (arXiv:2404.16130v2, §3.1.1: 'the documents in the corpus are split into text chunks … 600-token text chunks, with 100-token overlaps'). The LLM extracts entities, relationships and claims from each chunk."@en,
+                          "Sous-segment de Document de taille fixe avec chevauchement, utilisé comme unité d'extraction par le LLM (arXiv:2404.16130v2, §3.1.1 : « the documents in the corpus are split into text chunks … 600-token text chunks, with 100-token overlaps »). Le LLM extrait entités, relations et revendications à partir de chaque fragment."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:24:39.607Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-16T05:54:10.447Z"^^xsd:dateTime .
+
+mg:nTokens
+        rdf:type          owl:DatatypeProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "n_tokens";
+        rdfs:comment      "Number of LLM tokens in a Chunk or summary text, used to enforce context-window limits during community summarization (arXiv:2404.16130v2, §3.1.1: '600-token text chunks'; §3.1.5: 'rank sub-communities in decreasing order of element summary tokens'). Not named in the paper; field name is from the GraphRAG open-source implementation."@en,
+                          "Nombre de tokens LLM dans un Chunk ou un texte de résumé, utilisé pour respecter les limites de fenêtre de contexte lors de la synthèse des communautés (arXiv:2404.16130v2, §3.1.1 : « 600-token text chunks » ; §3.1.5 : « rank sub-communities in decreasing order of element summary tokens »). Le nom de champ n'apparaît pas dans l'article ; il provient de l'implémentation open-source de GraphRAG."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:24:39.607Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-06T06:24:39.607Z"^^xsd:dateTime .
+
+mg:id
+        rdf:type          owl:DatatypeProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "id";
+        rdfs:comment      "Unique identifier of a graph element (entity, relationship, claim, community) used in data provenance references within community reports (arXiv:2404.16130v2, Appendix E.2: 'the id (not the index) of the relevant data record'). The paper consistently distinguishes the id from positional index."@en,
+                          "Identifiant unique d'un élément du graphe (entité, relation, revendication, communauté) utilisé dans les références de provenance des données au sein des rapports de communauté (arXiv:2404.16130v2, Annexe E.2 : « the id (not the index) of the relevant data record »). L'article distingue systématiquement l'id de l'index positionnel."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:22:48.036Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-06T06:22:48.036Z"^^xsd:dateTime .
+
+mg:DocumentShape
+        rdf:type        sh:NodeShape;
+        sh:property     [ sh:datatype  xsd:string;
+                          sh:path      mg:title
+                        ];
+        sh:property     [ sh:datatype  xsd:string;
+                          sh:path      mg:id
+                        ];
+        sh:targetClass  mg:Document .
+
+mg:Document
+        rdf:type          owl:Class;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "Document"@en, "Document"@fr;
+        rdfs:comment      "A source text record in the private corpus used as input to the GraphRAG pipeline (arXiv:2404.16130v2, §3.1.1: 'the documents in the corpus are split into text chunks'). Documents are split into fixed-size Chunks before LLM processing."@en,
+                          "Un enregistrement de texte source du corpus privé utilisé comme entrée du pipeline GraphRAG (arXiv:2404.16130v2, §3.1.1 : « the documents in the corpus are split into text chunks »). Les documents sont découpés en Chunks de taille fixe avant traitement par le LLM."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:21:45.753Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-06T06:22:48.036Z"^^xsd:dateTime .
+
+mg:title
+        rdf:type          owl:DatatypeProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "title";
+        rdfs:comment      "Short, specific human-readable name of a CommunityReport assigned by the LLM, intended to include representative named entities (arXiv:2404.16130v2, Appendix E.2: 'TITLE: community\'s name that represents its key entities — title should be short but specific')."@en,
+                          "Nom humainement lisible, court et spécifique, d'un CommunityReport attribué par le LLM ; il doit inclure si possible des entités nommées représentatives (arXiv:2404.16130v2, Annexe E.2 : « TITLE: community's name that represents its key entities — title should be short but specific »)."@fr;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor   "Ian Ormesher";
+        dct:created       "2024-08-06T06:21:45.753Z"^^xsd:dateTime;
+        dct:creator       "Ian Ormesher";
+        dct:modified      "2024-08-06T06:21:45.753Z"^^xsd:dateTime .
+
+<http://ormynet.com/ns/msft-graphrag>
+        rdf:type         owl:Ontology;
+        rdfs:label       "Microsoft GraphRAG"@en, "Microsoft GraphRAG"@fr;
+        rdfs:comment     "OWL ontology modelling the output schema of the Microsoft GraphRAG pipeline, as described in 'From Local to Global: A GraphRAG Approach to Query-Focused Summarization' (Edge et al., arXiv:2404.16130v2, 2024). The ontology captures the six core entity types produced by the pipeline — Document, Chunk, Entity, Community, Covariate, Finding — together with their properties and SHACL shapes. Terms grounded in the paper are annotated with section references; terms from the open-source implementation (https://github.com/microsoft/graphrag) are noted accordingly."@en,
+                         "Ontologie OWL modélisant le schéma de sortie du pipeline Microsoft GraphRAG, tel que décrit dans « From Local to Global: A GraphRAG Approach to Query-Focused Summarization » (Edge et al., arXiv:2404.16130v2, 2024). L'ontologie représente les six types d'entités principaux produits par le pipeline — Document, Chunk, Entity, Community, Covariate, Finding — ainsi que leurs propriétés et leurs formes SHACL. Les termes ancrés dans l'article sont annotés avec leurs références de section ; les termes provenant de l'implémentation open-source (https://github.com/microsoft/graphrag) sont signalés comme tels."@fr;
+        dct:source       <https://arxiv.org/abs/2404.16130>;
+        <http://open-services.net/ns/core#modifiedBy>
+                "Ian Ormesher";
+        dct:contributor  "Ian Ormesher";
+        dct:created      "2024-08-06T06:19:51.223Z"^^xsd:dateTime;
+        dct:creator      "Ian Ormesher";
+        dct:modified     "2024-08-16T05:54:10.447Z"^^xsd:dateTime;
+        dct:title        "Microsoft GraphRAG"@en, "Microsoft GraphRAG"@fr;
+        <http://purl.org/ontology/bibo/status>
+                <http://purl.org/spar/pso/draft>;
+        <http://www.linkedmodel.org/1.2/schema/vaem#namespace>
+                mg:;
+        owl:versionInfo  "0.1" .

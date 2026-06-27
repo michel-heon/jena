@@ -206,6 +206,7 @@
 
         <module>jena-core</module>
         <module>jena-arq</module>
+        <module>jena-graphrag</module>
         <module>jena-ontapi</module>
         <module>jena-shacl</module>
         <module>jena-shex</module>
@@ -264,6 +265,7 @@
         <!-- Main modules -->
         <module>jena-core</module>
         <module>jena-arq</module>
+        <module>jena-graphrag</module>
         <module>jena-ontapi</module>
         <module>jena-shacl</module>
         <module>jena-shex</module>
