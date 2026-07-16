@@ -1,0 +1,83 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Hermetic fixture mirroring the shape of Microsoft GraphRAG RDF dumps:
+# snake_case local names and singleton-property reification of relationships.
+
+@prefix gr:  <http://ormynet.com/ns/msft-graphrag#> .
+@prefix d:   <http://ormynet.com/ns/data#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+d:Document_1 a gr:Document ;
+    gr:id "doc-1" ;
+    gr:title "A Christmas Carol (excerpt)" ;
+    gr:text "Marley was dead: to begin with." .
+
+d:Chunk_1 a gr:Chunk ;
+    gr:id "chunk-1" ;
+    gr:n_tokens 12 ;
+    gr:text "Marley was dead: to begin with." ;
+    gr:part_of d:Document_1 .
+
+d:Chunk_2 a gr:Chunk ;
+    gr:id "chunk-2" ;
+    gr:n_tokens 9 ;
+    gr:text "Scrooge signed it." ;
+    gr:part_of d:Document_1 .
+
+d:Entity_Scrooge a gr:Entity ;
+    gr:id "ent-scrooge" ;
+    gr:human_readable_id 1 ;
+    gr:name "SCROOGE" ;
+    gr:type "PERSON" ;
+    gr:description "A miserly businessman." ;
+    gr:has_entity d:Chunk_2 .
+
+d:Entity_Marley a gr:Entity ;
+    gr:id "ent-marley" ;
+    gr:human_readable_id 2 ;
+    gr:name "MARLEY" ;
+    gr:type "PERSON" ;
+    gr:description "Scrooge's deceased business partner." ;
+    gr:has_entity d:Chunk_1 .
+
+# Singleton-property reification of a relationship.
+d:related_to_0001 a gr:related_to ;
+    gr:id "rel-0001" ;
+    gr:human_readable_id 1 ;
+    gr:rank 6 ;
+    gr:weight 223.0 ;
+    gr:description "Scrooge was the business partner of Marley." .
+
+d:Entity_Scrooge d:related_to_0001 d:Entity_Marley .
+
+d:Community_1 a gr:Community ;
+    gr:id "com-1" ;
+    gr:level 0 ;
+    gr:title "Scrooge and Marley" .
+
+d:Entity_Scrooge gr:in_community d:Community_1 .
+d:Entity_Marley gr:in_community d:Community_1 .
+
+d:Finding_1 a gr:Finding ;
+    gr:summary "Central partnership." ;
+    gr:full_content "The Scrooge-Marley partnership anchors the narrative." .
+
+d:Community_1 gr:has_finding d:Finding_1 .

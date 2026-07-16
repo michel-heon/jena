@@ -17,10 +17,17 @@
 # Provenance:
 #   This vocabulary is the Microsoft GraphRAG RDF ontology originally
 #   published by Ian Ormesher under the namespace
-#   <http://ormynet.com/ns/msft-graphrag#>. This file vendors that
-#   ontology unchanged in terms of namespace, prefix (mg:) and term
+#   <http://ormynet.com/ns/msft-graphrag#>. The upstream ontology is
+#   vendored unchanged in terms of namespace, prefix (mg:) and term
 #   names; only the Apache license header and language tags on
 #   rdfs:comment have been added for use within Apache Jena.
+#
+#   In addition, a clearly delimited "Apache Jena extension" block is
+#   appended at the end of this file (see the "=== Apache Jena extension"
+#   marker). That block adds terms NOT part of the upstream Ormesher
+#   ontology (mg:Relationship, mg:source, mg:target) plus terms present
+#   in the Ormesher DATA dumps but absent from the OWL (mg:weight,
+#   mg:type). See docs/adr/402-DATA-normalisation-import-mg-relationship.md.
 
 PREFIX dct:  <http://purl.org/dc/terms/>
 PREFIX owl:  <http://www.w3.org/2002/07/owl#>
@@ -526,3 +533,56 @@ mg:title
         <http://www.linkedmodel.org/1.2/schema/vaem#namespace>
                 mg:;
         owl:versionInfo  "0.1" .
+
+# ============================================================================
+# === Apache Jena extension (NOT part of the upstream Ormesher ontology) ===
+# ============================================================================
+# Terms added by Apache Jena to support faithful, normalised import of the
+# Microsoft GraphRAG DATA dumps, which reify relationships (singleton-property
+# pattern) and carry edge evidence (rank, weight, description).
+# See docs/adr/402-DATA-normalisation-import-mg-relationship.md.
+#
+#  - mg:Relationship, mg:source, mg:target : added by Apache Jena.
+#  - mg:weight, mg:type                    : present in the Ormesher data
+#                                            dumps but absent from the OWL.
+
+mg:Relationship
+        rdf:type          owl:Class;
+        rdfs:isDefinedBy  mg:;
+        rdfs:label        "Relationship"@en, "Relation"@fr;
+        rdfs:comment      "A reified edge between two Entities in the knowledge graph, carrying the extracted relationship evidence (rank, weight, description). Materialises the singleton-property relationships found in the GraphRAG data dumps so that edge evidence can be cited (arXiv:2404.16130v2, §3.1.2: 'identify all pairs of (source entity, target entity) that are clearly related'; §3.1.3: 'the number of duplicates for a given relationship becomes edge weights'). Apache Jena extension term."@en,
+                          "Arête réifiée entre deux Entités du graphe de connaissances, portant les preuves de la relation extraite (rang, poids, description). Matérialise les relations en singleton-property présentes dans les dumps de données GraphRAG afin que les preuves d'arête puissent être citées (arXiv:2404.16130v2, §3.1.2 ; §3.1.3). Terme d'extension Apache Jena."@fr .
+
+mg:source
+        rdf:type          owl:ObjectProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:domain       mg:Relationship;
+        rdfs:range        mg:Entity;
+        rdfs:label        "source"@en, "source"@fr;
+        rdfs:comment      "Relates a Relationship to its source Entity. Apache Jena extension term."@en,
+                          "Relie une Relation à son Entité source. Terme d'extension Apache Jena."@fr .
+
+mg:target
+        rdf:type          owl:ObjectProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:domain       mg:Relationship;
+        rdfs:range        mg:Entity;
+        rdfs:label        "target"@en, "target"@fr;
+        rdfs:comment      "Relates a Relationship to its target Entity. Apache Jena extension term."@en,
+                          "Relie une Relation à son Entité cible. Terme d'extension Apache Jena."@fr .
+
+mg:weight
+        rdf:type          owl:DatatypeProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:range        xsd:float;
+        rdfs:label        "weight"@en, "poids"@fr;
+        rdfs:comment      "Edge weight of a Relationship, derived from the number of duplicate relationship instances (arXiv:2404.16130v2, §3.1.3: 'the number of duplicates for a given relationship becomes edge weights'). Present in the GraphRAG data dumps."@en,
+                          "Poids d'arête d'une Relation, dérivé du nombre d'occurrences dupliquées de la relation (arXiv:2404.16130v2, §3.1.3). Présent dans les dumps de données GraphRAG."@fr .
+
+mg:type
+        rdf:type          owl:DatatypeProperty;
+        rdfs:isDefinedBy  mg:;
+        rdfs:range        xsd:string;
+        rdfs:label        "type"@en, "type"@fr;
+        rdfs:comment      "Category label of an Entity assigned during extraction (e.g. PERSON, ORGANIZATION, GEO), as produced by the GraphRAG entity extraction step (arXiv:2404.16130v2, §3.1.2). Present in the GraphRAG data dumps."@en,
+                          "Étiquette de catégorie d'une Entité attribuée lors de l'extraction (ex. PERSON, ORGANIZATION, GEO), telle que produite par l'étape d'extraction d'entités de GraphRAG (arXiv:2404.16130v2, §3.1.2). Présent dans les dumps de données GraphRAG."@fr .

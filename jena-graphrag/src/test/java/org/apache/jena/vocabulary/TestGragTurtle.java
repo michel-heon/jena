@@ -42,7 +42,7 @@ public class TestGragTurtle {
 
         String[] locals = {
             "Document", "Chunk", "Entity",
-            "Community", "Covariate", "Finding"
+            "Community", "Covariate", "Finding", "Relationship"
         };
         for (String local : locals) {
             assertTrue(m.containsResource(m.createResource(GRAG.uri + local)),
@@ -59,10 +59,12 @@ public class TestGragTurtle {
 
         String[] propLocals = {
             "hasCovariate", "hasFinding", "inCommunity", "relatedTo", "hasEntity", "partOf",
+            "source", "target",
             "documentIds", "textUnitId", "finding", "summary",
             "rankExplanation", "level", "fullContent", "rank",
             "descriptionEmbedding", "humanReadableId", "description", "name",
-            "text", "nTokens", "id", "title"
+            "text", "nTokens", "id", "title",
+            "weight", "type"
         };
         for (String local : propLocals) {
             assertTrue(m.containsResource(m.createResource(GRAG.uri + local)),

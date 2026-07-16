@@ -64,6 +64,13 @@ public class GRAG {
     public static final Resource Covariate = m.createResource(uri + "Covariate");
     public static final Resource Finding   = m.createResource(uri + "Finding");
 
+    /**
+     * Reified relationship edge (Apache Jena extension term, not part of the
+     * upstream Ormesher OWL ontology). See
+     * {@code docs/adr/402-DATA-normalisation-import-mg-relationship.md}.
+     */
+    public static final Resource Relationship = m.createResource(uri + "Relationship");
+
     /* ##########################################################
      * Defines GRAG Properties
      * (from msft-graphrag.ttl)
@@ -76,6 +83,10 @@ public class GRAG {
     public static final Property relatedTo    = m.createProperty(uri + "relatedTo");
     public static final Property hasEntity    = m.createProperty(uri + "hasEntity");
     public static final Property partOf       = m.createProperty(uri + "partOf");
+
+    // Object properties (Apache Jena extension: reified relationship endpoints)
+    public static final Property source       = m.createProperty(uri + "source");
+    public static final Property target       = m.createProperty(uri + "target");
 
     // Datatype properties
     public static final Property documentIds         = m.createProperty(uri + "documentIds");
@@ -94,4 +105,8 @@ public class GRAG {
     public static final Property nTokens             = m.createProperty(uri + "nTokens");
     public static final Property id                  = m.createProperty(uri + "id");
     public static final Property title               = m.createProperty(uri + "title");
+
+    // Datatype properties (Apache Jena extension: present in data dumps, absent from OWL)
+    public static final Property weight              = m.createProperty(uri + "weight");
+    public static final Property type                = m.createProperty(uri + "type");
 }

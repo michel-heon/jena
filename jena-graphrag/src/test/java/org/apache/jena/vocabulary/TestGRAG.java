@@ -46,11 +46,12 @@ public class TestGRAG {
             GRAG.Entity,
             GRAG.Community,
             GRAG.Covariate,
-            GRAG.Finding
+            GRAG.Finding,
+            GRAG.Relationship
         };
         String[] locals = {
             "Document", "Chunk", "Entity",
-            "Community", "Covariate", "Finding"
+            "Community", "Covariate", "Finding", "Relationship"
         };
         for (int i = 0; i < classes.length; i++) {
             assertNotNull(classes[i], "class is null: " + locals[i]);
@@ -62,17 +63,21 @@ public class TestGRAG {
     public void properties_areDeclared() {
         Property[] props = {
             GRAG.hasCovariate, GRAG.hasFinding, GRAG.inCommunity, GRAG.relatedTo, GRAG.hasEntity, GRAG.partOf,
+            GRAG.source, GRAG.target,
             GRAG.documentIds, GRAG.textUnitId, GRAG.finding, GRAG.summary,
             GRAG.rankExplanation, GRAG.level, GRAG.fullContent, GRAG.rank,
             GRAG.descriptionEmbedding, GRAG.humanReadableId, GRAG.description, GRAG.name,
-            GRAG.text, GRAG.nTokens, GRAG.id, GRAG.title
+            GRAG.text, GRAG.nTokens, GRAG.id, GRAG.title,
+            GRAG.weight, GRAG.type
         };
         String[] locals = {
             "hasCovariate", "hasFinding", "inCommunity", "relatedTo", "hasEntity", "partOf",
+            "source", "target",
             "documentIds", "textUnitId", "finding", "summary",
             "rankExplanation", "level", "fullContent", "rank",
             "descriptionEmbedding", "humanReadableId", "description", "name",
-            "text", "nTokens", "id", "title"
+            "text", "nTokens", "id", "title",
+            "weight", "type"
         };
         for (int i = 0; i < props.length; i++) {
             assertNotNull(props[i], "property is null: " + locals[i]);
