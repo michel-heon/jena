@@ -42,12 +42,17 @@ import org.apache.jena.web.HttpSC;
 /** Experimental {@code /{dataset}/graphrag/context} operation. */
 public final class GraphRAGContextAction extends ActionREST {
 
-    private static final int DEFAULT_TOP_K = 5;
     private final GraphRAGContextService contextService = new GraphRAGContextService();
     private final DatasetGraph datasetGraph;
+    private final GraphRAGConfiguration configuration;
 
     GraphRAGContextAction(DatasetGraph datasetGraph) {
+        this(datasetGraph, GraphRAGConfiguration.fromSystemProperties());
+    }
+
+    GraphRAGContextAction(DatasetGraph datasetGraph, GraphRAGConfiguration configuration) {
         this.datasetGraph = Objects.requireNonNull(datasetGraph);
+        this.configuration = Objects.requireNonNull(configuration);
     }
 
     @Override
@@ -64,8 +69,8 @@ public final class GraphRAGContextAction extends ActionREST {
     }
 
     private void executeContext(HttpAction action) {
-        String mode = parameter(action, "mode", "local");
-        if ( !"local".equals(mode) ) {
+        String mode = parameter(action, "mode", configuration.defaultMode());
+        if ( !configuration.defaultMode().equals(mode) ) {
             writeError(action, "mode invalide: " + mode);
             return;
         }
@@ -87,12 +92,12 @@ public final class GraphRAGContextAction extends ActionREST {
         }
     }
 
-    private static Integer parseTopK(HttpAction action) {
-        String value = parameter(action, "topK", Integer.toString(DEFAULT_TOP_K));
+    private Integer parseTopK(HttpAction action) {
+        String value = parameter(action, "topK", Integer.toString(configuration.defaultTopK()));
         try {
             int topK = Integer.parseInt(value);
-            if ( topK < 1 || topK > 100 ) {
-                writeError(action, "topK doit etre compris entre 1 et 100");
+            if ( topK < 1 || topK > configuration.maxTopK() ) {
+                writeError(action, "topK doit etre compris entre 1 et " + configuration.maxTopK());
                 return null;
             }
             return topK;
