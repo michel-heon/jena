@@ -65,6 +65,19 @@
       <artifactId>junit-jupiter</artifactId>
       <scope>test</scope>
     </dependency>
+
+    <!-- PDF ingestion (ADR-403): declared here only, NOT in Jena root BOM -->
+    <dependency>
+      <groupId>org.apache.pdfbox</groupId>
+      <artifactId>pdfbox</artifactId>
+      <version>3.0.8</version>
+    </dependency>
+
+    <!-- SHA-256 hashing for stable document/chunk URIs; version managed by Jena BOM -->
+    <dependency>
+      <groupId>commons-codec</groupId>
+      <artifactId>commons-codec</artifactId>
+    </dependency>
   </dependencies>
 
 </project>

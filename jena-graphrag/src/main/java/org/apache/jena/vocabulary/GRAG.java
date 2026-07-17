@@ -109,4 +109,10 @@ public class GRAG {
     // Datatype properties (Apache Jena extension: present in data dumps, absent from OWL)
     public static final Property weight              = m.createProperty(uri + "weight");
     public static final Property type                = m.createProperty(uri + "type");
+
+    // Datatype properties (Apache Jena extension: PDF ingestion traceability — ADR-403)
+    public static final Property sourceHash  = m.createProperty(uri + "sourceHash");
+    public static final Property sourceFile  = m.createProperty(uri + "sourceFile");
+    public static final Property chunkIndex  = m.createProperty(uri + "chunkIndex");
+    public static final Property chunkPages  = m.createProperty(uri + "chunkPages");
 }
