@@ -21,24 +21,35 @@
 
 package org.apache.jena.graphrag.ingestion;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Path;
+import java.util.List;
 
+import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.jena.query.ReadWrite;
 import org.apache.jena.query.Dataset;
+import org.apache.jena.rdf.model.Model;
+import org.apache.jena.rdf.model.ModelFactory;
+import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.vocabulary.GRAG;
+import org.apache.jena.vocabulary.RDF;
 
 /**
- * Orchestrates PDF ingestion: validate → extract → chunk → write transactionally.
- * <p>
- * <strong>Stub implementation</strong> — throws {@link UnsupportedOperationException}
- * until Tranche 4 provides the full pipeline (ADR-403).
+ * Orchestrates PDF ingestion: validate, extract, chunk, then write transactionally.
  */
 public class DocumentIngestionService {
 
     private final DocumentIngestionConfig config;
+    private final PdfTextExtractor extractor;
+    private final TextChunker chunker;
 
     public DocumentIngestionService(DocumentIngestionConfig config) {
         if (config == null)
             throw new IllegalArgumentException("config must not be null");
         this.config = config;
+        this.extractor = new PdfTextExtractor();
+        this.chunker = new TextChunker(config);
     }
 
     /**
@@ -51,7 +62,66 @@ public class DocumentIngestionService {
      * @throws IngestionException       if the file fails validation or RDF write fails
      */
     public void ingest(Path pdfPath, Dataset dataset) {
-        throw new UnsupportedOperationException(
-                "DocumentIngestionService.ingest() not implemented yet — see Tranche 4 (ADR-403)");
+        if (pdfPath == null)
+            throw new IllegalArgumentException("pdfPath must not be null");
+        if (dataset == null)
+            throw new IllegalArgumentException("dataset must not be null");
+
+        PdfTextExtractor.ExtractedText extractedText = extractor.extract(pdfPath, config);
+        List<TextChunker.TextChunk> chunks = chunker.chunk(extractedText);
+        if (chunks.isEmpty())
+            throw new IngestionException(ErrorKind.NO_TEXT, "PDF produced no chunks: " + pdfPath);
+
+        String sourceHash = sha256Hex(pdfPath);
+        Model additions = toModel(pdfPath, sourceHash, chunks);
+        writeAtomically(dataset, additions);
+    }
+
+    private Model toModel(Path pdfPath, String sourceHash, List<TextChunker.TextChunk> chunks) {
+        Model model = ModelFactory.createDefaultModel();
+        String hashPrefix = sourceHash.substring(0, 32);
+        Resource document = model.createResource(config.baseUri() + "doc-" + hashPrefix)
+                .addProperty(RDF.type, GRAG.Document)
+                .addLiteral(GRAG.sourceHash, sourceHash)
+                .addLiteral(GRAG.sourceFile, pdfPath.getFileName().toString());
+
+        for (TextChunker.TextChunk chunk : chunks) {
+            model.createResource(config.baseUri() + "chunk-" + hashPrefix + "-" + chunk.index())
+                    .addProperty(RDF.type, GRAG.Chunk)
+                    .addProperty(GRAG.partOf, document)
+                    .addLiteral(GRAG.chunkIndex, chunk.index())
+                    .addLiteral(GRAG.chunkPages, pageRange(chunk))
+                    .addLiteral(GRAG.text, chunk.text());
+        }
+        return model;
+    }
+
+    private static String pageRange(TextChunker.TextChunk chunk) {
+        if (chunk.startPage() == chunk.endPage())
+            return Integer.toString(chunk.startPage());
+        return chunk.startPage() + "-" + chunk.endPage();
+    }
+
+    private static void writeAtomically(Dataset dataset, Model additions) {
+        dataset.begin(ReadWrite.WRITE);
+        try {
+            dataset.getDefaultModel().add(additions);
+            dataset.commit();
+        } catch (RuntimeException ex) {
+            dataset.abort();
+            throw new IngestionException(ErrorKind.TRANSACTION_FAILED,
+                    "Failed to write PDF ingestion triples", ex);
+        } finally {
+            dataset.end();
+        }
+    }
+
+    private static String sha256Hex(Path pdfPath) {
+        try (InputStream in = java.nio.file.Files.newInputStream(pdfPath)) {
+            return DigestUtils.sha256Hex(in);
+        } catch (IOException ex) {
+            throw new IngestionException(ErrorKind.INVALID_FORMAT,
+                    "Could not hash PDF bytes: " + pdfPath, ex);
+        }
     }
 }
