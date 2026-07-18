@@ -268,6 +268,37 @@ public class TestPdfDocumentIngestion {
         assertEquals(DocumentIngestionConfig.DEFAULT_MAX_FILE_SIZE_BYTES, cfg.maxFileSizeBytes());
     }
 
+    @Test
+    void config_fromSystemProperties_usesExternalizedValues() {
+        String previousBaseUri = setProperty(DocumentIngestionConfig.BASE_URI_PROPERTY, "http://example.test/data#");
+        String previousChunkSize = setProperty(DocumentIngestionConfig.CHUNK_SIZE_PROPERTY, "512");
+        String previousChunkOverlap = setProperty(DocumentIngestionConfig.CHUNK_OVERLAP_PROPERTY, "64");
+        String previousMaxFileSize = setProperty(DocumentIngestionConfig.MAX_FILE_SIZE_BYTES_PROPERTY, "4096");
+        try {
+            DocumentIngestionConfig cfg = DocumentIngestionConfig.fromSystemProperties();
+
+            assertEquals("http://example.test/data#", cfg.baseUri());
+            assertEquals(512, cfg.chunkSize());
+            assertEquals(64, cfg.chunkOverlap());
+            assertEquals(4_096L, cfg.maxFileSizeBytes());
+        } finally {
+            restoreProperty(DocumentIngestionConfig.BASE_URI_PROPERTY, previousBaseUri);
+            restoreProperty(DocumentIngestionConfig.CHUNK_SIZE_PROPERTY, previousChunkSize);
+            restoreProperty(DocumentIngestionConfig.CHUNK_OVERLAP_PROPERTY, previousChunkOverlap);
+            restoreProperty(DocumentIngestionConfig.MAX_FILE_SIZE_BYTES_PROPERTY, previousMaxFileSize);
+        }
+    }
+
+    @Test
+    void config_fromSystemProperties_rejectsInvalidExternalizedValues() {
+        String previousChunkSize = setProperty(DocumentIngestionConfig.CHUNK_SIZE_PROPERTY, "not-an-int");
+        try {
+            assertThrows(IllegalArgumentException.class, DocumentIngestionConfig::fromSystemProperties);
+        } finally {
+            restoreProperty(DocumentIngestionConfig.CHUNK_SIZE_PROPERTY, previousChunkSize);
+        }
+    }
+
     // =========================================================================
     // Helpers
     // =========================================================================
@@ -315,5 +346,18 @@ public class TestPdfDocumentIngestion {
         } finally {
             ds.end();
         }
+    }
+
+    private String setProperty(String property, String value) {
+        String previous = System.getProperty(property);
+        System.setProperty(property, value);
+        return previous;
+    }
+
+    private void restoreProperty(String property, String previous) {
+        if (previous == null)
+            System.clearProperty(property);
+        else
+            System.setProperty(property, previous);
     }
 }

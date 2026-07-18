@@ -45,6 +45,11 @@ public record DocumentIngestionConfig(
     /** Minimum allowed chunk size in characters. */
     public static final int    MIN_CHUNK_SIZE             = 50;
 
+    public static final String BASE_URI_PROPERTY            = "jena.graphrag.ingestion.baseUri";
+    public static final String CHUNK_SIZE_PROPERTY          = "jena.graphrag.ingestion.chunkSize";
+    public static final String CHUNK_OVERLAP_PROPERTY       = "jena.graphrag.ingestion.chunkOverlap";
+    public static final String MAX_FILE_SIZE_BYTES_PROPERTY = "jena.graphrag.ingestion.maxFileSizeBytes";
+
     public DocumentIngestionConfig {
         if (baseUri == null || baseUri.isBlank())
             throw new IllegalArgumentException("baseUri must not be blank");
@@ -67,5 +72,36 @@ public record DocumentIngestionConfig(
                 DEFAULT_CHUNK_SIZE,
                 DEFAULT_CHUNK_OVERLAP,
                 DEFAULT_MAX_FILE_SIZE_BYTES);
+    }
+
+    /** Returns a config loaded from system properties, falling back to defaults. */
+    public static DocumentIngestionConfig fromSystemProperties() {
+        return new DocumentIngestionConfig(
+                System.getProperty(BASE_URI_PROPERTY, DEFAULT_BASE_URI),
+                intProperty(CHUNK_SIZE_PROPERTY, DEFAULT_CHUNK_SIZE),
+                intProperty(CHUNK_OVERLAP_PROPERTY, DEFAULT_CHUNK_OVERLAP),
+                longProperty(MAX_FILE_SIZE_BYTES_PROPERTY, DEFAULT_MAX_FILE_SIZE_BYTES));
+    }
+
+    private static int intProperty(String property, int fallback) {
+        String value = System.getProperty(property);
+        if (value == null)
+            return fallback;
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("Invalid integer system property " + property + ": " + value, ex);
+        }
+    }
+
+    private static long longProperty(String property, long fallback) {
+        String value = System.getProperty(property);
+        if (value == null)
+            return fallback;
+        try {
+            return Long.parseLong(value.trim());
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("Invalid long system property " + property + ": " + value, ex);
+        }
     }
 }
