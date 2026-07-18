@@ -39,17 +39,36 @@ import org.apache.jena.riot.WebContent;
 import org.apache.jena.sparql.core.DatasetGraph;
 import org.apache.jena.web.HttpSC;
 
-/** Experimental {@code /{dataset}/graphrag/context} operation. */
+/**
+ * Experimental {@code /{dataset}/graphrag/context} operation registered by
+ * {@link GraphRAGModule} when {@code grag:enableGraphRAG true} is present.
+ * <p>
+ * The action accepts {@code GET} and {@code POST} with query parameter
+ * {@code q}, optional {@code mode=local}, and optional {@code topK}. It opens a
+ * read transaction around local RDF retrieval, emits JSON, and performs no LLM
+ * call or external network request.
+ */
 public final class GraphRAGContextAction extends ActionREST {
 
     private final GraphRAGContextService contextService = new GraphRAGContextService();
     private final DatasetGraph datasetGraph;
     private final GraphRAGConfiguration configuration;
 
+    /**
+     * Creates an action using configuration loaded from JVM system properties.
+     *
+     * @param datasetGraph dataset to query; request handling opens read transactions
+     */
     GraphRAGContextAction(DatasetGraph datasetGraph) {
         this(datasetGraph, GraphRAGConfiguration.fromSystemProperties());
     }
 
+    /**
+     * Creates an action with explicit request limits, primarily for tests.
+     *
+     * @param datasetGraph dataset to query; must not be {@code null}
+     * @param configuration request defaults and {@code topK} limits; must not be {@code null}
+     */
     GraphRAGContextAction(DatasetGraph datasetGraph, GraphRAGConfiguration configuration) {
         this.datasetGraph = Objects.requireNonNull(datasetGraph);
         this.configuration = Objects.requireNonNull(configuration);
@@ -68,6 +87,10 @@ public final class GraphRAGContextAction extends ActionREST {
         executeContext(action);
     }
 
+    /**
+     * Validates request parameters, executes local retrieval in a read
+     * transaction, and writes either the JSON context or a 400 JSON error.
+     */
     private void executeContext(HttpAction action) {
         String mode = parameter(action, "mode", configuration.defaultMode());
         if ( !configuration.defaultMode().equals(mode) ) {

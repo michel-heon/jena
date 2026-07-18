@@ -35,7 +35,14 @@ import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.sparql.core.DatasetGraph;
 
-/** Retrieves local entity context directly from the normalized RDF graph. */
+/**
+ * Retrieves local entity context directly from a normalized GraphRAG RDF graph.
+ * <p>
+ * The service is the shared Java implementation behind the delivered local
+ * Fuseki endpoint. It reads {@code mg:Entity} and {@code mg:Relationship}
+ * resources, performs no LLM call or external network request, and leaves
+ * transaction ownership to the caller.
+ */
 public final class GraphRAGContextService {
 
     private static final String LOCAL_QUERY = """
@@ -55,11 +62,18 @@ public final class GraphRAGContextService {
             """;
 
     /**
-     * Retrieves local context. The caller owns the dataset transaction.
+        * Retrieves relationship-backed local context for entities whose
+        * {@code mg:name} contains the query text.
+        * <p>
+        * The caller must open the appropriate dataset transaction. The returned
+        * context uses mode {@code local}; hybrid text/vector modes are not produced
+        * by this Phase 2 service.
      *
-     * @param datasetGraph normalized GraphRAG dataset
-     * @param query entity-name search text
-     * @param topK maximum number of results
+        * @param datasetGraph normalized GraphRAG dataset; caller owns its transaction
+        * @param query non-blank entity-name search text
+        * @param topK maximum number of results, from 1 to 100 inclusive
+        * @return cited local context, possibly with an empty result list
+        * @throws IllegalArgumentException if {@code query} is blank or {@code topK} is outside bounds
      */
     public GraphRAGContext retrieve(DatasetGraph datasetGraph, String query, int topK) {
         if ( query == null || query.isBlank() )

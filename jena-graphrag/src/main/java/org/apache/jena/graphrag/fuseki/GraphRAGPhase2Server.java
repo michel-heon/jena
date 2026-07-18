@@ -32,11 +32,23 @@ import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
 
-/** Foreground Fuseki server for the Phase 2 manual validation workflow. */
+/**
+ * Foreground Fuseki server for the delivered local GraphRAG validation workflow.
+ * <p>
+ * The server loads an RDF dump into an in-memory dataset, optionally enables the
+ * GraphRAG Fuseki module, and blocks until stopped. It is intended for local
+ * validation from scripts, not as a production launcher.
+ */
 public final class GraphRAGPhase2Server {
 
     private GraphRAGPhase2Server() {}
 
+    /**
+     * Starts a local Fuseki server for manual validation.
+     *
+     * @param args {@code <corpus> <port> <dataset> <true|false>}
+     * @throws IllegalArgumentException if the corpus, port, dataset name, or activation flag is invalid
+     */
     public static void main(String... args) {
         Settings settings = Settings.parse(args);
         if ( !Files.isRegularFile(settings.corpus()) )

@@ -32,16 +32,34 @@ public class IngestionException extends RuntimeException {
 
     private final ErrorKind kind;
 
+    /**
+     * Creates a structured ingestion failure without an underlying cause.
+     *
+     * @param kind stable machine-readable failure category
+     * @param message human-readable diagnostic message
+     */
     public IngestionException(ErrorKind kind, String message) {
         super(message);
         this.kind = kind;
     }
 
+    /**
+     * Creates a structured ingestion failure wrapping the underlying exception.
+     *
+     * @param kind stable machine-readable failure category
+     * @param message human-readable diagnostic message
+     * @param cause lower-level cause that triggered ingestion failure
+     */
     public IngestionException(ErrorKind kind, String message, Throwable cause) {
         super(message, cause);
         this.kind = kind;
     }
 
+    /**
+     * Returns the stable error category for callers and tests.
+     *
+     * @return ingestion failure kind
+     */
     public ErrorKind getKind() {
         return kind;
     }

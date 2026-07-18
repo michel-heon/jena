@@ -28,9 +28,16 @@ import org.apache.jena.fuseki.main.sys.FusekiModule;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.Property;
 
-/** Registers optional GraphRAG operations with Fuseki. */
+/**
+ * Fuseki SPI module that registers optional GraphRAG HTTP operations.
+ * <p>
+ * Registration is opt-in: no processor is added unless the Fuseki configuration
+ * model contains {@code grag:enableGraphRAG true}. The current processor exposes
+ * the delivered local context endpoint only.
+ */
 public final class GraphRAGModule implements FusekiModule {
 
+    /** Namespace for GraphRAG Fuseki configuration terms such as {@code enableGraphRAG}. */
     public static final String CONFIG_NS = "https://jena.apache.org/graphrag/vocab#";
 
     /** Constructor used by Java SPI; configuration remains opt-in. */
@@ -49,6 +56,12 @@ public final class GraphRAGModule implements FusekiModule {
                 name + "/graphrag/context", new GraphRAGContextAction(builder.getDataset(name))));
     }
 
+    /**
+     * Tests whether the configuration model explicitly enables GraphRAG.
+     *
+     * @param configModel Fuseki configuration model, or {@code null}
+     * @return {@code true} only when {@code grag:enableGraphRAG true} is present
+     */
     static boolean isEnabled(Model configModel) {
         if ( configModel == null )
             return false;

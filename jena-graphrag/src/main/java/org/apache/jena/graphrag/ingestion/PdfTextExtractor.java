@@ -37,11 +37,23 @@ import org.apache.pdfbox.text.PDFTextStripper;
 
 /**
  * Local PDF text extraction adapter for PDFBox 3.x.
+ * <p>
+ * The adapter validates file readability, size, PDF magic bytes and encryption
+ * before returning normalized page text. It performs local disk I/O only.
  */
 final class PdfTextExtractor {
 
     private static final byte[] PDF_MAGIC = "%PDF-".getBytes(StandardCharsets.US_ASCII);
 
+    /**
+     * Extracts normalized text and page spans from a textual PDF.
+     *
+     * @param pdfPath path to a readable PDF file
+     * @param config size limit and ingestion configuration
+     * @return extracted text with page offsets used by chunk citation metadata
+     * @throws IllegalArgumentException if the path is null, unreadable, or not a regular file
+     * @throws IngestionException if the file is invalid, too large, encrypted, or has no text
+     */
     ExtractedText extract(Path pdfPath, DocumentIngestionConfig config) {
         validateFile(pdfPath, config);
 
@@ -128,7 +140,19 @@ final class PdfTextExtractor {
         return true;
     }
 
+    /**
+     * Normalized PDF text plus page spans for mapping chunk offsets to pages.
+     *
+     * @param text normalized full-text content
+     * @param pages page spans in ascending page order
+     */
     record ExtractedText(String text, List<PageSpan> pages) {
+        /**
+         * Resolves a character offset to its one-based PDF page number.
+         *
+         * @param offset character offset in {@link #text()}
+         * @return matching page number, or the last known page for trailing offsets
+         */
         int pageForOffset(int offset) {
             for (PageSpan page : pages) {
                 if (offset >= page.startOffset() && offset < page.endOffset())
@@ -138,5 +162,6 @@ final class PdfTextExtractor {
         }
     }
 
+    /** Page number and half-open text offset range within {@link ExtractedText#text()}. */
     private record PageSpan(int pageNumber, int startOffset, int endOffset) {}
 }

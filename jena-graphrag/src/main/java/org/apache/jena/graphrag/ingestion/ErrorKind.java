@@ -34,6 +34,6 @@ public enum ErrorKind {
     ENCRYPTED,
     /** No readable text could be extracted from the PDF. */
     NO_TEXT,
-    /** Jena transactional write failed during RDF serialisation. */
+    /** Jena transactional write failed while adding ingestion triples. */
     TRANSACTION_FAILED
 }

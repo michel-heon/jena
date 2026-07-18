@@ -36,7 +36,13 @@ import org.apache.jena.vocabulary.GRAG;
 import org.apache.jena.vocabulary.RDF;
 
 /**
- * Orchestrates PDF ingestion: validate, extract, chunk, then write transactionally.
+ * Orchestrates local PDF ingestion into GraphRAG RDF resources.
+ * <p>
+ * The service validates a textual PDF, extracts normalized text, creates
+ * deterministic chunks, then writes one {@code mg:Document} and related
+ * {@code mg:Chunk} resources in a single dataset transaction. It performs no
+ * network request and does not generate embeddings; vectorization is a later
+ * Phase 3 story.
  */
 public class DocumentIngestionService {
 
@@ -44,6 +50,12 @@ public class DocumentIngestionService {
     private final PdfTextExtractor extractor;
     private final TextChunker chunker;
 
+    /**
+     * Creates an ingestion service with validated resource limits and chunking parameters.
+     *
+     * @param config ingestion configuration; must not be {@code null}
+     * @throws IllegalArgumentException if {@code config} is {@code null}
+     */
     public DocumentIngestionService(DocumentIngestionConfig config) {
         if (config == null)
             throw new IllegalArgumentException("config must not be null");
@@ -54,7 +66,10 @@ public class DocumentIngestionService {
 
     /**
      * Ingests a PDF file into the given {@code Dataset}, producing
-     * one {@code mg:Document} and N {@code mg:Chunk} resources.
+        * one stable {@code mg:Document} and N stable {@code mg:Chunk} resources.
+        * <p>
+        * The method owns the write transaction. If validation, extraction, chunking,
+        * hashing, or RDF write fails, no partial graph is committed.
      *
      * @param pdfPath path to the PDF file (must be readable)
      * @param dataset target Jena dataset (must support transactions)

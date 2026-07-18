@@ -27,6 +27,11 @@ package org.apache.jena.graphrag.ingestion;
  * is detected before any I/O or RDF write.
  * <p>
  * Defined in ADR-403.
+ *
+ * @param baseUri base URI used to mint stable {@code mg:Document} and {@code mg:Chunk} resources
+ * @param chunkSize maximum text window size in characters
+ * @param chunkOverlap number of trailing characters reused in the next chunk
+ * @param maxFileSizeBytes maximum accepted PDF size in bytes
  */
 public record DocumentIngestionConfig(
         String  baseUri,
@@ -45,11 +50,21 @@ public record DocumentIngestionConfig(
     /** Minimum allowed chunk size in characters. */
     public static final int    MIN_CHUNK_SIZE             = 50;
 
+    /** System property overriding {@link #baseUri()}. */
     public static final String BASE_URI_PROPERTY            = "jena.graphrag.ingestion.baseUri";
+    /** System property overriding {@link #chunkSize()}. */
     public static final String CHUNK_SIZE_PROPERTY          = "jena.graphrag.ingestion.chunkSize";
+    /** System property overriding {@link #chunkOverlap()}. */
     public static final String CHUNK_OVERLAP_PROPERTY       = "jena.graphrag.ingestion.chunkOverlap";
+    /** System property overriding {@link #maxFileSizeBytes()}. */
     public static final String MAX_FILE_SIZE_BYTES_PROPERTY = "jena.graphrag.ingestion.maxFileSizeBytes";
 
+    /**
+     * Validates chunking and resource limits before any PDF is read.
+     *
+     * @throws IllegalArgumentException if {@code baseUri} is blank, the chunk window is invalid,
+     *         or {@code maxFileSizeBytes} is not positive
+     */
     public DocumentIngestionConfig {
         if (baseUri == null || baseUri.isBlank())
             throw new IllegalArgumentException("baseUri must not be blank");
@@ -65,7 +80,11 @@ public record DocumentIngestionConfig(
                     "maxFileSizeBytes must be > 0, got: " + maxFileSizeBytes);
     }
 
-    /** Returns a config with default values. */
+    /**
+     * Returns the default local ingestion configuration used by scripts and tests.
+     *
+     * @return validated default configuration
+     */
     public static DocumentIngestionConfig defaults() {
         return new DocumentIngestionConfig(
                 DEFAULT_BASE_URI,
@@ -74,7 +93,12 @@ public record DocumentIngestionConfig(
                 DEFAULT_MAX_FILE_SIZE_BYTES);
     }
 
-    /** Returns a config loaded from system properties, falling back to defaults. */
+    /**
+     * Loads public ingestion parameters from JVM system properties.
+     *
+     * @return validated configuration, falling back to defaults for absent properties
+     * @throws IllegalArgumentException if a numeric property cannot be parsed or violates bounds
+     */
     public static DocumentIngestionConfig fromSystemProperties() {
         return new DocumentIngestionConfig(
                 System.getProperty(BASE_URI_PROPERTY, DEFAULT_BASE_URI),
