@@ -52,8 +52,9 @@ public final class GraphRAGModule implements FusekiModule {
     public void prepare(FusekiServer.Builder builder, Set<String> datasetNames, Model configModel) {
         if ( !isEnabled(configModel) )
             return;
+        GraphRAGConfiguration configuration = GraphRAGConfiguration.fromModel(configModel);
         datasetNames.forEach(name -> builder.addProcessor(
-                name + "/graphrag/context", new GraphRAGContextAction(builder.getDataset(name))));
+                name + "/graphrag/context", new GraphRAGContextAction(builder.getDataset(name), configuration)));
     }
 
     /**
