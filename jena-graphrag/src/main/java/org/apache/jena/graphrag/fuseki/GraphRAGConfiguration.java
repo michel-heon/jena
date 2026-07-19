@@ -21,6 +21,7 @@
 
 package org.apache.jena.graphrag.fuseki;
 
+import org.apache.jena.graphrag.retrieval.GraphRAGContextService;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.Property;
 import org.apache.jena.rdf.model.RDFNode;
@@ -29,7 +30,8 @@ import org.apache.jena.rdf.model.StmtIterator;
 /**
  * Runtime limits for the experimental GraphRAG Fuseki endpoint.
  * <p>
- * The delivered endpoint supports the {@code local} and {@code global} modes.
+ * The delivered endpoint supports the {@code basic}, {@code local} and
+ * {@code global} modes.
  * Instances are validated eagerly so invalid system properties fail before
  * request handling.
  *
@@ -49,14 +51,13 @@ record GraphRAGConfiguration(String defaultMode, int defaultTopK, int maxTopK, d
     /** System property overriding {@code grag:hybridAlpha}. */
     static final String HYBRID_ALPHA_PROPERTY = "jena.graphrag.hybridAlpha";
 
-    private static final String FALLBACK_MODE = "local";
-    private static final String GLOBAL_MODE = "global";
+    private static final String FALLBACK_MODE = GraphRAGContextService.LOCAL_MODE;
     private static final int FALLBACK_DEFAULT_TOP_K = 5;
     private static final int FALLBACK_MAX_TOP_K = 100;
     private static final double FALLBACK_HYBRID_ALPHA = 0.5;
 
     GraphRAGConfiguration {
-        if ( !FALLBACK_MODE.equals(defaultMode) && !GLOBAL_MODE.equals(defaultMode) )
+        if ( !GraphRAGContextService.supportsMode(defaultMode) )
             throw new IllegalArgumentException("defaultMode invalide: " + defaultMode);
         if ( defaultTopK < 1 )
             throw new IllegalArgumentException("defaultTopK doit etre positif");

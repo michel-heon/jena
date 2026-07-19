@@ -100,6 +100,33 @@ public class TestGraphRAGContextEndpoint {
     }
 
     @Test
+    public void get_basicModeMatchesNativeSparqlTop5() throws Exception {
+        Dataset dataset = basicDataset();
+        String[] expected = nativeBasicTop5(dataset, "ledger");
+        FusekiServer server = server(dataset, true);
+        try {
+            HttpResponse<String> response = get(server, "?q=ledger&mode=basic&topK=5");
+
+            assertEquals(200, response.statusCode());
+            JsonObject body = JSON.parse(response.body());
+            assertEquals("basic", body.get("mode").getAsString().value());
+            JsonArray results = body.get("results").getAsArray();
+            assertEquals(expected.length, results.size());
+            for ( int i = 0; i < expected.length; i++ ) {
+                JsonObject result = results.get(i).getAsObject();
+                assertEquals(expected[i], result.get("uri").getAsString().value());
+                assertEquals("chunk", result.get("type").getAsString().value());
+                assertEquals(expected[i], result.get("chunkUri").getAsString().value());
+                assertEquals("urn:document:basic", result.get("documentUri").getAsString().value());
+                assertTrue(result.get("sourceText").getAsString().value().contains("ledger"));
+                assertTrue(result.get("chunkText").getAsString().value().contains("ledger"));
+            }
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
     public void get_globalModeMatchesNativeSparqlTop3() throws Exception {
         Dataset dataset = globalDataset();
         String[] expected = nativeGlobalTop3(dataset, "energy");
@@ -210,6 +237,28 @@ public class TestGraphRAGContextEndpoint {
         return dataset;
     }
 
+    private static Dataset basicDataset() {
+        Dataset base = DatasetFactory.createTxnMem();
+        Dataset dataset = GraphRAGTextDatasetFactory.createRetrievalTextDataset(base, new ByteBuffersDirectory());
+        dataset.begin(ReadWrite.WRITE);
+        try {
+            Resource document = dataset.getDefaultModel().createResource("urn:document:basic");
+            document.addProperty(RDF.type, GRAG.Document);
+            Resource chunk = dataset.getDefaultModel().createResource("urn:chunk:basic");
+            chunk.addProperty(RDF.type, GRAG.Chunk)
+                 .addProperty(GRAG.text, "The ledger records the counting-house evidence.")
+                 .addProperty(GRAG.partOf, document);
+            Resource otherChunk = dataset.getDefaultModel().createResource("urn:chunk:basic-2");
+            otherChunk.addProperty(RDF.type, GRAG.Chunk)
+                      .addProperty(GRAG.text, "A second ledger entry keeps the ordering test honest.")
+                      .addProperty(GRAG.partOf, document);
+            dataset.commit();
+        } finally {
+            dataset.end();
+        }
+        return dataset;
+    }
+
     private static void addCommunity(Dataset dataset, String uri, String title, String summary, String fullContent) {
         Resource community = dataset.getDefaultModel().createResource(uri);
         community.addProperty(RDF.type, GRAG.Community)
@@ -236,6 +285,30 @@ public class TestGraphRAGContextEndpoint {
             java.util.ArrayList<String> uris = new java.util.ArrayList<>();
             while ( results.hasNext() )
                 uris.add(results.next().getResource("community").getURI());
+            return uris.toArray(String[]::new);
+        } finally {
+            dataset.end();
+        }
+    }
+
+    private static String[] nativeBasicTop5(Dataset dataset, String query) {
+        dataset.begin(ReadWrite.READ);
+        try (QueryExecution qexec = QueryExecution.dataset(dataset).query("""
+                PREFIX text: <http://jena.apache.org/text#>
+                PREFIX mg:   <http://ormynet.com/ns/msft-graphrag#>
+
+                SELECT ?chunk ?score WHERE {
+                  (?chunk ?score) text:query (mg:text ?query 5) .
+                  ?chunk a mg:Chunk .
+                }
+                ORDER BY DESC(?score) STR(?chunk)
+                """)
+                .substitution("query", dataset.getDefaultModel().createLiteral(query))
+                .build()) {
+            ResultSet results = qexec.execSelect();
+            java.util.ArrayList<String> uris = new java.util.ArrayList<>();
+            while ( results.hasNext() )
+                uris.add(results.next().getResource("chunk").getURI());
             return uris.toArray(String[]::new);
         } finally {
             dataset.end();

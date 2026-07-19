@@ -44,9 +44,9 @@ import org.apache.jena.web.HttpSC;
  * {@link GraphRAGModule} when {@code grag:enableGraphRAG true} is present.
  * <p>
  * The action accepts {@code GET} and {@code POST} with query parameter
- * {@code q}, optional {@code mode=local|global}, and optional {@code topK}. It
- * opens a read transaction around RDF retrieval, emits JSON, and performs no
- * LLM call or external network request.
+ * {@code q}, optional {@code mode=basic|local|global}, and optional
+ * {@code topK}. It opens a read transaction around RDF retrieval, emits JSON,
+ * and performs no LLM call or external network request.
  */
 public final class GraphRAGContextAction extends ActionREST {
 
@@ -196,6 +196,12 @@ public final class GraphRAGContextAction extends ActionREST {
             builder.pair("communityUri", result.communityUri());
         if ( result.communityTitle() != null )
             builder.pair("communityTitle", result.communityTitle());
+        if ( result.chunkUri() != null )
+            builder.pair("chunkUri", result.chunkUri());
+        if ( result.chunkText() != null )
+            builder.pair("chunkText", result.chunkText());
+        if ( result.documentUri() != null )
+            builder.pair("documentUri", result.documentUri());
         if ( result.weight() != null )
             builder.pair("weight", result.weight());
         if ( result.rank() != null )

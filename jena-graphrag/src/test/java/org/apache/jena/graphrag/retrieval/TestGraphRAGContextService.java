@@ -90,6 +90,109 @@ public class TestGraphRAGContextService {
     }
 
     @Test
+    public void retrieveBasic_returnsChunkContextFromTextIndex() {
+        Dataset dataset = GraphRAGTextDatasetFactory.createRetrievalTextDataset(
+                DatasetFactory.createTxnMem(), new ByteBuffersDirectory());
+        dataset.begin(ReadWrite.WRITE);
+        try {
+            Resource chunk = dataset.getDefaultModel().createResource("urn:chunk:basic");
+            chunk.addProperty(RDF.type, GRAG.Chunk)
+                 .addProperty(GRAG.text, "Scrooge signed the ledger in the counting-house.");
+            dataset.commit();
+        } finally {
+            dataset.end();
+        }
+
+        dataset.begin(ReadWrite.READ);
+        try {
+            GraphRAGContext context = new GraphRAGContextService()
+                    .retrieve(dataset.asDatasetGraph(), "basic", "ledger", 5);
+
+            assertEquals("basic", context.mode());
+            assertEquals(1, context.results().size());
+            GraphRAGContext.Result result = context.results().getFirst();
+            assertEquals("chunk", result.type());
+            assertEquals("urn:chunk:basic", result.chunkUri());
+            assertTrue(result.sourceText().contains("ledger"));
+            assertTrue(result.score() > 0.0);
+        } finally {
+            dataset.end();
+        }
+    }
+
+    @Test
+    public void retrieveLocal_usesTextMatchedChunksAsEntitySeeds() {
+        Dataset dataset = GraphRAGTextDatasetFactory.createRetrievalTextDataset(
+                DatasetFactory.createTxnMem(), new ByteBuffersDirectory());
+        dataset.begin(ReadWrite.WRITE);
+        try {
+            Resource scrooge = addEntity(dataset, "urn:entity:scrooge", "SCROOGE");
+            Resource marley = addEntity(dataset, "urn:entity:marley", "MARLEY");
+            Resource chunk = addChunk(dataset, "urn:chunk:ledger",
+                    "Scrooge signed the ledger in the counting-house.");
+            scrooge.addProperty(GRAG.hasEntity, chunk);
+            addRelationship(dataset, "urn:rel:partner", scrooge, marley,
+                    "Scrooge was the business partner of Marley.", 223.0, 6);
+            dataset.commit();
+        } finally {
+            dataset.end();
+        }
+
+        dataset.begin(ReadWrite.READ);
+        try {
+            GraphRAGContext context = new GraphRAGContextService()
+                    .retrieve(dataset.asDatasetGraph(), "local", "ledger", 5);
+
+            assertEquals("local", context.mode());
+            assertEquals(1, context.results().size());
+            GraphRAGContext.Result result = context.results().getFirst();
+            assertEquals("relationship", result.type());
+            assertEquals("SCROOGE", result.entityName());
+            assertEquals("MARLEY", result.neighborName());
+            assertEquals("urn:chunk:ledger", result.chunkUri());
+            assertTrue(result.chunkText().contains("ledger"));
+            assertTrue(result.sourceText().contains("partner"));
+            assertTrue(result.score() > 0.0);
+        } finally {
+            dataset.end();
+        }
+    }
+
+    @Test
+    public void retrieveLocal_ordersTextSeededRelationshipsByWeightThenUri() {
+        Dataset dataset = GraphRAGTextDatasetFactory.createRetrievalTextDataset(
+                DatasetFactory.createTxnMem(), new ByteBuffersDirectory());
+        dataset.begin(ReadWrite.WRITE);
+        try {
+            Resource scrooge = addEntity(dataset, "urn:entity:scrooge", "SCROOGE");
+            Resource marley = addEntity(dataset, "urn:entity:marley", "MARLEY");
+            Resource belle = addEntity(dataset, "urn:entity:belle", "BELLE");
+            Resource chunk = addChunk(dataset, "urn:chunk:ledger",
+                    "Scrooge signed the ledger in the counting-house.");
+            chunk.addProperty(GRAG.hasEntity, scrooge);
+            addRelationship(dataset, "urn:rel:marley", scrooge, marley,
+                    "Scrooge was the business partner of Marley.", 2.0, 6);
+            addRelationship(dataset, "urn:rel:belle", scrooge, belle,
+                    "Scrooge's choices affected Belle.", 8.0, 1);
+            dataset.commit();
+        } finally {
+            dataset.end();
+        }
+
+        dataset.begin(ReadWrite.READ);
+        try {
+            GraphRAGContext context = new GraphRAGContextService()
+                    .retrieve(dataset.asDatasetGraph(), "local", "ledger", 2);
+
+            assertEquals(2, context.results().size());
+            assertEquals("BELLE", context.results().get(0).neighborName());
+            assertEquals("MARLEY", context.results().get(1).neighborName());
+        } finally {
+            dataset.end();
+        }
+    }
+
+    @Test
     public void retrieveGlobal_returnsCommunityContext() {
         Dataset dataset = globalDataset();
         dataset.begin(ReadWrite.READ);
@@ -158,5 +261,31 @@ public class TestGraphRAGContextService {
                  .addProperty(GRAG.title, title)
                  .addProperty(GRAG.summary, summary)
                  .addProperty(GRAG.fullContent, fullContent);
+    }
+
+    private static Resource addEntity(Dataset dataset, String uri, String name) {
+        Resource entity = dataset.getDefaultModel().createResource(uri);
+        entity.addProperty(RDF.type, GRAG.Entity)
+              .addProperty(GRAG.name, name);
+        return entity;
+    }
+
+    private static Resource addChunk(Dataset dataset, String uri, String text) {
+        Resource chunk = dataset.getDefaultModel().createResource(uri);
+        chunk.addProperty(RDF.type, GRAG.Chunk)
+             .addProperty(GRAG.text, text);
+        return chunk;
+    }
+
+    private static Resource addRelationship(Dataset dataset, String uri, Resource source, Resource target,
+            String description, double weight, int rank) {
+        Resource relationship = dataset.getDefaultModel().createResource(uri);
+        relationship.addProperty(RDF.type, GRAG.Relationship)
+                    .addProperty(GRAG.source, source)
+                    .addProperty(GRAG.target, target)
+                    .addProperty(GRAG.description, description)
+                    .addLiteral(GRAG.weight, weight)
+                    .addLiteral(GRAG.rank, rank);
+        return relationship;
     }
 }
