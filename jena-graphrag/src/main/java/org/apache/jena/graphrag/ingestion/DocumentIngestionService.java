@@ -40,9 +40,9 @@ import org.apache.jena.vocabulary.RDF;
  * <p>
  * The service validates a textual PDF, extracts normalized text, creates
  * deterministic chunks, then writes one {@code mg:Document} and related
- * {@code mg:Chunk} resources in a single dataset transaction. It performs no
- * network request and does not generate embeddings; vectorization is a later
- * Phase 3 story.
+ * {@code mg:Chunk} resources in a single dataset transaction. The default
+ * ingestion path performs no network request; vectorization is available as an
+ * explicit chained operation through {@link #ingestAndVectorize}.
  */
 public class DocumentIngestionService {
 
@@ -90,6 +90,27 @@ public class DocumentIngestionService {
         String sourceHash = sha256Hex(pdfPath);
         Model additions = toModel(pdfPath, sourceHash, chunks);
         writeAtomically(dataset, additions);
+    }
+
+    /**
+     * Ingests a PDF, then vectorizes all textual {@code mg:Chunk} resources visible in the dataset.
+     * <p>
+     * The RDF ingestion behavior remains identical to {@link #ingest(Path, Dataset)}.
+     * Vectorization is delegated to the supplied service so tests and later assembler
+     * configuration can control the concrete {@code EmbeddingProvider} and vector index.
+     *
+     * @param pdfPath path to the PDF file (must be readable)
+     * @param dataset target Jena dataset (must support transactions)
+     * @param vectorizationService service used to index chunk embeddings
+     * @return vectorization summary for the chunks observed after ingestion
+     */
+    public ChunkVectorizationService.Result ingestAndVectorize(
+            Path pdfPath, Dataset dataset, ChunkVectorizationService vectorizationService) {
+        if (vectorizationService == null)
+            throw new IllegalArgumentException("vectorizationService must not be null");
+
+        ingest(pdfPath, dataset);
+        return vectorizationService.vectorize(dataset);
     }
 
     private Model toModel(Path pdfPath, String sourceHash, List<TextChunker.TextChunk> chunks) {

@@ -24,7 +24,11 @@ package org.apache.jena.graphrag.ingestion;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
+import java.util.Locale;
 
+import org.apache.jena.graphrag.index.ChunkVectorIndexer;
+import org.apache.jena.graphrag.index.EmbeddingProvider;
+import org.apache.jena.graphrag.index.LuceneVectorIndex;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.query.Query;
@@ -35,6 +39,8 @@ import org.apache.jena.query.ResultSet;
 import org.apache.jena.rdf.model.Property;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.vocabulary.GRAG;
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -121,6 +127,28 @@ public class TestPdfDocumentIngestion {
                 "mg:Document must carry mg:sourceHash");
         assertEquals(1, countSubjectsWithProperty(GRAG.sourceFile),
                 "mg:Document must carry mg:sourceFile");
+    }
+
+    @Test
+    void ingestAndVectorize_pdfChunksAreSearchableByKnn() throws Exception {
+        Path pdf = PdfTestFixtures.createPlainTextPdf(
+                tempDir, "vector.pdf", "alpha vectorization signal for GraphRAG");
+
+        try (LuceneVectorIndex vectorIndex = new LuceneVectorIndex(new ByteBuffersDirectory(), 2, VectorSimilarityFunction.EUCLIDEAN)) {
+            KeywordEmbeddingProvider provider = new KeywordEmbeddingProvider();
+            ChunkVectorizationService vectorizationService = new ChunkVectorizationService(
+                    new ChunkVectorIndexer(vectorIndex, provider, 2));
+
+            ChunkVectorizationService.Result result = service.ingestAndVectorize(pdf, dataset, vectorizationService);
+
+            String chunkUri = queryFirstChunkUri(dataset);
+            assertTrue(result.chunksSeen() >= 1, "expected vectorization to see at least one chunk");
+            assertEquals(result.chunksSeen(), result.chunksIndexed(), "all fresh PDF chunks must be indexed");
+            assertEquals(0, result.chunksAlreadyIndexed(), "first vectorization run must not skip fresh chunks");
+            assertEquals(result.chunksIndexed(), provider.calls, "provider must be called once per indexed chunk");
+            assertTrue(vectorIndex.contains(chunkUri), "PDF chunk URI must be present in vector index");
+            assertEquals(chunkUri, vectorIndex.search(new float[] { 1.0f, 0.0f }, 1).getFirst().uri());
+        }
     }
 
     // =========================================================================
@@ -348,6 +376,19 @@ public class TestPdfDocumentIngestion {
         }
     }
 
+    private String queryFirstChunkUri(Dataset ds) {
+        Query q = QueryFactory.create(
+                "SELECT ?s WHERE { ?s a <" + GRAG.Chunk.getURI() + "> } LIMIT 1");
+        ds.begin(ReadWrite.READ);
+        try (QueryExecution qe = QueryExecution.dataset(ds).query(q).build()) {
+            ResultSet rs = qe.execSelect();
+            assertTrue(rs.hasNext(), "expected at least one mg:Chunk in dataset");
+            return rs.next().getResource("s").getURI();
+        } finally {
+            ds.end();
+        }
+    }
+
     private String setProperty(String property, String value) {
         String previous = System.getProperty(property);
         System.setProperty(property, value);
@@ -359,5 +400,19 @@ public class TestPdfDocumentIngestion {
             System.clearProperty(property);
         else
             System.setProperty(property, previous);
+    }
+
+    private static final class KeywordEmbeddingProvider implements EmbeddingProvider {
+        private int calls;
+
+        @Override
+        public float[] embed(String text, int dimension) {
+            calls++;
+            if (dimension != 2)
+                throw new IllegalArgumentException("dimension must be 2: " + dimension);
+            if (text.toLowerCase(Locale.ROOT).contains("alpha"))
+                return new float[] { 1.0f, 0.0f };
+            return new float[] { 0.0f, 1.0f };
+        }
     }
 }
