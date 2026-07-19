@@ -21,17 +21,25 @@
 
 package org.apache.jena.graphrag.index;
 
-import java.util.List;
+final class DeterministicEmbeddingProvider implements EmbeddingProvider {
 
-/** Vector nearest-neighbor index used by GraphRAG retrieval components. */
-public interface VectorIndex extends AutoCloseable {
-
-    void index(String uri, float[] vector);
-
-    boolean contains(String uri);
-
-    List<VectorResult> search(float[] queryVector, int k);
+    private int calls;
 
     @Override
-    void close();
+    public float[] embed(String text, int dimension) {
+        calls++;
+        return vectorFor(text, dimension);
+    }
+
+    int calls() {
+        return calls;
+    }
+
+    static float[] vectorFor(String text, int dimension) {
+        float[] vector = new float[dimension];
+        int hash = text.hashCode();
+        for ( int i = 0; i < dimension; i++ )
+            vector[i] = ((hash >>> ((i % 4) * 8)) & 0xff) / 255.0f;
+        return vector;
+    }
 }

@@ -65,4 +65,15 @@ public class TestLuceneVectorIndex {
                     () -> index.index("urn:chunk:1", new float[] { 1.0f, 0.0f, 0.0f }));
         }
     }
+
+    @Test
+    public void contains_returnsWhetherChunkUriIsAlreadyIndexed() {
+        try (LuceneVectorIndex index = new LuceneVectorIndex(new ByteBuffersDirectory(), 2, VectorSimilarityFunction.EUCLIDEAN)) {
+            assertTrue(!index.contains("urn:chunk:1"));
+
+            index.index("urn:chunk:1", new float[] { 1.0f, 0.0f });
+
+            assertTrue(index.contains("urn:chunk:1"));
+        }
+    }
 }

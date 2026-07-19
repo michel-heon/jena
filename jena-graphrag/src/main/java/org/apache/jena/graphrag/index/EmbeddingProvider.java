@@ -21,17 +21,9 @@
 
 package org.apache.jena.graphrag.index;
 
-import java.util.List;
+/** Produces embedding vectors for GraphRAG chunks. */
+@FunctionalInterface
+public interface EmbeddingProvider {
 
-/** Vector nearest-neighbor index used by GraphRAG retrieval components. */
-public interface VectorIndex extends AutoCloseable {
-
-    void index(String uri, float[] vector);
-
-    boolean contains(String uri);
-
-    List<VectorResult> search(float[] queryVector, int k);
-
-    @Override
-    void close();
+    float[] embed(String text, int dimension);
 }

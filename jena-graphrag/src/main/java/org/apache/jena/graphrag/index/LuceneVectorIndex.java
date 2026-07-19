@@ -39,6 +39,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 
@@ -71,8 +72,7 @@ public final class LuceneVectorIndex implements VectorIndex {
     @Override
     public void index(String uri, float[] vector) {
         ensureOpen();
-        if ( uri == null || uri.isBlank() )
-            throw new IllegalArgumentException("uri must not be blank");
+        validateUri(uri);
         validateVector("vector", vector);
 
         Document document = new Document();
@@ -83,6 +83,21 @@ public final class LuceneVectorIndex implements VectorIndex {
             writer.commit();
         } catch (IOException e) {
             throw new UncheckedIOException("Unable to index vector for " + uri, e);
+        }
+    }
+
+    @Override
+    public boolean contains(String uri) {
+        ensureOpen();
+        validateUri(uri);
+        try {
+            writer.commit();
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                return searcher.count(new TermQuery(new Term(URI_FIELD, uri))) > 0;
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Unable to inspect Lucene vector index for " + uri, e);
         }
     }
 
@@ -127,6 +142,11 @@ public final class LuceneVectorIndex implements VectorIndex {
         if ( dimension < 1 || dimension > MAX_DIMENSION )
             throw new IllegalArgumentException("dimension must be between 1 and " + MAX_DIMENSION + ": " + dimension);
         return dimension;
+    }
+
+    private static void validateUri(String uri) {
+        if ( uri == null || uri.isBlank() )
+            throw new IllegalArgumentException("uri must not be blank");
     }
 
     private void validateVector(String label, float[] vector) {
