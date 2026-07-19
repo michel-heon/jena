@@ -21,27 +21,38 @@
 
 package org.apache.jena.graphrag.fuseki;
 
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiFunction;
 
 import org.apache.jena.fuseki.main.FusekiServer;
 import org.apache.jena.fuseki.main.sys.FusekiModule;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.Property;
+import org.apache.jena.sparql.core.DatasetGraph;
 
 /**
  * Fuseki SPI module that registers optional GraphRAG HTTP operations.
  * <p>
  * Registration is opt-in: no processor is added unless the Fuseki configuration
  * model contains {@code grag:enableGraphRAG true}. The current processor exposes
- * the delivered local context endpoint only.
+ * the delivered local context and hybrid search endpoints only.
  */
 public final class GraphRAGModule implements FusekiModule {
 
     /** Namespace for GraphRAG Fuseki configuration terms such as {@code enableGraphRAG}. */
     public static final String CONFIG_NS = "https://jena.apache.org/graphrag/vocab#";
 
+    private final BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGSearchAction> searchActionFactory;
+
     /** Constructor used by Java SPI; configuration remains opt-in. */
-    public GraphRAGModule() {}
+    public GraphRAGModule() {
+        this(GraphRAGSearchAction::new);
+    }
+
+    GraphRAGModule(BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGSearchAction> searchActionFactory) {
+        this.searchActionFactory = Objects.requireNonNull(searchActionFactory);
+    }
 
     @Override
     public String name() {
@@ -53,8 +64,11 @@ public final class GraphRAGModule implements FusekiModule {
         if ( !isEnabled(configModel) )
             return;
         GraphRAGConfiguration configuration = GraphRAGConfiguration.fromModel(configModel);
-        datasetNames.forEach(name -> builder.addProcessor(
-                name + "/graphrag/context", new GraphRAGContextAction(builder.getDataset(name), configuration)));
+        datasetNames.forEach(name -> {
+            DatasetGraph datasetGraph = builder.getDataset(name);
+            builder.addProcessor(name + "/graphrag/context", new GraphRAGContextAction(datasetGraph, configuration));
+            builder.addProcessor(name + "/graphrag/search", searchActionFactory.apply(datasetGraph, configuration));
+        });
     }
 
     /**
