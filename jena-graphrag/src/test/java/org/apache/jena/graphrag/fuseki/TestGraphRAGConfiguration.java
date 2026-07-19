@@ -42,9 +42,16 @@ public class TestGraphRAGConfiguration {
     }
 
     @Test
+    public void acceptsGlobalDefaultMode() {
+        GraphRAGConfiguration configuration = new GraphRAGConfiguration("global", 5, 100, 0.5);
+
+        assertEquals("global", configuration.defaultMode());
+    }
+
+    @Test
     public void rejectsUnsupportedDefaultMode() {
         assertThrows(IllegalArgumentException.class,
-            () -> new GraphRAGConfiguration("global", 5, 100, 0.5));
+            () -> new GraphRAGConfiguration("drift", 5, 100, 0.5));
     }
 
     @Test

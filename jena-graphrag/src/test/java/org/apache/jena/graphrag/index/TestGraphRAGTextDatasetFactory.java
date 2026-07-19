@@ -72,4 +72,43 @@ public class TestGraphRAGTextDatasetFactory {
             dataset.end();
         }
     }
+
+    @Test
+    public void textQuery_returnsCommunityIndexedBySummaryAndFullContent() {
+        Dataset base = DatasetFactory.createTxnMem();
+        Dataset dataset = GraphRAGTextDatasetFactory.createRetrievalTextDataset(base, new ByteBuffersDirectory());
+
+        dataset.begin(ReadWrite.WRITE);
+        try {
+            Resource community = dataset.getDefaultModel().createResource("urn:community:1");
+            community.addProperty(RDF.type, GRAG.Community)
+                     .addProperty(GRAG.summary, "Climate transition planning")
+                     .addProperty(GRAG.fullContent, "Detailed resilience investments");
+            dataset.commit();
+        } finally {
+            dataset.end();
+        }
+
+        assertTextQueryFinds(dataset, GRAG.summary.getURI(), "Climate", "urn:community:1");
+        assertTextQueryFinds(dataset, GRAG.fullContent.getURI(), "resilience", "urn:community:1");
+    }
+
+    private static void assertTextQueryFinds(Dataset dataset, String predicateUri, String query, String uri) {
+        dataset.begin(ReadWrite.READ);
+        try (QueryExecution qexec = QueryExecution.dataset(dataset).query("""
+                PREFIX text: <http://jena.apache.org/text#>
+                PREFIX mg:   <http://ormynet.com/ns/msft-graphrag#>
+
+                SELECT ?community ?score WHERE {
+                  (?community ?score) text:query (<%s> '%s' 10) .
+                  ?community a mg:Community .
+                }
+                """.formatted(predicateUri, query)).build()) {
+            ResultSet results = qexec.execSelect();
+            assertTrue(results.hasNext(), "text:query must find the indexed community");
+            assertEquals(uri, results.next().getResource("community").getURI());
+        } finally {
+            dataset.end();
+        }
+    }
 }

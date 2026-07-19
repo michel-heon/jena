@@ -38,10 +38,18 @@ import org.apache.jena.fuseki.main.FusekiServer;
 import org.apache.jena.fuseki.main.sys.FusekiModule;
 import org.apache.jena.fuseki.main.sys.FusekiModules;
 import org.apache.jena.graphrag.GraphRAGImporter;
+import org.apache.jena.graphrag.index.GraphRAGTextDatasetFactory;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.query.DatasetFactory;
+import org.apache.jena.query.QueryExecution;
+import org.apache.jena.query.ReadWrite;
+import org.apache.jena.query.ResultSet;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
+import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.vocabulary.GRAG;
+import org.apache.jena.vocabulary.RDF;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.junit.jupiter.api.Test;
 
 public class TestGraphRAGContextEndpoint {
@@ -92,14 +100,55 @@ public class TestGraphRAGContextEndpoint {
     }
 
     @Test
+    public void get_globalModeMatchesNativeSparqlTop3() throws Exception {
+        Dataset dataset = globalDataset();
+        String[] expected = nativeGlobalTop3(dataset, "energy");
+        FusekiServer server = server(dataset, true);
+        try {
+            HttpResponse<String> response = get(server, "?q=energy&mode=global&topK=3");
+
+            assertEquals(200, response.statusCode());
+            JsonObject body = JSON.parse(response.body());
+            assertEquals("global", body.get("mode").getAsString().value());
+            JsonArray results = body.get("results").getAsArray();
+            assertEquals(expected.length, results.size());
+            for ( int i = 0; i < expected.length; i++ ) {
+                JsonObject result = results.get(i).getAsObject();
+                assertEquals(expected[i], result.get("uri").getAsString().value());
+                assertEquals("community", result.get("type").getAsString().value());
+                assertEquals(expected[i], result.get("communityUri").getAsString().value());
+            }
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    public void get_globalModeEmptyDatasetReturnsEmptyResults() throws Exception {
+        Dataset dataset = GraphRAGTextDatasetFactory.createRetrievalTextDataset(
+                DatasetFactory.createTxnMem(), new ByteBuffersDirectory());
+        FusekiServer server = server(dataset, true);
+        try {
+            HttpResponse<String> response = get(server, "?q=energy&mode=global");
+
+            assertEquals(200, response.statusCode());
+            JsonObject body = JSON.parse(response.body());
+            assertEquals("global", body.get("mode").getAsString().value());
+            assertTrue(body.get("results").getAsArray().isEmpty());
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
     public void invalidModeReturnsBadRequest() throws Exception {
         FusekiServer server = server(dataset(), true);
         try {
-            HttpResponse<String> response = get(server, "?q=scrooge&mode=global");
+            HttpResponse<String> response = get(server, "?q=scrooge&mode=drift");
             assertEquals(400, response.statusCode());
             assertTrue(response.headers().firstValue("content-type").orElse("").contains("application/json"));
             JsonObject body = JSON.parse(response.body());
-            assertEquals("mode invalide: global", body.get("error").getAsString().value());
+            assertEquals("mode invalide: drift", body.get("error").getAsString().value());
         } finally {
             server.stop();
         }
@@ -141,6 +190,56 @@ public class TestGraphRAGContextEndpoint {
         Dataset dataset = DatasetFactory.createTxnMem();
         GraphRAGImporter.load(source, dataset);
         return dataset;
+    }
+
+    private static Dataset globalDataset() {
+        Dataset base = DatasetFactory.createTxnMem();
+        Dataset dataset = GraphRAGTextDatasetFactory.createRetrievalTextDataset(base, new ByteBuffersDirectory());
+        dataset.begin(ReadWrite.WRITE);
+        try {
+            addCommunity(dataset, "urn:community:energy-1", "Energy planning north",
+                    "Energy reliability planning", "Grid resilience for northern districts");
+            addCommunity(dataset, "urn:community:energy-2", "Energy planning south",
+                    "Energy reliability operations", "Storage resilience for southern districts");
+            addCommunity(dataset, "urn:community:energy-3", "Energy finance",
+                    "Energy investment oversight", "Capital planning for infrastructure");
+            dataset.commit();
+        } finally {
+            dataset.end();
+        }
+        return dataset;
+    }
+
+    private static void addCommunity(Dataset dataset, String uri, String title, String summary, String fullContent) {
+        Resource community = dataset.getDefaultModel().createResource(uri);
+        community.addProperty(RDF.type, GRAG.Community)
+                 .addProperty(GRAG.title, title)
+                 .addProperty(GRAG.summary, summary)
+                 .addProperty(GRAG.fullContent, fullContent);
+    }
+
+    private static String[] nativeGlobalTop3(Dataset dataset, String query) {
+        dataset.begin(ReadWrite.READ);
+        try (QueryExecution qexec = QueryExecution.dataset(dataset).query("""
+                PREFIX text: <http://jena.apache.org/text#>
+                PREFIX mg:   <http://ormynet.com/ns/msft-graphrag#>
+
+                SELECT ?community ?score WHERE {
+                  (?community ?score) text:query (mg:summary ?query 3) .
+                  ?community a mg:Community .
+                }
+                ORDER BY DESC(?score) STR(?community)
+                """)
+                .substitution("query", dataset.getDefaultModel().createLiteral(query))
+                .build()) {
+            ResultSet results = qexec.execSelect();
+            java.util.ArrayList<String> uris = new java.util.ArrayList<>();
+            while ( results.hasNext() )
+                uris.add(results.next().getResource("community").getURI());
+            return uris.toArray(String[]::new);
+        } finally {
+            dataset.end();
+        }
     }
 
     private static HttpResponse<String> get(FusekiServer server, String query) throws Exception {

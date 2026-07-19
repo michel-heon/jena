@@ -44,9 +44,9 @@ import org.apache.jena.web.HttpSC;
  * {@link GraphRAGModule} when {@code grag:enableGraphRAG true} is present.
  * <p>
  * The action accepts {@code GET} and {@code POST} with query parameter
- * {@code q}, optional {@code mode=local}, and optional {@code topK}. It opens a
- * read transaction around local RDF retrieval, emits JSON, and performs no LLM
- * call or external network request.
+ * {@code q}, optional {@code mode=local|global}, and optional {@code topK}. It
+ * opens a read transaction around RDF retrieval, emits JSON, and performs no
+ * LLM call or external network request.
  */
 public final class GraphRAGContextAction extends ActionREST {
 
@@ -88,12 +88,12 @@ public final class GraphRAGContextAction extends ActionREST {
     }
 
     /**
-     * Validates request parameters, executes local retrieval in a read
-     * transaction, and writes either the JSON context or a 400 JSON error.
+     * Validates request parameters, executes retrieval in a read transaction,
+     * and writes either the JSON context or a 400 JSON error.
      */
     private void executeContext(HttpAction action) {
         String mode = parameter(action, "mode", configuration.defaultMode());
-        if ( !configuration.defaultMode().equals(mode) ) {
+        if ( !GraphRAGContextService.supportsMode(mode) ) {
             writeError(action, "mode invalide: " + mode);
             return;
         }
@@ -108,7 +108,7 @@ public final class GraphRAGContextAction extends ActionREST {
 
         datasetGraph.begin(ReadWrite.READ);
         try {
-            GraphRAGContext context = contextService.retrieve(datasetGraph, query, topK);
+            GraphRAGContext context = contextService.retrieve(datasetGraph, mode, query, topK);
             writeJson(action, context);
         } finally {
             datasetGraph.end();
@@ -183,11 +183,19 @@ public final class GraphRAGContextAction extends ActionREST {
                .pair("uri", result.uri())
                .pair("score", result.score())
                .pair("sourceText", result.sourceText())
-               .pair("type", result.type())
-               .pair("entityUri", result.entityUri())
-               .pair("entityName", result.entityName())
-               .pair("neighborUri", result.neighborUri())
-               .pair("neighborName", result.neighborName());
+               .pair("type", result.type());
+        if ( result.entityUri() != null )
+            builder.pair("entityUri", result.entityUri());
+        if ( result.entityName() != null )
+            builder.pair("entityName", result.entityName());
+        if ( result.neighborUri() != null )
+            builder.pair("neighborUri", result.neighborUri());
+        if ( result.neighborName() != null )
+            builder.pair("neighborName", result.neighborName());
+        if ( result.communityUri() != null )
+            builder.pair("communityUri", result.communityUri());
+        if ( result.communityTitle() != null )
+            builder.pair("communityTitle", result.communityTitle());
         if ( result.weight() != null )
             builder.pair("weight", result.weight());
         if ( result.rank() != null )

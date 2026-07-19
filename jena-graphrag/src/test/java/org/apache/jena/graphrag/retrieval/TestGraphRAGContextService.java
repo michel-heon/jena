@@ -28,11 +28,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.InputStream;
 
 import org.apache.jena.graphrag.GraphRAGImporter;
+import org.apache.jena.graphrag.index.GraphRAGTextDatasetFactory;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.query.ReadWrite;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
+import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.vocabulary.GRAG;
+import org.apache.jena.vocabulary.RDF;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.junit.jupiter.api.Test;
 
 public class TestGraphRAGContextService {
@@ -85,6 +90,40 @@ public class TestGraphRAGContextService {
     }
 
     @Test
+    public void retrieveGlobal_returnsCommunityContext() {
+        Dataset dataset = globalDataset();
+        dataset.begin(ReadWrite.READ);
+        try {
+            GraphRAGContext context = new GraphRAGContextService()
+                    .retrieve(dataset.asDatasetGraph(), "global", "resilience", 3);
+
+            assertEquals("global", context.mode());
+            assertEquals(1, context.results().size());
+            GraphRAGContext.Result result = context.results().getFirst();
+            assertEquals("community", result.type());
+            assertEquals("urn:community:climate", result.uri());
+            assertEquals("Climate transition", result.communityTitle());
+            assertTrue(result.sourceText().contains("resilience"));
+        } finally {
+            dataset.end();
+        }
+    }
+
+    @Test
+    public void retrieveGlobal_emptyDatasetReturnsNoResults() {
+        Dataset dataset = GraphRAGTextDatasetFactory.createRetrievalTextDataset(
+                DatasetFactory.createTxnMem(), new ByteBuffersDirectory());
+        dataset.begin(ReadWrite.READ);
+        try {
+            GraphRAGContext context = new GraphRAGContextService()
+                    .retrieve(dataset.asDatasetGraph(), "global", "resilience", 3);
+            assertTrue(context.results().isEmpty());
+        } finally {
+            dataset.end();
+        }
+    }
+
+    @Test
     public void retrieve_validatesParameters() {
         Dataset dataset = DatasetFactory.createTxnMem();
         assertThrows(IllegalArgumentException.class,
@@ -93,5 +132,31 @@ public class TestGraphRAGContextService {
                 () -> new GraphRAGContextService().retrieve(dataset.asDatasetGraph(), "test", 0));
         assertThrows(IllegalArgumentException.class,
                 () -> new GraphRAGContextService().retrieve(dataset.asDatasetGraph(), "test", 101));
+        assertThrows(IllegalArgumentException.class,
+                () -> new GraphRAGContextService().retrieve(dataset.asDatasetGraph(), "drift", "test", 5));
+    }
+
+    private static Dataset globalDataset() {
+        Dataset base = DatasetFactory.createTxnMem();
+        Dataset dataset = GraphRAGTextDatasetFactory.createRetrievalTextDataset(base, new ByteBuffersDirectory());
+        dataset.begin(ReadWrite.WRITE);
+        try {
+            addCommunity(dataset, "urn:community:climate", "Climate transition",
+                    "Climate resilience planning", "Detailed resilience investments");
+            addCommunity(dataset, "urn:community:finance", "Finance controls",
+                    "Budget governance", "Financial oversight");
+            dataset.commit();
+        } finally {
+            dataset.end();
+        }
+        return dataset;
+    }
+
+    private static void addCommunity(Dataset dataset, String uri, String title, String summary, String fullContent) {
+        Resource community = dataset.getDefaultModel().createResource(uri);
+        community.addProperty(RDF.type, GRAG.Community)
+                 .addProperty(GRAG.title, title)
+                 .addProperty(GRAG.summary, summary)
+                 .addProperty(GRAG.fullContent, fullContent);
     }
 }

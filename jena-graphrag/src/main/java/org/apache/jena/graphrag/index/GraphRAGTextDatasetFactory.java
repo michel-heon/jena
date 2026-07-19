@@ -44,10 +44,29 @@ public final class GraphRAGTextDatasetFactory {
      * @return dataset whose writes maintain the configured text index
      */
     public static Dataset createChunkTextDataset(Dataset base, Directory directory) {
+        return createTextDataset(base, directory, chunkEntityDefinition());
+    }
+
+    /**
+     * Wraps a base dataset with a Lucene text index over GraphRAG retrieval fields.
+     * <p>
+     * The index includes {@code mg:Chunk}/{@code mg:text} for local and search paths,
+     * and {@code mg:Community}/{@code mg:summary}/{@code mg:fullContent} for global
+     * retrieval.
+     *
+     * @param base base RDF dataset to wrap
+     * @param directory Lucene directory used for the text index
+     * @return dataset whose writes maintain the configured text index
+     */
+    public static Dataset createRetrievalTextDataset(Dataset base, Directory directory) {
+        return createTextDataset(base, directory, retrievalEntityDefinition());
+    }
+
+    private static Dataset createTextDataset(Dataset base, Directory directory, EntityDefinition definition) {
         Objects.requireNonNull(base, "base");
         Objects.requireNonNull(directory, "directory");
 
-        TextIndexConfig config = new TextIndexConfig(chunkEntityDefinition());
+        TextIndexConfig config = new TextIndexConfig(definition);
         config.setValueStored(true);
         TextIndex textIndex = TextDatasetFactory.createLuceneIndex(directory, config);
         return TextDatasetFactory.create(base, textIndex, true);
@@ -59,6 +78,14 @@ public final class GraphRAGTextDatasetFactory {
         definition.set("text", GRAG.text.asNode());
         definition.setUidField("uid");
         definition.setLangField("lang");
+        return definition;
+    }
+
+    /** Returns the entity map used for GraphRAG chunk and community retrieval indexing. */
+    public static EntityDefinition retrievalEntityDefinition() {
+        EntityDefinition definition = chunkEntityDefinition();
+        definition.set("summary", GRAG.summary.asNode());
+        definition.set("fullContent", GRAG.fullContent.asNode());
         return definition;
     }
 }

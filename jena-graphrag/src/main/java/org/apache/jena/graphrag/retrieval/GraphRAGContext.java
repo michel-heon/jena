@@ -31,27 +31,30 @@ import java.util.List;
  * call or a network request.
  *
  * @param query the caller query after request validation
- * @param mode retrieval mode used to produce the context; currently {@code local}
- * @param results relationship-backed context items ordered by the retrieval service
+ * @param mode retrieval mode used to produce the context
+ * @param results context items ordered by the retrieval service
  */
 public record GraphRAGContext(String query, String mode, List<Result> results) {
 
     /**
-     * One relationship-backed item of local context.
+         * One cited context item.
      * <p>
-     * The URI identifies the {@code mg:Relationship} resource. Optional numeric
-     * fields are {@code null} when the corresponding RDF literal is absent.
+         * Local results cite {@code mg:Relationship}; global results cite
+         * {@code mg:Community}. Optional fields are {@code null} when they do not
+         * apply to the selected retrieval mode.
      *
-     * @param uri URI of the relationship resource used as citation anchor
-     * @param score ranking score derived from {@code mg:weight}, {@code mg:rank}, or a fallback
-     * @param sourceText relationship description when available, otherwise an empty string
-     * @param type result kind exposed to clients; currently {@code relationship}
+         * @param uri URI of the cited RDF resource
+         * @param score ranking score
+         * @param sourceText cited text when available, otherwise an empty string
+         * @param type result kind exposed to clients
      * @param entityUri URI of the matched source entity
      * @param entityName display name of the matched source entity
      * @param neighborUri URI of the related target entity
      * @param neighborName display name of the related target entity
      * @param weight relationship weight literal, or {@code null}
      * @param rank relationship rank literal, or {@code null}
+         * @param communityUri URI of the matched community, or {@code null}
+         * @param communityTitle title of the matched community, or {@code null}
      */
     public record Result(
             String uri,
@@ -63,5 +66,20 @@ public record GraphRAGContext(String query, String mode, List<Result> results) {
             String neighborUri,
             String neighborName,
             Double weight,
-            Integer rank) {}
+            Integer rank,
+            String communityUri,
+            String communityTitle) {
+
+        public static Result relationship(String uri, double score, String sourceText,
+                String entityUri, String entityName, String neighborUri, String neighborName,
+                Double weight, Integer rank) {
+            return new Result(uri, score, sourceText, "relationship", entityUri, entityName,
+                    neighborUri, neighborName, weight, rank, null, null);
+        }
+
+        public static Result community(String uri, double score, String sourceText, String communityTitle) {
+            return new Result(uri, score, sourceText, "community", null, null, null, null,
+                    null, null, uri, communityTitle);
+        }
+    }
 }

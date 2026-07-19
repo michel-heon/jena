@@ -29,8 +29,9 @@ import org.apache.jena.rdf.model.StmtIterator;
 /**
  * Runtime limits for the experimental GraphRAG Fuseki endpoint.
  * <p>
- * The delivered endpoint supports only the {@code local} mode. Instances are
- * validated eagerly so invalid system properties fail before request handling.
+ * The delivered endpoint supports the {@code local} and {@code global} modes.
+ * Instances are validated eagerly so invalid system properties fail before
+ * request handling.
  *
  * @param defaultMode default retrieval mode exposed by {@code /graphrag/context}
  * @param defaultTopK default maximum number of context results
@@ -49,12 +50,13 @@ record GraphRAGConfiguration(String defaultMode, int defaultTopK, int maxTopK, d
     static final String HYBRID_ALPHA_PROPERTY = "jena.graphrag.hybridAlpha";
 
     private static final String FALLBACK_MODE = "local";
+    private static final String GLOBAL_MODE = "global";
     private static final int FALLBACK_DEFAULT_TOP_K = 5;
     private static final int FALLBACK_MAX_TOP_K = 100;
     private static final double FALLBACK_HYBRID_ALPHA = 0.5;
 
     GraphRAGConfiguration {
-        if ( !FALLBACK_MODE.equals(defaultMode) )
+        if ( !FALLBACK_MODE.equals(defaultMode) && !GLOBAL_MODE.equals(defaultMode) )
             throw new IllegalArgumentException("defaultMode invalide: " + defaultMode);
         if ( defaultTopK < 1 )
             throw new IllegalArgumentException("defaultTopK doit etre positif");
