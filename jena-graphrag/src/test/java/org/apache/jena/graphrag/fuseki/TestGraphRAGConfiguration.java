@@ -25,6 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.apache.jena.rdf.model.Model;
+import org.apache.jena.rdf.model.ModelFactory;
 import org.junit.jupiter.api.Test;
 
 public class TestGraphRAGConfiguration {
@@ -36,19 +38,39 @@ public class TestGraphRAGConfiguration {
         assertEquals("local", configuration.defaultMode());
         assertTrue(configuration.defaultTopK() > 0);
         assertTrue(configuration.maxTopK() >= configuration.defaultTopK());
+        assertEquals(0.5, configuration.hybridAlpha());
     }
 
     @Test
     public void rejectsUnsupportedDefaultMode() {
         assertThrows(IllegalArgumentException.class,
-                () -> new GraphRAGConfiguration("global", 5, 100));
+            () -> new GraphRAGConfiguration("global", 5, 100, 0.5));
     }
 
     @Test
     public void rejectsInvalidTopKBounds() {
         assertThrows(IllegalArgumentException.class,
-                () -> new GraphRAGConfiguration("local", 0, 100));
+            () -> new GraphRAGConfiguration("local", 0, 100, 0.5));
         assertThrows(IllegalArgumentException.class,
-                () -> new GraphRAGConfiguration("local", 10, 5));
+            () -> new GraphRAGConfiguration("local", 10, 5, 0.5));
+        }
+
+        @Test
+        public void rejectsInvalidHybridAlpha() {
+        assertThrows(IllegalArgumentException.class,
+            () -> new GraphRAGConfiguration("local", 5, 100, -0.1));
+        assertThrows(IllegalArgumentException.class,
+            () -> new GraphRAGConfiguration("local", 5, 100, 1.1));
     }
+
+        @Test
+        public void modelOverridesHybridAlpha() {
+            Model config = ModelFactory.createDefaultModel();
+            config.createResource("urn:graphrag:index")
+                  .addLiteral(config.createProperty(GraphRAGModule.CONFIG_NS + "hybridAlpha"), 0.25);
+
+            GraphRAGConfiguration configuration = GraphRAGConfiguration.fromModel(config);
+
+            assertEquals(0.25, configuration.hybridAlpha());
+        }
 }
