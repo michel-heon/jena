@@ -22,12 +22,16 @@
 package org.apache.jena.graphrag.index;
 
 import java.nio.file.Path;
+import java.util.function.Supplier;
 
 import org.apache.jena.assembler.Assembler;
 import org.apache.jena.assembler.Mode;
 import org.apache.jena.assembler.assemblers.AssemblerBase;
 import org.apache.jena.assembler.exceptions.AssemblerException;
 import org.apache.jena.atlas.lib.IRILib;
+import org.apache.jena.graphrag.provider.ChatCompletionProvider;
+import org.apache.jena.graphrag.provider.MockChatCompletionProvider;
+import org.apache.jena.graphrag.provider.MockEmbeddingProvider;
 import org.apache.jena.rdf.model.RDFNode;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.rdf.model.Statement;
@@ -47,7 +51,27 @@ public final class GraphRAGIndexAssembler extends AssemblerBase {
         Path vectorIndexDir = requiredPath(root, GraphRAGAssemblerVocab.vectorIndexDir);
         int vectorDimension = optionalInt(root, GraphRAGAssemblerVocab.vectorDimension,
                 GraphRAGIndex.DEFAULT_VECTOR_DIMENSION);
-        return GraphRAGIndex.open(textIndexDir, vectorIndexDir, vectorDimension);
+        EmbeddingProvider embeddingProvider = optionalProvider(assembler, root,
+                GraphRAGAssemblerVocab.embeddingProvider, mode, EmbeddingProvider.class, MockEmbeddingProvider::new);
+        ChatCompletionProvider chatProvider = optionalProvider(assembler, root,
+                GraphRAGAssemblerVocab.chatProvider, mode, ChatCompletionProvider.class, MockChatCompletionProvider::new);
+        return GraphRAGIndex.open(textIndexDir, vectorIndexDir, vectorDimension, embeddingProvider, chatProvider);
+    }
+
+    private static <T> T optionalProvider(Assembler assembler, Resource root,
+                                          org.apache.jena.rdf.model.Property property, Mode mode,
+                                          Class<T> providerType, Supplier<T> fallback) {
+        if ( !root.hasProperty(property) )
+            return fallback.get();
+        if ( !checkExactlyOneProperty(root, property) )
+            throw new AssemblerException(root, "Property must appear at most once: " + property);
+        RDFNode value = root.getProperty(property).getObject();
+        if ( !value.isResource() )
+            throw new AssemblerException(root, "Property must reference an assembled resource: " + property);
+        Object provider = assembler.open(assembler, value.asResource(), mode);
+        if ( !providerType.isInstance(provider) )
+            throw new AssemblerException(root, "Assembled resource does not implement " + providerType.getName());
+        return providerType.cast(provider);
     }
 
     private static Path requiredPath(Resource root, org.apache.jena.rdf.model.Property property) {

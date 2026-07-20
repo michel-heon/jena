@@ -19,25 +19,12 @@
  *   SPDX-License-Identifier: Apache-2.0
  */
 
-package org.apache.jena.graphrag.index;
+package org.apache.jena.graphrag.provider;
 
-import org.apache.jena.graphrag.provider.MockEmbeddingProvider;
+/** Raised before a request when its estimated input exceeds the configured quota. */
+public final class ProviderQuotaExceededException extends ProviderException {
 
-final class DeterministicEmbeddingProvider implements EmbeddingProvider {
-
-    private int calls;
-
-    @Override
-    public float[] embed(String text, int dimension) {
-        calls++;
-        return vectorFor(text, dimension);
-    }
-
-    int calls() {
-        return calls;
-    }
-
-    static float[] vectorFor(String text, int dimension) {
-        return MockEmbeddingProvider.vectorFor(text, dimension);
+    public ProviderQuotaExceededException(int maximum) {
+        super("Provider input exceeds the configured limit of " + maximum + " tokens");
     }
 }

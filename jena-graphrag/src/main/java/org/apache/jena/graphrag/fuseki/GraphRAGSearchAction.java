@@ -150,7 +150,7 @@ public final class GraphRAGSearchAction extends ActionREST {
                .finishObject();
     }
 
-    private static GraphRAGSearchService defaultSearchService() {
+    static GraphRAGSearchService defaultSearchService() {
         return new GraphRAGSearchService(new EmptyVectorIndex(), (text, dimension) -> new float[dimension], 1);
     }
 

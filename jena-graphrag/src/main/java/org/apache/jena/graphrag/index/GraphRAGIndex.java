@@ -26,6 +26,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Objects;
 
+import org.apache.jena.graphrag.provider.ChatCompletionProvider;
 import org.apache.jena.query.text.TextDatasetFactory;
 import org.apache.jena.query.text.TextIndex;
 import org.apache.jena.query.text.TextIndexConfig;
@@ -42,31 +43,40 @@ public final class GraphRAGIndex implements AutoCloseable {
     private final int vectorDimension;
     private final TextIndex textIndex;
     private final LuceneVectorIndex vectorIndex;
+    private final EmbeddingProvider embeddingProvider;
+    private final ChatCompletionProvider chatCompletionProvider;
 
     private GraphRAGIndex(boolean enabled, Path textIndexDirectory, Path vectorIndexDirectory, int vectorDimension,
-                         TextIndex textIndex, LuceneVectorIndex vectorIndex) {
+                         TextIndex textIndex, LuceneVectorIndex vectorIndex, EmbeddingProvider embeddingProvider,
+                         ChatCompletionProvider chatCompletionProvider) {
         this.enabled = enabled;
         this.textIndexDirectory = textIndexDirectory;
         this.vectorIndexDirectory = vectorIndexDirectory;
         this.vectorDimension = vectorDimension;
         this.textIndex = textIndex;
         this.vectorIndex = vectorIndex;
+        this.embeddingProvider = embeddingProvider;
+        this.chatCompletionProvider = chatCompletionProvider;
     }
 
     static GraphRAGIndex disabled() {
-        return new GraphRAGIndex(false, null, null, 0, null, null);
+        return new GraphRAGIndex(false, null, null, 0, null, null, null, null);
     }
 
-    static GraphRAGIndex open(Path textIndexDirectory, Path vectorIndexDirectory, int vectorDimension) {
+    static GraphRAGIndex open(Path textIndexDirectory, Path vectorIndexDirectory, int vectorDimension,
+                              EmbeddingProvider embeddingProvider, ChatCompletionProvider chatCompletionProvider) {
         Objects.requireNonNull(textIndexDirectory, "textIndexDirectory");
         Objects.requireNonNull(vectorIndexDirectory, "vectorIndexDirectory");
+        Objects.requireNonNull(embeddingProvider, "embeddingProvider");
+        Objects.requireNonNull(chatCompletionProvider, "chatCompletionProvider");
         try {
             TextIndexConfig textConfig = new TextIndexConfig(GraphRAGTextDatasetFactory.retrievalEntityDefinition());
             textConfig.setValueStored(true);
             TextIndex textIndex = TextDatasetFactory.createLuceneIndex(FSDirectory.open(textIndexDirectory), textConfig);
             LuceneVectorIndex vectorIndex = new LuceneVectorIndex(FSDirectory.open(vectorIndexDirectory), vectorDimension,
                     VectorSimilarityFunction.EUCLIDEAN);
-            return new GraphRAGIndex(true, textIndexDirectory, vectorIndexDirectory, vectorDimension, textIndex, vectorIndex);
+                return new GraphRAGIndex(true, textIndexDirectory, vectorIndexDirectory, vectorDimension, textIndex, vectorIndex,
+                    embeddingProvider, chatCompletionProvider);
         } catch (IOException e) {
             throw new UncheckedIOException("Unable to open GraphRAG indexes", e);
         }
@@ -99,6 +109,16 @@ public final class GraphRAGIndex implements AutoCloseable {
     public LuceneVectorIndex vectorIndex() {
         ensureEnabled();
         return vectorIndex;
+    }
+
+    public EmbeddingProvider embeddingProvider() {
+        ensureEnabled();
+        return embeddingProvider;
+    }
+
+    public ChatCompletionProvider chatCompletionProvider() {
+        ensureEnabled();
+        return chatCompletionProvider;
     }
 
     @Override

@@ -47,6 +47,8 @@ import org.apache.jena.fuseki.main.sys.FusekiModule;
 import org.apache.jena.graphrag.index.GraphRAGAssembler;
 import org.apache.jena.graphrag.index.GraphRAGAssemblerVocab;
 import org.apache.jena.graphrag.index.GraphRAGIndex;
+import org.apache.jena.graphrag.provider.MockChatCompletionProvider;
+import org.apache.jena.graphrag.retrieval.GraphRAGSearchService;
 import org.apache.jena.fuseki.servlets.ActionREST;
 import org.apache.jena.fuseki.servlets.HttpAction;
 import org.apache.jena.fuseki.servlets.ServletOps;
@@ -79,15 +81,22 @@ public final class GraphRAGModule implements FusekiModule {
     public static final String CONFIG_NS = GraphRAGAssemblerVocab.uri;
 
     private final BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGSearchAction> searchActionFactory;
+    private final BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGAnswerAction> answerActionFactory;
     private final List<GraphRAGIndex> configuredIndexes = new ArrayList<>();
 
     /** Constructor used by Java SPI; configuration remains opt-in. */
     public GraphRAGModule() {
-        this(GraphRAGSearchAction::new);
+        this(GraphRAGSearchAction::new, null);
     }
 
     GraphRAGModule(BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGSearchAction> searchActionFactory) {
+        this(searchActionFactory, null);
+    }
+
+    GraphRAGModule(BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGSearchAction> searchActionFactory,
+                   BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGAnswerAction> answerActionFactory) {
         this.searchActionFactory = Objects.requireNonNull(searchActionFactory);
+        this.answerActionFactory = answerActionFactory;
     }
 
     @Override
@@ -109,6 +118,9 @@ public final class GraphRAGModule implements FusekiModule {
             GraphRAGIndexingService indexingService = new GraphRAGIndexingService(datasetGraph, taskService, configuration);
             builder.addProcessor(name + "/graphrag/context", new GraphRAGContextAction(datasetGraph, configuration));
             builder.addProcessor(name + "/graphrag/search", searchActionFactory.apply(datasetGraph, configuration));
+                builder.addProcessor(name + "/graphrag/answer", answerActionFactory == null
+                    ? answerAction(datasetGraph, configuration)
+                    : answerActionFactory.apply(datasetGraph, configuration));
             builder.addProcessor(name + "/graphrag/index", new GraphRAGIndexAction(indexingService, configuration));
             builder.addProcessor(name + "/graphrag/status", new GraphRAGStatusAction(datasetGraph, taskService));
             builder.addProcessor(name + "/graphrag/config", new GraphRAGConfigAction(configuration));
@@ -153,6 +165,16 @@ public final class GraphRAGModule implements FusekiModule {
     private synchronized void closeConfiguredIndexes() {
         configuredIndexes.forEach(GraphRAGIndex::close);
         configuredIndexes.clear();
+    }
+
+    private synchronized GraphRAGAnswerAction answerAction(DatasetGraph datasetGraph, GraphRAGConfiguration configuration) {
+        if ( configuredIndexes.isEmpty() )
+            return new GraphRAGAnswerAction(datasetGraph, configuration,
+                    GraphRAGSearchAction.defaultSearchService(), new MockChatCompletionProvider());
+        GraphRAGIndex index = configuredIndexes.getFirst();
+        GraphRAGSearchService searchService = new GraphRAGSearchService(index.vectorIndex(), index.embeddingProvider(),
+                index.vectorDimension());
+        return new GraphRAGAnswerAction(datasetGraph, configuration, searchService, index.chatCompletionProvider());
     }
 }
 

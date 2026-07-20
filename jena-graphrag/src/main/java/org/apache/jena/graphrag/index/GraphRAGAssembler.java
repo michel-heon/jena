@@ -22,7 +22,12 @@
 package org.apache.jena.graphrag.index;
 
 import org.apache.jena.assembler.Assembler;
+import org.apache.jena.assembler.Mode;
+import org.apache.jena.assembler.assemblers.AssemblerBase;
+import org.apache.jena.graphrag.provider.MockChatCompletionProvider;
+import org.apache.jena.graphrag.provider.MockEmbeddingProvider;
 import org.apache.jena.query.text.TextQuery;
+import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.sys.JenaSystem;
 
 /** Registers GraphRAG RDF assembler types. */
@@ -45,6 +50,22 @@ public final class GraphRAGAssembler {
             JenaSystem.logLifecycle("GraphRAGAssembler.init - start");
             TextQuery.init();
             Assembler.general().implementWith(GraphRAGAssemblerVocab.GraphRAGIndex, new GraphRAGIndexAssembler());
+            Assembler.general().implementWith(GraphRAGAssemblerVocab.MockEmbeddingProvider, new AssemblerBase() {
+                @Override
+                public Object open(Assembler assembler, Resource root, Mode mode) {
+                    return new MockEmbeddingProvider();
+                }
+            });
+            Assembler.general().implementWith(GraphRAGAssemblerVocab.MockChatCompletionProvider, new AssemblerBase() {
+                @Override
+                public Object open(Assembler assembler, Resource root, Mode mode) {
+                    return new MockChatCompletionProvider();
+                }
+            });
+                Assembler.general().implementWith(GraphRAGAssemblerVocab.HttpEmbeddingProvider,
+                    new GraphRAGHttpProviderAssembler(true));
+                Assembler.general().implementWith(GraphRAGAssemblerVocab.HttpChatCompletionProvider,
+                    new GraphRAGHttpProviderAssembler(false));
             JenaSystem.logLifecycle("GraphRAGAssembler.init - finish");
         }
     }

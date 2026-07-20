@@ -19,25 +19,22 @@
  *   SPDX-License-Identifier: Apache-2.0
  */
 
-package org.apache.jena.graphrag.index;
+package org.apache.jena.graphrag.provider;
 
-import org.apache.jena.graphrag.provider.MockEmbeddingProvider;
+import java.util.List;
 
-final class DeterministicEmbeddingProvider implements EmbeddingProvider {
-
-    private int calls;
+/**
+ * Deterministic mock implementation of {@link ChatCompletionProvider}.
+ *
+ * <p>Returns a fixed response derived from the question and context size.
+ * Uses no network and requires no API key. Always safe to instantiate.
+ */
+public final class MockChatCompletionProvider implements ChatCompletionProvider {
 
     @Override
-    public float[] embed(String text, int dimension) {
-        calls++;
-        return vectorFor(text, dimension);
-    }
-
-    int calls() {
-        return calls;
-    }
-
-    static float[] vectorFor(String text, int dimension) {
-        return MockEmbeddingProvider.vectorFor(text, dimension);
+    public String complete(String question, List<String> contextPassages) {
+        if ( contextPassages.isEmpty() )
+            return "[mock] No context available for: " + question;
+        return "[mock] Answer for '" + question + "' based on " + contextPassages.size() + " passage(s).";
     }
 }

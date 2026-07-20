@@ -19,25 +19,14 @@
  *   SPDX-License-Identifier: Apache-2.0
  */
 
-package org.apache.jena.graphrag.index;
+package org.apache.jena.graphrag.provider;
 
-import org.apache.jena.graphrag.provider.MockEmbeddingProvider;
+import java.util.List;
 
-final class DeterministicEmbeddingProvider implements EmbeddingProvider {
+/** Summarizes the findings associated with a GraphRAG community. */
+@FunctionalInterface
+public interface CommunitySummarizer {
 
-    private int calls;
-
-    @Override
-    public float[] embed(String text, int dimension) {
-        calls++;
-        return vectorFor(text, dimension);
-    }
-
-    int calls() {
-        return calls;
-    }
-
-    static float[] vectorFor(String text, int dimension) {
-        return MockEmbeddingProvider.vectorFor(text, dimension);
-    }
+    /** Returns a summary for the named community and its findings. */
+    String summarize(String communityName, List<String> findings);
 }

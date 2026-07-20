@@ -35,6 +35,14 @@ public final class GraphRAGAssemblerVocab {
 
     /** RDF type for a configured GraphRAG text/vector index pair. */
     public static final Resource GraphRAGIndex = model.createResource(uri + "GraphRAGIndex");
+    /** RDF type for the built-in deterministic embedding provider. */
+    public static final Resource MockEmbeddingProvider = model.createResource(uri + "MockEmbeddingProvider");
+    /** RDF type for the built-in deterministic chat provider. */
+    public static final Resource MockChatCompletionProvider = model.createResource(uri + "MockChatCompletionProvider");
+    /** RDF type for an opt-in OpenAI-compatible embedding provider. */
+    public static final Resource HttpEmbeddingProvider = model.createResource(uri + "HttpEmbeddingProvider");
+    /** RDF type for an opt-in OpenAI-compatible chat provider. */
+    public static final Resource HttpChatCompletionProvider = model.createResource(uri + "HttpChatCompletionProvider");
 
     /** Enables GraphRAG extensions explicitly. */
     public static final Property enableGraphRAG = model.createProperty(uri + "enableGraphRAG");
@@ -46,6 +54,22 @@ public final class GraphRAGAssemblerVocab {
     public static final Property vectorIndexDir = model.createProperty(uri + "vectorIndexDir");
     /** Optional vector dimension for the Lucene KNN index. */
     public static final Property vectorDimension = model.createProperty(uri + "vectorDimension");
+    /** Optional assembled embedding provider; defaults to the deterministic mock. */
+    public static final Property embeddingProvider = model.createProperty(uri + "embeddingProvider");
+    /** Optional assembled chat provider; defaults to the deterministic mock. */
+    public static final Property chatProvider = model.createProperty(uri + "chatProvider");
+    /** Explicitly permits external provider calls; false when absent. */
+    public static final Property allowExternalCalls = model.createProperty(uri + "allowExternalCalls");
+    /** Provider HTTP endpoint URI. */
+    public static final Property endpoint = model.createProperty(uri + "endpoint");
+    /** Provider model identifier. */
+    public static final Property modelName = model.createProperty(uri + "modelName");
+    /** Name of the environment variable containing the API key. */
+    public static final Property apiKeyEnv = model.createProperty(uri + "apiKeyEnv");
+    /** Provider request timeout in seconds. */
+    public static final Property timeoutSeconds = model.createProperty(uri + "timeoutSeconds");
+    /** Maximum estimated input tokens per provider request. */
+    public static final Property maxTokensPerRequest = model.createProperty(uri + "maxTokensPerRequest");
 
     private GraphRAGAssemblerVocab() {}
 }

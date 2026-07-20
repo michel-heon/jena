@@ -24,6 +24,8 @@ package org.apache.jena.graphrag.index;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -32,10 +34,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import org.apache.jena.assembler.Assembler;
+import org.apache.jena.assembler.Mode;
+import org.apache.jena.assembler.assemblers.AssemblerBase;
 import org.apache.jena.assembler.exceptions.AssemblerException;
 import org.apache.jena.fuseki.main.FusekiServer;
 import org.apache.jena.fuseki.main.sys.FusekiModules;
 import org.apache.jena.graphrag.fuseki.GraphRAGModule;
+import org.apache.jena.graphrag.provider.ChatCompletionProvider;
+import org.apache.jena.graphrag.provider.MockChatCompletionProvider;
+import org.apache.jena.graphrag.provider.MockEmbeddingProvider;
 import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
@@ -47,6 +54,10 @@ import org.junit.jupiter.api.io.TempDir;
 
 public class TestGraphRAGIndexAssembler {
     private static final String EXAMPLE = "/org/apache/jena/graphrag/graphrag-index-assembler.ttl";
+    private static final Resource TEST_EMBEDDING_TYPE = ModelFactory.createDefaultModel().createResource("urn:test:EmbeddingProvider");
+    private static final Resource TEST_CHAT_TYPE = ModelFactory.createDefaultModel().createResource("urn:test:ChatProvider");
+    private static final EmbeddingProvider TEST_EMBEDDING_PROVIDER = (text, dimension) -> new float[dimension];
+    private static final ChatCompletionProvider TEST_CHAT_PROVIDER = (question, passages) -> "custom";
 
     @TempDir
     Path tempDir;
@@ -54,6 +65,8 @@ public class TestGraphRAGIndexAssembler {
     @BeforeAll
     public static void init() {
         GraphRAGAssembler.init();
+        Assembler.general().implementWith(TEST_EMBEDDING_TYPE, providerAssembler(TEST_EMBEDDING_PROVIDER));
+        Assembler.general().implementWith(TEST_CHAT_TYPE, providerAssembler(TEST_CHAT_PROVIDER));
     }
 
     @Test
@@ -68,9 +81,42 @@ public class TestGraphRAGIndexAssembler {
             assertEquals(2, graphRAGIndex.vectorDimension());
             assertNotNull(graphRAGIndex.textIndex());
             assertNotNull(graphRAGIndex.vectorIndex());
+            assertInstanceOf(MockEmbeddingProvider.class, graphRAGIndex.embeddingProvider());
+            assertInstanceOf(MockChatCompletionProvider.class, graphRAGIndex.chatCompletionProvider());
             assertTrue(Files.isDirectory(textDir));
             assertTrue(Files.isDirectory(vectorDir));
         }
+    }
+
+    @Test
+    public void open_withConfiguredProviders_injectsAssembledInstances() {
+        Resource index = indexSpec(tempDir.resolve("custom-text"), tempDir.resolve("custom-vector"), true);
+        Model model = index.getModel();
+        Resource embedding = model.createResource("urn:test:embedding").addProperty(RDF.type, TEST_EMBEDDING_TYPE);
+        Resource chat = model.createResource("urn:test:chat").addProperty(RDF.type, TEST_CHAT_TYPE);
+        index.addProperty(GraphRAGAssemblerVocab.embeddingProvider, embedding)
+             .addProperty(GraphRAGAssemblerVocab.chatProvider, chat);
+
+        try (GraphRAGIndex graphRAGIndex = (GraphRAGIndex) Assembler.general().open(index)) {
+            assertSame(TEST_EMBEDDING_PROVIDER, graphRAGIndex.embeddingProvider());
+            assertSame(TEST_CHAT_PROVIDER, graphRAGIndex.chatCompletionProvider());
+        }
+    }
+
+    @Test
+    public void open_httpProviderWithoutExternalOptIn_failsBeforeReadingSecret() {
+        Resource index = indexSpec(tempDir.resolve("http-text"), tempDir.resolve("http-vector"), true);
+        Resource provider = index.getModel().createResource("urn:test:http-provider")
+                .addProperty(RDF.type, GraphRAGAssemblerVocab.HttpEmbeddingProvider)
+                .addLiteral(GraphRAGAssemblerVocab.allowExternalCalls, false)
+                .addLiteral(GraphRAGAssemblerVocab.endpoint, "http://127.0.0.1:1/embeddings")
+                .addLiteral(GraphRAGAssemblerVocab.modelName, "model")
+                .addLiteral(GraphRAGAssemblerVocab.apiKeyEnv, "UNSET_TEST_API_KEY");
+        index.addProperty(GraphRAGAssemblerVocab.embeddingProvider, provider);
+
+        AssemblerException exception = assertThrows(AssemblerException.class, () -> Assembler.general().open(index));
+        assertTrue(exception.getMessage().contains("allowExternalCalls true"));
+        assertFalse(exception.getMessage().contains("API key"));
     }
 
     @Test
@@ -145,5 +191,14 @@ public class TestGraphRAGIndexAssembler {
         if ( enabled )
             service.addLiteral(GraphRAGAssemblerVocab.enableGraphRAG, true);
         return model;
+    }
+
+    private static AssemblerBase providerAssembler(Object provider) {
+        return new AssemblerBase() {
+            @Override
+            public Object open(Assembler assembler, Resource root, Mode mode) {
+                return provider;
+            }
+        };
     }
 }
