@@ -30,6 +30,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.ServiceLoader;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.jena.atlas.json.JSON;
 import org.apache.jena.atlas.json.JsonArray;
@@ -192,6 +193,116 @@ public class TestGraphRAGContextEndpoint {
         }
     }
 
+    @Test
+    public void disabledModuleDoesNotExposePhase4Endpoints() throws Exception {
+        FusekiServer server = server(DatasetFactory.createTxnMem(), false);
+        try {
+            assertEquals(404, postOperation(server, "index", validIndexJson()).statusCode());
+            assertEquals(404, getOperation(server, "status", "").statusCode());
+            assertEquals(404, getOperation(server, "config", "").statusCode());
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    public void postIndexCreatesTaskAndStatusReportsIt() throws Exception {
+        FusekiServer server = server(DatasetFactory.createTxnMem(), true);
+        try {
+            HttpResponse<String> response = postOperation(server, "index", validIndexJson());
+
+            assertEquals(202, response.statusCode());
+            assertTrue(response.headers().firstValue("content-type").orElse("").contains("application/json"));
+            JsonObject body = JSON.parse(response.body());
+            assertEquals("accepted", body.get("status").getAsString().value());
+            String taskId = body.get("taskId").getAsString().value();
+            assertTrue(!taskId.isBlank());
+
+            JsonObject task = awaitTaskDone(server, taskId);
+            assertEquals(taskId, task.get("taskId").getAsString().value());
+            assertEquals("done", task.get("status").getAsString().value());
+            assertTrue(task.hasKey("createdAt"));
+            assertTrue(task.hasKey("startedAt"));
+            assertTrue(task.hasKey("completedAt"));
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    public void postIndexInvalidJsonReturnsStructuredBadRequest() throws Exception {
+        FusekiServer server = server(DatasetFactory.createTxnMem(), true);
+        try {
+            HttpResponse<String> response = postOperation(server, "index", "{}");
+
+            assertEquals(400, response.statusCode());
+            JsonObject error = JSON.parse(response.body()).get("error").getAsObject();
+            assertEquals("invalid_request", error.get("code").getAsString().value());
+            assertTrue(!response.body().contains("Exception"));
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    public void statusUnknownTaskReturnsStructuredNotFound() throws Exception {
+        FusekiServer server = server(DatasetFactory.createTxnMem(), true);
+        try {
+            HttpResponse<String> response = getOperation(server, "status", "?taskId=inconnu");
+
+            assertEquals(404, response.statusCode());
+            JsonObject error = JSON.parse(response.body()).get("error").getAsObject();
+            assertEquals("task_not_found", error.get("code").getAsString().value());
+            assertTrue(!response.body().contains("Exception"));
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    public void statusWithoutTaskIdReturnsOperatorSummaryAndIndexStats() throws Exception {
+        FusekiServer server = server(DatasetFactory.createTxnMem(), true);
+        try {
+            String taskId = JSON.parse(postOperation(server, "index", validIndexJson()).body())
+                    .get("taskId").getAsString().value();
+            awaitTaskDone(server, taskId);
+
+            HttpResponse<String> response = getOperation(server, "status", "");
+
+            assertEquals(200, response.statusCode());
+            JsonObject body = JSON.parse(response.body());
+            assertEquals(0, body.get("activeTasks").getAsNumber().value().intValue());
+            assertEquals(1, body.get("completedToday").getAsNumber().value().intValue());
+            assertTrue(body.hasKey("lastSuccess"));
+            JsonObject indexStats = body.get("indexStats").getAsObject();
+            assertEquals(1, indexStats.get("documents").getAsNumber().value().intValue());
+            assertEquals(1, indexStats.get("chunks").getAsNumber().value().intValue());
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    public void configReturnsOperatorConfigurationAndMasksSensitiveProperties() throws Exception {
+        System.setProperty("jena.graphrag.apiKey", "secret-value");
+        FusekiServer server = server(DatasetFactory.createTxnMem(), true);
+        try {
+            HttpResponse<String> response = getOperation(server, "config", "");
+
+            assertEquals(200, response.statusCode());
+            JsonObject body = JSON.parse(response.body());
+            assertEquals("local", body.get("defaultMode").getAsString().value());
+            assertTrue(body.get("modes").getAsArray().size() >= 3);
+            assertTrue(body.get("limits").getAsObject().get("maxIndexContentLength").getAsNumber().value().intValue() > 0);
+            assertEquals("***", body.get("maskedProperties").getAsObject()
+                    .get("jena.graphrag.apiKey").getAsString().value());
+            assertTrue(!response.body().contains("secret-value"));
+        } finally {
+            server.stop();
+            System.clearProperty("jena.graphrag.apiKey");
+        }
+    }
+
     private static FusekiServer server(Dataset dataset, boolean enabled) {
         Model config = ModelFactory.createDefaultModel();
         if ( enabled ) {
@@ -320,7 +431,45 @@ public class TestGraphRAGContextEndpoint {
         return HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
+    private static HttpResponse<String> getOperation(FusekiServer server, String operation, String query) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(operationEndpoint(server, operation) + query)).GET().build();
+        return HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private static HttpResponse<String> postOperation(FusekiServer server, String operation, String body) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(operationEndpoint(server, operation)))
+                .header("content-type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+        return HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private static JsonObject awaitTaskDone(FusekiServer server, String taskId) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        JsonObject task = null;
+        while ( System.nanoTime() < deadline ) {
+            HttpResponse<String> response = getOperation(server, "status", "?taskId=" + taskId);
+            assertEquals(200, response.statusCode());
+            task = JSON.parse(response.body());
+            String status = task.get("status").getAsString().value();
+            if ( "done".equals(status) || "failed".equals(status) )
+                return task;
+            Thread.sleep(10);
+        }
+        return task;
+    }
+
+    private static String validIndexJson() {
+        return """
+                {"title":"Phase 4 test","content":"GraphRAG operator indexing content","sourceUri":"urn:source:phase4"}
+                """;
+    }
+
     private static String endpoint(FusekiServer server) {
         return "http://localhost:" + server.getPort() + "/ds/graphrag/context";
+    }
+
+    private static String operationEndpoint(FusekiServer server, String operation) {
+        return "http://localhost:" + server.getPort() + "/ds/graphrag/" + operation;
     }
 }
