@@ -28,6 +28,21 @@ No class, property, IRI or term name was changed. The ontology IRI itself remain
 
 The Java mirror of this ontology is `org.apache.jena.vocabulary.GRAG` (class `GRAG`). Its `GRAG.uri` constant equals `http://ormynet.com/ns/msft-graphrag#` and resources/properties match the local names defined in this file.
 
+## Fuseki assembler vocabulary
+
+The Fuseki configuration vocabulary is separate from the Microsoft GraphRAG data
+vocabulary. It uses the `grag:` prefix under
+`https://jena.apache.org/graphrag/vocab#` and is mirrored by
+`org.apache.jena.graphrag.index.GraphRAGAssemblerVocab`.
+
+`GraphRAGIndexAssembler` opens a `grag:GraphRAGIndex` only when the loaded
+configuration model also contains `grag:enableGraphRAG true`. It reads
+`grag:textIndexDir`, `grag:vectorIndexDir` and optional `grag:vectorDimension`,
+then creates the Lucene text index and Lucene KNN vector index on disk.
+
+An executable Turtle example is available in
+`src/test/resources/org/apache/jena/graphrag/graphrag-index-assembler.ttl`.
+
 ## Validation
 
 The file is parseable by Apache Jena's `riot` tool. Because it uses SPARQL-style `PREFIX` declarations rather than Turtle's `@prefix`, validate it with the TriG syntax:

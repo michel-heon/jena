@@ -26,7 +26,9 @@ import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -34,6 +36,7 @@ import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
 
+import org.apache.jena.assembler.Assembler;
 import org.apache.jena.atlas.json.JSON;
 import org.apache.jena.atlas.json.JsonBuilder;
 import org.apache.jena.atlas.json.JsonException;
@@ -41,6 +44,9 @@ import org.apache.jena.atlas.json.JsonObject;
 import org.apache.jena.atlas.json.JsonValue;
 import org.apache.jena.fuseki.main.FusekiServer;
 import org.apache.jena.fuseki.main.sys.FusekiModule;
+import org.apache.jena.graphrag.index.GraphRAGAssembler;
+import org.apache.jena.graphrag.index.GraphRAGAssemblerVocab;
+import org.apache.jena.graphrag.index.GraphRAGIndex;
 import org.apache.jena.fuseki.servlets.ActionREST;
 import org.apache.jena.fuseki.servlets.HttpAction;
 import org.apache.jena.fuseki.servlets.ServletOps;
@@ -51,7 +57,9 @@ import org.apache.jena.query.ReadWrite;
 import org.apache.jena.query.ResultSet;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.Property;
+import org.apache.jena.rdf.model.RDFNode;
 import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.rdf.model.StmtIterator;
 import org.apache.jena.riot.WebContent;
 import org.apache.jena.sparql.core.DatasetGraph;
 import org.apache.jena.vocabulary.GRAG;
@@ -68,9 +76,10 @@ import org.apache.jena.web.HttpSC;
 public final class GraphRAGModule implements FusekiModule {
 
     /** Namespace for GraphRAG Fuseki configuration terms such as {@code enableGraphRAG}. */
-    public static final String CONFIG_NS = "https://jena.apache.org/graphrag/vocab#";
+    public static final String CONFIG_NS = GraphRAGAssemblerVocab.uri;
 
     private final BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGSearchAction> searchActionFactory;
+    private final List<GraphRAGIndex> configuredIndexes = new ArrayList<>();
 
     /** Constructor used by Java SPI; configuration remains opt-in. */
     public GraphRAGModule() {
@@ -90,6 +99,8 @@ public final class GraphRAGModule implements FusekiModule {
     public void prepare(FusekiServer.Builder builder, Set<String> datasetNames, Model configModel) {
         if ( !isEnabled(configModel) )
             return;
+        GraphRAGAssembler.init();
+        openConfiguredIndexes(configModel);
         GraphRAGConfiguration configuration = GraphRAGConfiguration.fromModel(configModel);
         datasetNames.forEach(name -> {
             DatasetGraph datasetGraph = builder.getDataset(name);
@@ -104,6 +115,11 @@ public final class GraphRAGModule implements FusekiModule {
         });
     }
 
+    @Override
+    public void serverStopped(FusekiServer server) {
+        closeConfiguredIndexes();
+    }
+
     /**
      * Tests whether the configuration model explicitly enables GraphRAG.
      *
@@ -115,6 +131,28 @@ public final class GraphRAGModule implements FusekiModule {
             return false;
         Property enabled = configModel.createProperty(CONFIG_NS + "enableGraphRAG");
         return configModel.contains(null, enabled, configModel.createTypedLiteral(true));
+    }
+
+    private synchronized void openConfiguredIndexes(Model configModel) {
+        closeConfiguredIndexes();
+        StmtIterator statements = configModel.listStatements(null, GraphRAGAssemblerVocab.graphragIndex, (RDFNode) null);
+        try {
+            while ( statements.hasNext() ) {
+                RDFNode value = statements.nextStatement().getObject();
+                if ( !value.isResource() )
+                    throw new IllegalArgumentException("grag:graphragIndex doit pointer vers une ressource");
+                GraphRAGIndex index = (GraphRAGIndex) Assembler.general().open(value.asResource());
+                if ( index.enabled() )
+                    configuredIndexes.add(index);
+            }
+        } finally {
+            statements.close();
+        }
+    }
+
+    private synchronized void closeConfiguredIndexes() {
+        configuredIndexes.forEach(GraphRAGIndex::close);
+        configuredIndexes.clear();
     }
 }
 
