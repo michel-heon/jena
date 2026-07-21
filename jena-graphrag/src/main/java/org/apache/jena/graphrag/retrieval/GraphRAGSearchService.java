@@ -33,6 +33,8 @@ import org.apache.jena.query.Query;
 import org.apache.jena.query.QueryExecution;
 import org.apache.jena.query.QueryFactory;
 import org.apache.jena.query.ResultSet;
+import org.apache.jena.query.text.DatasetGraphText;
+import org.apache.jena.query.text.TextQuery;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.sparql.core.DatasetGraph;
 
@@ -81,6 +83,8 @@ public final class GraphRAGSearchService {
     }
 
     private static List<ScoredResult> textResults(DatasetGraph datasetGraph, String query, int topK) {
+        if ( !hasTextIndex(datasetGraph) )
+            return List.of();
         Query textQuery = QueryFactory.create(TEXT_QUERY.formatted(topK));
         var needle = ModelFactory.createDefaultModel().createLiteral(query);
         try (QueryExecution queryExecution = QueryExecution.dataset(DatasetFactory.wrap(datasetGraph))
@@ -91,12 +95,19 @@ public final class GraphRAGSearchService {
             List<ScoredResult> results = new ArrayList<>();
             while ( resultSet.hasNext() ) {
             var solution = resultSet.nextSolution();
+            var scoreLiteral = solution.getLiteral("score");
+            double score = scoreLiteral != null ? scoreLiteral.getDouble() : 1.0;
             results.add(new ScoredResult(
                 solution.getResource("chunk").getURI(),
-                solution.getLiteral("score").getDouble()));
+                score));
             }
             return List.copyOf(results);
         }
+    }
+
+    private static boolean hasTextIndex(DatasetGraph datasetGraph) {
+        return datasetGraph.getContext().get(TextQuery.textIndex) != null
+                || datasetGraph instanceof DatasetGraphText;
     }
 
     private List<ScoredResult> vectorResults(String query, int topK) {
