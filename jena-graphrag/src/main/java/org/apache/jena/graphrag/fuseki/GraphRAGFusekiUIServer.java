@@ -25,8 +25,11 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import org.apache.jena.fuseki.Fuseki;
 import org.apache.jena.fuseki.main.FusekiServer;
 import org.apache.jena.fuseki.main.sys.FusekiModules;
+import org.apache.jena.fuseki.mgt.ActionDatasets;
+import org.apache.jena.fuseki.mod.admin.ActionServerStatus;
 import org.apache.jena.graphrag.GraphRAGImporter;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.query.DatasetFactory;
@@ -88,6 +91,10 @@ public final class GraphRAGFusekiUIServer {
                 .fusekiModules(FusekiModules.create(new GraphRAGModule()))
                 .enablePing(true)
                 .enableStats(true)
+                .enableTasks(true)
+                // Admin API — required by the Fuseki web UI to list datasets (/$/datasets)
+                .addServlet(Fuseki.serverFunctionPath("/datasets/*"), new ActionDatasets())
+                .addServlet(Fuseki.serverFunctionPath("/server"),    new ActionServerStatus())
                 .staticFileBase(webappUrl.toString())
                 .build();
 
