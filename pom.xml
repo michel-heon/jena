@@ -206,7 +206,6 @@
 
         <module>jena-core</module>
         <module>jena-arq</module>
-        <module>jena-graphrag</module>
         <module>jena-ontapi</module>
         <module>jena-shacl</module>
         <module>jena-shex</module>
@@ -244,6 +243,13 @@
     </profile>
 
     <profile>
+      <id>graphrag</id>
+      <modules>
+        <module>jena-graphrag</module>
+      </modules>
+    </profile>
+
+    <profile>
       <!--
           This is the complete profile, it builds everything including 
           any building modules, javadoc and the distribution packages.
@@ -265,7 +271,6 @@
         <!-- Main modules -->
         <module>jena-core</module>
         <module>jena-arq</module>
-        <module>jena-graphrag</module>
         <module>jena-ontapi</module>
         <module>jena-shacl</module>
         <module>jena-shex</module>

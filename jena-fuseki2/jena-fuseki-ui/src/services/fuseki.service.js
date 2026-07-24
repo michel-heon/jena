@@ -84,7 +84,27 @@ class FusekiService {
     return response.data
   }
 
-  async getDatasetSize (datasetName, endpoint) {
+  getQueryEndpoint (serverEndpoints = []) {
+    if (!Array.isArray(serverEndpoints) || serverEndpoints.length === 0) {
+      return ''
+    }
+    return serverEndpoints.find(endpoint => endpoint === 'sparql') ||
+      serverEndpoints.find(endpoint => endpoint === 'query') ||
+      serverEndpoints.find(endpoint => endpoint !== '') ||
+      ''
+  }
+
+  getCountValue (response) {
+    const bindings = response?.data?.results?.bindings
+    if (!Array.isArray(bindings) || bindings.length === 0) {
+      return '0'
+    }
+    const firstBinding = bindings[0]
+    return firstBinding?.count?.value || firstBinding?.c?.value || '0'
+  }
+
+  async getDatasetSize (datasetName, serverEndpoints) {
+    const endpoint = this.getQueryEndpoint(serverEndpoints)
     const promisesResult = await Promise.all([
       axios
         .get(this.getFusekiUrl(`/${datasetName}/${endpoint}`), {
@@ -100,7 +120,7 @@ class FusekiService {
     ])
     const results = {}
     const defaultGraphResult = promisesResult[0]
-    results['default graph'] = defaultGraphResult.data.results.bindings[0].count.value
+    results['default graph'] = this.getCountValue(defaultGraphResult)
     const allGraphResult = promisesResult[1]
     allGraphResult.data.results.bindings.forEach(binding => {
       results[binding.g.value] = binding.count.value
@@ -157,7 +177,8 @@ class FusekiService {
     return axios.get(this.getFusekiUrl('/$/tasks'))
   }
 
-  async countGraphsTriples (datasetName, endpoint) {
+  async countGraphsTriples (datasetName, serverEndpoints) {
+    const endpoint = this.getQueryEndpoint(serverEndpoints)
     const promisesResult = await Promise.all([
       axios
         .get(this.getFusekiUrl(`/${datasetName}/${endpoint}`), {
@@ -173,7 +194,7 @@ class FusekiService {
     ])
     const results = {}
     const defaultGraphResult = promisesResult[0]
-    results.default = defaultGraphResult.data.results.bindings[0].count.value
+    results.default = this.getCountValue(defaultGraphResult)
     const allGraphResult = promisesResult[1]
     allGraphResult.data.results.bindings.forEach(binding => {
       results[binding.g.value] = binding.count.value

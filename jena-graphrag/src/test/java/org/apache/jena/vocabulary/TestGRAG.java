@@ -32,10 +32,11 @@ public class TestGRAG {
 
     @Test
     public void namespace_isStable() {
-        assertEquals("http://ormynet.com/ns/msft-graphrag#", GRAG.uri);
-        assertEquals(GRAG.uri, GRAG.getURI());
+        assertEquals("http://ormynet.com/ns/msft-graphrag#", GRAG.NS);
+        assertEquals(GRAG.NS, GRAG.uri);
+        assertEquals(GRAG.NS, GRAG.getURI());
         assertNotNull(GRAG.NAMESPACE);
-        assertEquals(GRAG.uri, GRAG.NAMESPACE.getURI());
+        assertEquals(GRAG.NS, GRAG.NAMESPACE.getURI());
     }
 
     @Test
@@ -55,7 +56,7 @@ public class TestGRAG {
         };
         for (int i = 0; i < classes.length; i++) {
             assertNotNull(classes[i], "class is null: " + locals[i]);
-            assertEquals(GRAG.uri + locals[i], classes[i].getURI());
+            assertEquals(GRAG.NS + locals[i], classes[i].getURI());
         }
     }
 
@@ -81,7 +82,7 @@ public class TestGRAG {
         };
         for (int i = 0; i < props.length; i++) {
             assertNotNull(props[i], "property is null: " + locals[i]);
-            assertEquals(GRAG.uri + locals[i], props[i].getURI());
+            assertEquals(GRAG.NS + locals[i], props[i].getURI());
         }
     }
 }

@@ -100,7 +100,7 @@
                       <table-listing
                         :fields="countGraphFields"
                         :items="countGraphItems"
-                        :busy="isDatasetSizeLoading"
+                        :is-busy="isDatasetSizeLoading"
                         :filterable="false"
                         id="dataset-size-table"
                         class="mt-3"
@@ -307,7 +307,7 @@ export default {
     async countTriplesInGraphs () {
       this.isDatasetSizeLoading = true
       try {
-        this.datasetSize = await this.$fusekiService.getDatasetSize(this.currentDataset['ds.name'], this.services.query['srv.endpoints'][0])
+        this.datasetSize = await this.$fusekiService.getDatasetSize(this.currentDataset['ds.name'], this.services.query['srv.endpoints'])
         this.$refs['count-triples-button'].disabled = this.isDatasetSizeLoading
         this.datasetStats = await this.$fusekiService.getDatasetStats(this.datasetName)
       } catch (error) {

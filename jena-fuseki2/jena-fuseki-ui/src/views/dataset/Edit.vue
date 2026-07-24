@@ -230,7 +230,7 @@ export default {
       this.loadingGraph = true
       this.selectedGraph = ''
       try {
-        this.graphs = await this.$fusekiService.countGraphsTriples(this.datasetName, this.services.query['srv.endpoints'][0])
+        this.graphs = await this.$fusekiService.countGraphsTriples(this.datasetName, this.services.query['srv.endpoints'])
       } catch (error) {
         displayError(this, error)
       } finally {

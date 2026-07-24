@@ -21,10 +21,9 @@
 
 package org.apache.jena.vocabulary;
 
-import org.apache.jena.rdf.model.Model;
-import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.Property;
 import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.rdf.model.ResourceFactory;
 
 /**
  * Vocabulary definition for the Microsoft GraphRAG RDF schema.
@@ -34,11 +33,11 @@ import org.apache.jena.rdf.model.Resource;
  */
 public class GRAG {
 
-    /** The RDF model that holds the GRAG entities. */
-    private static final Model m = ModelFactory.createDefaultModel();
-
     /** The namespace of the GRAG vocabulary as a string. */
-    public static final String uri = "http://ormynet.com/ns/msft-graphrag#";
+    public static final String NS = "http://ormynet.com/ns/msft-graphrag#";
+
+    /** Backward-compatible alias for Jena vocabulary classes that still expose {@code uri}. */
+    public static final String uri = NS;
 
     /**
      * Returns the namespace of the GRAG vocabulary as a string.
@@ -46,94 +45,102 @@ public class GRAG {
      * @return the namespace of the GRAG vocabulary
      */
     public static String getURI() {
-        return uri;
+        return NS;
+    }
+
+    protected static Resource resource(String local) {
+        return ResourceFactory.createResource(NS + local);
+    }
+
+    protected static Property property(String local) {
+        return ResourceFactory.createProperty(NS, local);
     }
 
     /** RDF resource representing the GraphRAG vocabulary namespace. */
-    public static final Resource NAMESPACE = m.createResource(uri);
+    public static final Resource NAMESPACE = resource("");
 
     /** GraphRAG source document resource class. */
-    public static final Resource Document  = m.createResource(uri + "Document");
+    public static final Resource Document  = resource("Document");
     /** Text chunk resource class used for passages ready for retrieval/indexing. */
-    public static final Resource Chunk     = m.createResource(uri + "Chunk");
+    public static final Resource Chunk     = resource("Chunk");
     /** Entity resource class extracted or imported from a GraphRAG knowledge graph. */
-    public static final Resource Entity    = m.createResource(uri + "Entity");
+    public static final Resource Entity    = resource("Entity");
     /** Community resource class for GraphRAG global/community context. */
-    public static final Resource Community = m.createResource(uri + "Community");
+    public static final Resource Community = resource("Community");
     /** Covariate or claim resource class associated with an entity. */
-    public static final Resource Covariate = m.createResource(uri + "Covariate");
+    public static final Resource Covariate = resource("Covariate");
     /** Finding resource class for community report observations. */
-    public static final Resource Finding   = m.createResource(uri + "Finding");
+    public static final Resource Finding   = resource("Finding");
 
     /**
      * Reified relationship edge (Apache Jena extension term, not part of the
      * upstream Ormesher OWL ontology). See
      * {@code docs/adr/402-DATA-normalisation-import-mg-relationship.md}.
      */
-    public static final Resource Relationship = m.createResource(uri + "Relationship");
+    public static final Resource Relationship = resource("Relationship");
 
     /** Links an entity to an associated covariate or claim. */
-    public static final Property hasCovariate = m.createProperty(uri + "hasCovariate");
+    public static final Property hasCovariate = property("hasCovariate");
     /** Links a community report to one of its findings. */
-    public static final Property hasFinding   = m.createProperty(uri + "hasFinding");
+    public static final Property hasFinding   = property("hasFinding");
     /** Links an entity to the community that contains it. */
-    public static final Property inCommunity  = m.createProperty(uri + "inCommunity");
+    public static final Property inCommunity  = property("inCommunity");
     /** Direct entity-to-entity edge emitted for simple SPARQL traversal. */
-    public static final Property relatedTo    = m.createProperty(uri + "relatedTo");
+    public static final Property relatedTo    = property("relatedTo");
     /** Links a chunk to an entity mentioned in that chunk. */
-    public static final Property hasEntity    = m.createProperty(uri + "hasEntity");
+    public static final Property hasEntity    = property("hasEntity");
     /** Links a chunk to its source document. */
-    public static final Property partOf       = m.createProperty(uri + "partOf");
+    public static final Property partOf       = property("partOf");
 
     /** Relationship endpoint pointing to the source entity. */
-    public static final Property source       = m.createProperty(uri + "source");
+    public static final Property source       = property("source");
     /** Relationship endpoint pointing to the target entity. */
-    public static final Property target       = m.createProperty(uri + "target");
+    public static final Property target       = property("target");
 
     /** External source document identifiers carried by imported GraphRAG data. */
-    public static final Property documentIds         = m.createProperty(uri + "documentIds");
+    public static final Property documentIds         = property("documentIds");
     /** External text unit identifier carried by imported GraphRAG data. */
-    public static final Property textUnitId          = m.createProperty(uri + "textUnitId");
+    public static final Property textUnitId          = property("textUnitId");
     /** Textual finding content in a community report. */
-    public static final Property finding             = m.createProperty(uri + "finding");
+    public static final Property finding             = property("finding");
     /** Summary text for a community or report resource. */
-    public static final Property summary             = m.createProperty(uri + "summary");
+    public static final Property summary             = property("summary");
     /** Explanation associated with a rank value. */
-    public static final Property rankExplanation     = m.createProperty(uri + "rankExplanation");
+    public static final Property rankExplanation     = property("rankExplanation");
     /** Hierarchical community level. */
-    public static final Property level               = m.createProperty(uri + "level");
+    public static final Property level               = property("level");
     /** Full textual content of a report-like GraphRAG resource. */
-    public static final Property fullContent         = m.createProperty(uri + "fullContent");
+    public static final Property fullContent         = property("fullContent");
     /** Rank value imported from GraphRAG data. */
-    public static final Property rank                = m.createProperty(uri + "rank");
+    public static final Property rank                = property("rank");
     /** Serialized description embedding when present in imported data. */
-    public static final Property descriptionEmbedding = m.createProperty(uri + "descriptionEmbedding");
+    public static final Property descriptionEmbedding = property("descriptionEmbedding");
     /** Human-readable identifier from imported GraphRAG data. */
-    public static final Property humanReadableId     = m.createProperty(uri + "humanReadableId");
+    public static final Property humanReadableId     = property("humanReadableId");
     /** Description text for an entity, relation, or report resource. */
-    public static final Property description         = m.createProperty(uri + "description");
+    public static final Property description         = property("description");
     /** Display name for an entity or related resource. */
-    public static final Property name                = m.createProperty(uri + "name");
+    public static final Property name                = property("name");
     /** Main text content of a chunk or text unit. */
-    public static final Property text                = m.createProperty(uri + "text");
+    public static final Property text                = property("text");
     /** Token count metadata from imported GraphRAG data. */
-    public static final Property nTokens             = m.createProperty(uri + "nTokens");
+    public static final Property nTokens             = property("nTokens");
     /** External identifier from imported GraphRAG data. */
-    public static final Property id                  = m.createProperty(uri + "id");
+    public static final Property id                  = property("id");
     /** Title text for imported GraphRAG resources that provide one. */
-    public static final Property title               = m.createProperty(uri + "title");
+    public static final Property title               = property("title");
 
     /** Relationship weight found in real dumps and preserved by ADR-402 normalization. */
-    public static final Property weight              = m.createProperty(uri + "weight");
+    public static final Property weight              = property("weight");
     /** Type literal found in real dumps and preserved during normalization. */
-    public static final Property type                = m.createProperty(uri + "type");
+    public static final Property type                = property("type");
 
     /** SHA-256 hash of the ingested source document bytes. */
-    public static final Property sourceHash  = m.createProperty(uri + "sourceHash");
+    public static final Property sourceHash  = property("sourceHash");
     /** Source file name recorded for PDF ingestion traceability. */
-    public static final Property sourceFile  = m.createProperty(uri + "sourceFile");
+    public static final Property sourceFile  = property("sourceFile");
     /** Zero-based chunk index within an ingested source document. */
-    public static final Property chunkIndex  = m.createProperty(uri + "chunkIndex");
+    public static final Property chunkIndex  = property("chunkIndex");
     /** Page or page range covered by an ingested PDF chunk. */
-    public static final Property chunkPages  = m.createProperty(uri + "chunkPages");
+    public static final Property chunkPages  = property("chunkPages");
 }
