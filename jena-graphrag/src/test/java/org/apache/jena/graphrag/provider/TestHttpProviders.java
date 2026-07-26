@@ -24,6 +24,7 @@ package org.apache.jena.graphrag.provider;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.IOException;
@@ -36,6 +37,8 @@ import java.util.concurrent.CountDownLatch;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import org.apache.jena.atlas.json.JSON;
+import org.apache.jena.atlas.json.JsonObject;
 import org.junit.jupiter.api.Test;
 
 public class TestHttpProviders {
@@ -58,6 +61,8 @@ public class TestHttpProviders {
 
             assertArrayEquals(new float[] { 0.25f, 0.75f }, provider.embed("hello world", 2));
             assertEquals("Bearer " + API_KEY, server.authorization());
+            assertEquals("embedding-model", server.requestBody().get("model").getAsString().value());
+            assertEquals("hello world", server.requestBody().get("input").getAsArray().get(0).getAsString().value());
         }
     }
 
@@ -69,8 +74,37 @@ public class TestHttpProviders {
                     server.uri(), "chat-model", API_KEY);
 
             assertEquals("answer", provider.complete("question", List.of("context")));
+            assertEquals("chat-model", server.requestBody().get("model").getAsString().value());
+            assertEquals(10, server.requestBody().get("max_tokens").getAsNumber().value().intValue());
+            assertEquals(1, server.requestBody().get("messages").getAsArray().size());
+            assertEquals("user", server.requestBody().get("messages").getAsArray().get(0).getAsObject()
+                .get("role").getAsString().value());
+            assertEquals("Question:\nquestion\n\nContext:\ncontext",
+                server.requestBody().get("messages").getAsArray().get(0).getAsObject()
+                    .get("content").getAsString().value());
         }
     }
+
+    @Test
+    public void chatProvider_acceptsAzureStyleChatCompletionsEndpoint() throws Exception {
+        try (TestServer server = TestServer.responding(200,
+                "{\"choices\":[{\"message\":{\"content\":\"answer\"}}]}")) {
+            URI azureStyleEndpoint = URI.create(server.uri().toString() + "/chat/completions?api-version=2025-01-01-preview");
+            HttpChatCompletionProvider provider = new HttpChatCompletionProvider(configuration(Duration.ofSeconds(2), 10),
+                    azureStyleEndpoint, "chat-model", API_KEY);
+
+            assertEquals("answer", provider.complete("question", List.of("context")));
+            assertEquals("chat-model", server.requestBody().get("model").getAsString().value());
+        }
+    }
+
+        @Test
+        public void azureEndpoint_usesApiKeyHeaderInsteadOfBearerAuthorization() throws Exception {
+            assertThrows(ProviderException.class,
+                () -> new HttpEmbeddingProvider(configuration(Duration.ofSeconds(2), 10),
+                    URI.create("https://test.openai.azure.com/provider"), "embedding-model", API_KEY)
+                        .embed("hello world", 2));
+        }
 
     @Test
     public void inputAboveQuota_isRejectedWithoutNetworkCall() {
@@ -116,6 +150,8 @@ public class TestHttpProviders {
     private static final class TestServer implements AutoCloseable {
         private final HttpServer server;
         private volatile String authorization;
+        private volatile String apiKey;
+        private volatile JsonObject requestBody;
 
         static TestServer responding(int status, String responseBody) throws IOException {
             return new TestServer(exchange -> write(exchange, status, responseBody));
@@ -137,6 +173,8 @@ public class TestHttpProviders {
             server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
             server.createContext("/provider", exchange -> {
                 authorization = exchange.getRequestHeaders().getFirst("Authorization");
+                apiKey = exchange.getRequestHeaders().getFirst("api-key");
+                requestBody = JSON.parse(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
                 handler.handle(exchange);
             });
             server.start();
@@ -148,6 +186,15 @@ public class TestHttpProviders {
 
         String authorization() {
             return authorization;
+        }
+
+        String apiKey() {
+            return apiKey;
+        }
+
+        JsonObject requestBody() {
+            assertNotNull(requestBody);
+            return requestBody;
         }
 
         @Override

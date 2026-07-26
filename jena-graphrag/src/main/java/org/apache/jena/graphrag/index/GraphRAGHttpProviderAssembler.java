@@ -47,7 +47,7 @@ final class GraphRAGHttpProviderAssembler extends AssemblerBase {
         boolean allowed = booleanValue(root, GraphRAGAssemblerVocab.allowExternalCalls, false);
         if ( !allowed )
             throw new AssemblerException(root, "External provider calls require grag:allowExternalCalls true");
-        URI endpoint = URI.create(requiredString(root, GraphRAGAssemblerVocab.endpoint));
+        URI endpoint = URI.create(requiredEndpoint(root));
         String model = requiredString(root, GraphRAGAssemblerVocab.modelName);
         String environmentName = requiredString(root, GraphRAGAssemblerVocab.apiKeyEnv);
         String apiKey = System.getenv(environmentName);
@@ -59,6 +59,18 @@ final class GraphRAGHttpProviderAssembler extends AssemblerBase {
         if ( embedding )
             return new HttpEmbeddingProvider(configuration, endpoint, model, apiKey);
         return new HttpChatCompletionProvider(configuration, endpoint, model, apiKey);
+    }
+
+    private static String requiredEndpoint(Resource root) {
+        if ( root.hasProperty(GraphRAGAssemblerVocab.endpointEnv) ) {
+            String environmentName = requiredString(root, GraphRAGAssemblerVocab.endpointEnv);
+            String endpoint = System.getenv(environmentName);
+            if ( endpoint == null || endpoint.isBlank() )
+                throw new AssemblerException(root,
+                        "Required provider environment variable is not set: " + environmentName);
+            return endpoint;
+        }
+        return requiredString(root, GraphRAGAssemblerVocab.endpoint);
     }
 
     private static String requiredString(Resource root, Property property) {

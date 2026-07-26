@@ -28,11 +28,19 @@ import org.apache.jena.query.text.EntityDefinition;
 import org.apache.jena.query.text.TextDatasetFactory;
 import org.apache.jena.query.text.TextIndex;
 import org.apache.jena.query.text.TextIndexConfig;
-import org.apache.jena.vocabulary.GRAG;
+import org.apache.jena.rdf.model.ModelFactory;
+import org.apache.jena.rdf.model.Property;
 import org.apache.lucene.store.Directory;
 
 /** Factory methods for GraphRAG text datasets backed by {@code jena-text}. */
 public final class GraphRAGTextDatasetFactory {
+
+    private static final Property MG_TEXT = ModelFactory.createDefaultModel()
+        .createProperty("http://ormynet.com/ns/msft-graphrag#text");
+    private static final Property MG_SUMMARY = ModelFactory.createDefaultModel()
+        .createProperty("http://ormynet.com/ns/msft-graphrag#summary");
+    private static final Property MG_FULL_CONTENT = ModelFactory.createDefaultModel()
+        .createProperty("http://ormynet.com/ns/msft-graphrag#fullContent");
 
     private GraphRAGTextDatasetFactory() {}
 
@@ -75,7 +83,7 @@ public final class GraphRAGTextDatasetFactory {
     /** Returns the entity map used for {@code mg:Chunk}/{@code mg:text} indexing. */
     public static EntityDefinition chunkEntityDefinition() {
         EntityDefinition definition = new EntityDefinition("uri", "text");
-        definition.set("text", GRAG.text.asNode());
+        definition.set("text", MG_TEXT.asNode());
         definition.setUidField("uid");
         definition.setLangField("lang");
         return definition;
@@ -84,8 +92,8 @@ public final class GraphRAGTextDatasetFactory {
     /** Returns the entity map used for GraphRAG chunk and community retrieval indexing. */
     public static EntityDefinition retrievalEntityDefinition() {
         EntityDefinition definition = chunkEntityDefinition();
-        definition.set("summary", GRAG.summary.asNode());
-        definition.set("fullContent", GRAG.fullContent.asNode());
+        definition.set("summary", MG_SUMMARY.asNode());
+        definition.set("fullContent", MG_FULL_CONTENT.asNode());
         return definition;
     }
 }

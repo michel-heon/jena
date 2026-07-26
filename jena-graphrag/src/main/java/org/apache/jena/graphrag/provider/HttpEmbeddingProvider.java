@@ -22,43 +22,100 @@
 package org.apache.jena.graphrag.provider;
 
 import java.net.URI;
+import java.util.Map;
+import java.util.Objects;
 
-import org.apache.jena.atlas.json.JsonArray;
-import org.apache.jena.atlas.json.JsonBuilder;
-import org.apache.jena.atlas.json.JsonObject;
-import org.apache.jena.atlas.json.JsonValue;
 import org.apache.jena.graphrag.index.EmbeddingProvider;
+
+import dev.langchain4j.data.embedding.Embedding;
+import dev.langchain4j.model.openai.OpenAiEmbeddingModel;
 
 /** OpenAI-compatible embedding provider, disabled unless external calls are explicitly allowed. */
 public final class HttpEmbeddingProvider implements EmbeddingProvider {
-    private final OpenAICompatibleClient client;
+    private static final String AZURE_OPENAI_HOST = ".openai.azure.com";
+
+    private final ProviderConfiguration configuration;
+    private final OpenAiEmbeddingModel model;
 
     public HttpEmbeddingProvider(ProviderConfiguration configuration, URI endpoint, String model, String apiKey) {
-        this.client = new OpenAICompatibleClient(configuration, endpoint, model, apiKey);
+        this.configuration = Objects.requireNonNull(configuration, "configuration");
+        if ( !configuration.allowExternalCalls() )
+            throw new ProviderException("External provider calls are disabled");
+
+        URI checkedEndpoint = requireHttpEndpoint(endpoint);
+        String checkedModel = requireNonBlank(model, "model");
+        String checkedApiKey = requireNonBlank(apiKey, "apiKey");
+
+        OpenAiEmbeddingModel.OpenAiEmbeddingModelBuilder builder = OpenAiEmbeddingModel.builder()
+                .baseUrl(checkedEndpoint.toString())
+                .modelName(checkedModel)
+                .apiKey(checkedApiKey)
+                .timeout(configuration.timeout())
+                .maxRetries(0)
+                .logRequests(false)
+                .logResponses(false);
+
+        if ( usesAzureApiKey(checkedEndpoint) )
+            builder.customHeaders(Map.of("api-key", checkedApiKey));
+
+        this.model = builder.build();
     }
 
     @Override
     public float[] embed(String text, int dimension) {
-        client.checkInputQuota(text);
-        JsonBuilder builder = new JsonBuilder();
-        JsonValue request = builder.startObject()
-                .pair("model", client.model())
-                .pair("input", text)
-            .pair("dimensions", dimension)
-                .finishObject()
-                .build();
-        JsonObject response = client.post(request);
+        checkInputQuota(text);
         try {
-            JsonArray values = response.get("data").getAsArray().get(0).getAsObject()
-                    .get("embedding").getAsArray();
-            if ( values.size() != dimension )
+            Embedding embedding = model.embed(text).content();
+            float[] vector = embedding.vector();
+            if ( vector.length != dimension )
                 throw new ProviderException("Provider returned an unexpected embedding dimension");
-            float[] vector = new float[dimension];
-            for ( int index = 0; index < dimension; index++ )
-                vector[index] = values.get(index).getAsNumber().value().floatValue();
             return vector;
-        } catch (NullPointerException | ClassCastException ex) {
-            throw new ProviderException("Provider returned an invalid embedding response");
+        } catch (ProviderException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            throw new ProviderException(sanitizeFailure(ex), ex);
         }
+    }
+
+    private static String sanitizeFailure(RuntimeException ex) {
+        String message = ex.getMessage();
+        if ( message == null || message.isBlank() )
+            return "Provider request failed";
+        if ( message.contains("invalid json") || message.contains("Invalid JSON") )
+            return "Provider returned invalid JSON";
+        if ( message.contains("status code") || message.contains("HTTP") )
+            return "Provider request failed";
+        return "Provider request failed";
+    }
+
+    private int maximumTokens() {
+        return configuration.maxTokensPerRequest();
+    }
+
+    private void checkInputQuota(String input) {
+        String stripped = Objects.requireNonNull(input, "input").strip();
+        int estimatedTokens = stripped.isEmpty() ? 0 : stripped.split("\\s+").length;
+        if ( estimatedTokens > maximumTokens() )
+            throw new ProviderQuotaExceededException(maximumTokens());
+    }
+
+    private static URI requireHttpEndpoint(URI endpoint) {
+        Objects.requireNonNull(endpoint, "endpoint");
+        if ( !endpoint.isAbsolute() || !(
+                "http".equals(endpoint.getScheme()) || "https".equals(endpoint.getScheme())) )
+            throw new IllegalArgumentException("endpoint must be an absolute HTTP(S) URI");
+        return endpoint;
+    }
+
+    private static String requireNonBlank(String value, String name) {
+        Objects.requireNonNull(value, name);
+        if ( value.isBlank() )
+            throw new IllegalArgumentException(name + " must not be blank");
+        return value;
+    }
+
+    private static boolean usesAzureApiKey(URI endpoint) {
+        String host = endpoint.getHost();
+        return host != null && host.endsWith(AZURE_OPENAI_HOST);
     }
 }

@@ -22,6 +22,7 @@
 package org.apache.jena.graphrag.retrieval;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.apache.jena.graphrag.index.EmbeddingProvider;
@@ -30,6 +31,8 @@ import org.apache.jena.graphrag.index.LuceneVectorIndex;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.query.ReadWrite;
+import org.apache.jena.rdf.model.ModelFactory;
+import org.apache.jena.rdf.model.Property;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.vocabulary.GRAG;
 import org.apache.jena.vocabulary.RDF;
@@ -38,6 +41,11 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.junit.jupiter.api.Test;
 
 public class TestGraphRAGSearchService {
+
+    private static final Resource MG_CHUNK = ModelFactory.createDefaultModel()
+        .createResource("http://ormynet.com/ns/msft-graphrag#Chunk");
+    private static final Property MG_TEXT = ModelFactory.createDefaultModel()
+        .createProperty("http://ormynet.com/ns/msft-graphrag#text");
 
     @Test
     public void search_returnsTextVectorAndHybridScores() {
@@ -82,6 +90,31 @@ public class TestGraphRAGSearchService {
         }
     }
 
+    @Test
+    public void search_returnsTextResultsForOrmynetChunkVocabulary() {
+        Dataset base = DatasetFactory.createTxnMem();
+        Dataset dataset = GraphRAGTextDatasetFactory.createChunkTextDataset(base, new ByteBuffersDirectory());
+        dataset.begin(ReadWrite.WRITE);
+        try {
+            Resource chunk = dataset.getDefaultModel().createResource("urn:chunk:ormynet");
+            chunk.addProperty(RDF.type, MG_CHUNK)
+                 .addProperty(MG_TEXT, "plan d eau et plantes aquatiques");
+            dataset.commit();
+        } finally {
+            dataset.end();
+        }
+
+        try (LuceneVectorIndex vectorIndex = new LuceneVectorIndex(new ByteBuffersDirectory(), 2, VectorSimilarityFunction.EUCLIDEAN)) {
+            GraphRAGSearchService service = new GraphRAGSearchService(vectorIndex, new ZeroEmbeddingProvider(), 2);
+
+            GraphRAGSearch search = service.search(dataset.asDatasetGraph(), "plan", 5, 1.0);
+
+            assertFalse(search.results().isEmpty());
+            assertEquals("urn:chunk:ormynet", search.results().getFirst().uri());
+            assertTrue(search.results().getFirst().scoreText() > 0.0);
+        }
+    }
+
     private static Dataset indexedDataset() {
         Dataset base = DatasetFactory.createTxnMem();
         Dataset dataset = GraphRAGTextDatasetFactory.createChunkTextDataset(base, new ByteBuffersDirectory());
@@ -115,6 +148,13 @@ public class TestGraphRAGSearchService {
         @Override
         public float[] embed(String text, int dimension) {
             return new float[] { 1.0f, 0.0f };
+        }
+    }
+
+    private static final class ZeroEmbeddingProvider implements EmbeddingProvider {
+        @Override
+        public float[] embed(String text, int dimension) {
+            return new float[] { 0.0f, 0.0f };
         }
     }
 }

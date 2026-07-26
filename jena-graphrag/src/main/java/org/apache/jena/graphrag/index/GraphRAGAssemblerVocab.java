@@ -62,6 +62,8 @@ public final class GraphRAGAssemblerVocab {
     public static final Property allowExternalCalls = model.createProperty(uri + "allowExternalCalls");
     /** Provider HTTP endpoint URI. */
     public static final Property endpoint = model.createProperty(uri + "endpoint");
+    /** Name of the environment variable containing the provider HTTP endpoint URI. */
+    public static final Property endpointEnv = model.createProperty(uri + "endpointEnv");
     /** Provider model identifier. */
     public static final Property modelName = model.createProperty(uri + "modelName");
     /** Name of the environment variable containing the API key. */

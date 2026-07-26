@@ -39,7 +39,20 @@
 
   <properties>
     <automatic.module.name>org.apache.jena.graphrag</automatic.module.name>
+    <ver.langchain4j>1.8.0</ver.langchain4j>
   </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>dev.langchain4j</groupId>
+        <artifactId>langchain4j-bom</artifactId>
+        <version>${ver.langchain4j}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
 
   <dependencies>
     <dependency>
@@ -85,6 +98,11 @@
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
       <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>dev.langchain4j</groupId>
+      <artifactId>langchain4j-open-ai</artifactId>
     </dependency>
 
     <!-- PDF ingestion (ADR-403): declared here only, NOT in Jena root BOM -->

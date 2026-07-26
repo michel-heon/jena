@@ -57,6 +57,9 @@ import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.query.QueryExecution;
 import org.apache.jena.query.ReadWrite;
 import org.apache.jena.query.ResultSet;
+import org.apache.jena.query.text.TextDatasetFactory;
+import org.apache.jena.query.text.TextIndex;
+import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.Property;
 import org.apache.jena.rdf.model.RDFNode;
@@ -115,10 +118,11 @@ public final class GraphRAGModule implements FusekiModule {
             DatasetGraph datasetGraph = builder.getDataset(name);
             GraphRAGTaskService taskService = new GraphRAGTaskService(configuration.maxActiveTasks(),
                     configuration.maxRetainedCompletedTasks());
-            GraphRAGIndexingService indexingService = new GraphRAGIndexingService(datasetGraph, taskService, configuration);
+            GraphRAGIndexingService indexingService = new GraphRAGIndexingService(indexingDataset(datasetGraph), taskService,
+                configuration);
             builder.addProcessor(name + "/graphrag/context", new GraphRAGContextAction(datasetGraph, configuration));
-            builder.addProcessor(name + "/graphrag/search", searchActionFactory.apply(datasetGraph, configuration));
-                builder.addProcessor(name + "/graphrag/answer", answerActionFactory == null
+            builder.addProcessor(name + "/graphrag/search", searchAction(datasetGraph, configuration));
+            builder.addProcessor(name + "/graphrag/answer", answerActionFactory == null
                     ? answerAction(datasetGraph, configuration)
                     : answerActionFactory.apply(datasetGraph, configuration));
             builder.addProcessor(name + "/graphrag/index", new GraphRAGIndexAction(indexingService, configuration));
@@ -172,9 +176,28 @@ public final class GraphRAGModule implements FusekiModule {
             return new GraphRAGAnswerAction(datasetGraph, configuration,
                     GraphRAGSearchAction.defaultSearchService(), new MockChatCompletionProvider());
         GraphRAGIndex index = configuredIndexes.getFirst();
-        GraphRAGSearchService searchService = new GraphRAGSearchService(index.vectorIndex(), index.embeddingProvider(),
-                index.vectorDimension());
-        return new GraphRAGAnswerAction(datasetGraph, configuration, searchService, index.chatCompletionProvider());
+        GraphRAGSearchService searchService = new GraphRAGSearchService(index.textIndex(), index.vectorIndex(),
+            index.embeddingProvider(), index.vectorDimension());
+        DatasetGraph searchDatasetGraph = searchService.attachTextIndex(datasetGraph);
+        return new GraphRAGAnswerAction(searchDatasetGraph, configuration, searchService, index.chatCompletionProvider());
+    }
+
+    private synchronized GraphRAGSearchAction searchAction(DatasetGraph datasetGraph, GraphRAGConfiguration configuration) {
+        if ( configuredIndexes.isEmpty() )
+            return searchActionFactory.apply(datasetGraph, configuration);
+        GraphRAGIndex index = configuredIndexes.getFirst();
+        GraphRAGSearchService searchService = new GraphRAGSearchService(index.textIndex(), index.vectorIndex(),
+            index.embeddingProvider(), index.vectorDimension());
+        DatasetGraph searchDatasetGraph = searchService.attachTextIndex(datasetGraph);
+        return new GraphRAGSearchAction(searchDatasetGraph, configuration, searchService);
+    }
+
+    private synchronized Dataset indexingDataset(DatasetGraph datasetGraph) {
+        Dataset base = DatasetFactory.wrap(datasetGraph);
+        if ( configuredIndexes.isEmpty() )
+            return base;
+        TextIndex textIndex = configuredIndexes.getFirst().textIndex();
+        return TextDatasetFactory.create(base, textIndex, true);
     }
 }
 
@@ -412,13 +435,21 @@ final class GraphRAGConfigAction extends ActionREST {
 record GraphRAGIndexRequest(String title, String content, String sourceUri) {}
 
 final class GraphRAGIndexingService {
-    private final DatasetGraph datasetGraph;
+    private static final String MG_NS = "http://ormynet.com/ns/msft-graphrag#";
+    private static final Resource MG_DOCUMENT = ModelFactory.createDefaultModel().createResource(MG_NS + "Document");
+    private static final Resource MG_CHUNK = ModelFactory.createDefaultModel().createResource(MG_NS + "Chunk");
+    private static final Property MG_TEXT = ModelFactory.createDefaultModel().createProperty(MG_NS + "text");
+    private static final Property MG_CHUNK_INDEX = ModelFactory.createDefaultModel().createProperty(MG_NS + "chunkIndex");
+    private static final Property MG_PART_OF = ModelFactory.createDefaultModel().createProperty(MG_NS + "partOf");
+    private static final Property MG_SOURCE_FILE = ModelFactory.createDefaultModel().createProperty(MG_NS + "sourceFile");
+
+    private final Dataset dataset;
     private final GraphRAGTaskService taskService;
     private final GraphRAGConfiguration configuration;
 
-    GraphRAGIndexingService(DatasetGraph datasetGraph, GraphRAGTaskService taskService,
+    GraphRAGIndexingService(Dataset dataset, GraphRAGTaskService taskService,
                             GraphRAGConfiguration configuration) {
-        this.datasetGraph = Objects.requireNonNull(datasetGraph);
+        this.dataset = Objects.requireNonNull(dataset);
         this.taskService = Objects.requireNonNull(taskService);
         this.configuration = Objects.requireNonNull(configuration);
     }
@@ -454,26 +485,25 @@ final class GraphRAGIndexingService {
     }
 
     private void index(GraphRAGIndexRequest request, String taskId) {
-        datasetGraph.begin(ReadWrite.WRITE);
+        dataset.begin(ReadWrite.WRITE);
         boolean committed = false;
         try {
-            Dataset dataset = DatasetFactory.wrap(datasetGraph);
             Model model = dataset.getDefaultModel();
             Resource document = model.createResource(request.sourceUri());
-            document.addProperty(RDF.type, GRAG.Document)
-                    .addProperty(GRAG.title, request.title())
-                    .addProperty(GRAG.sourceFile, request.sourceUri());
+            document.removeAll(MG_SOURCE_FILE);
+            document.addProperty(RDF.type, MG_DOCUMENT)
+                .addProperty(MG_SOURCE_FILE, request.title());
             Resource chunk = model.createResource(request.sourceUri() + "#chunk-" + taskId);
-            chunk.addProperty(RDF.type, GRAG.Chunk)
-                 .addProperty(GRAG.text, request.content())
-                 .addLiteral(GRAG.chunkIndex, 0)
-                 .addProperty(GRAG.partOf, document);
-            datasetGraph.commit();
+            chunk.addProperty(RDF.type, MG_CHUNK)
+             .addProperty(MG_TEXT, request.content())
+             .addLiteral(MG_CHUNK_INDEX, 0)
+             .addProperty(MG_PART_OF, document);
+            dataset.commit();
             committed = true;
         } finally {
-            if ( !committed && datasetGraph.supportsTransactionAbort() )
-                datasetGraph.abort();
-            datasetGraph.end();
+            if ( !committed )
+                dataset.abort();
+            dataset.end();
         }
     }
 }

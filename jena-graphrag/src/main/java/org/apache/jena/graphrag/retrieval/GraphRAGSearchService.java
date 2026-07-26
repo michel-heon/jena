@@ -33,6 +33,7 @@ import org.apache.jena.query.Query;
 import org.apache.jena.query.QueryExecution;
 import org.apache.jena.query.QueryFactory;
 import org.apache.jena.query.ResultSet;
+import org.apache.jena.query.text.TextIndex;
 import org.apache.jena.query.text.DatasetGraphText;
 import org.apache.jena.query.text.TextQuery;
 import org.apache.jena.rdf.model.ModelFactory;
@@ -53,10 +54,16 @@ public final class GraphRAGSearchService {
             """;
 
     private final VectorIndex vectorIndex;
+    private final TextIndex textIndex;
     private final EmbeddingProvider embeddingProvider;
     private final int dimension;
 
     public GraphRAGSearchService(VectorIndex vectorIndex, EmbeddingProvider embeddingProvider, int dimension) {
+        this(null, vectorIndex, embeddingProvider, dimension);
+    }
+
+    public GraphRAGSearchService(TextIndex textIndex, VectorIndex vectorIndex, EmbeddingProvider embeddingProvider, int dimension) {
+        this.textIndex = textIndex;
         this.vectorIndex = Objects.requireNonNull(vectorIndex, "vectorIndex");
         this.embeddingProvider = Objects.requireNonNull(embeddingProvider, "embeddingProvider");
         if ( dimension < 1 )
@@ -108,6 +115,13 @@ public final class GraphRAGSearchService {
     private static boolean hasTextIndex(DatasetGraph datasetGraph) {
         return datasetGraph.getContext().get(TextQuery.textIndex) != null
                 || datasetGraph instanceof DatasetGraphText;
+    }
+
+    public DatasetGraph attachTextIndex(DatasetGraph datasetGraph) {
+        Objects.requireNonNull(datasetGraph, "datasetGraph");
+        if ( textIndex != null )
+            datasetGraph.getContext().set(TextQuery.textIndex, textIndex);
+        return datasetGraph;
     }
 
     private List<ScoredResult> vectorResults(String query, int topK) {

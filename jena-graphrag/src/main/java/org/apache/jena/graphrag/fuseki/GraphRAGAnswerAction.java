@@ -36,12 +36,16 @@ import org.apache.jena.graphrag.retrieval.GraphRAGSearchService;
 import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.query.ReadWrite;
 import org.apache.jena.rdf.model.Model;
-import org.apache.jena.vocabulary.GRAG;
+import org.apache.jena.rdf.model.Property;
 import org.apache.jena.sparql.core.DatasetGraph;
 import org.apache.jena.web.HttpSC;
 
 /** GraphRAG retrieval-augmented answer operation. */
 public final class GraphRAGAnswerAction extends ActionREST {
+    private static final Property MG_TEXT = DatasetFactory.create().getDefaultModel()
+            .createProperty("http://ormynet.com/ns/msft-graphrag#text");
+    private static final int PROMPT_OVERHEAD_TOKENS = 16;
+
     private final DatasetGraph datasetGraph;
     private final GraphRAGConfiguration configuration;
     private final GraphRAGSearchService searchService;
@@ -77,10 +81,14 @@ public final class GraphRAGAnswerAction extends ActionREST {
         try {
             GraphRAGSearch search = searchService.search(datasetGraph, question, topK, configuration.hybridAlpha());
             List<Citation> citations = citations(search);
-            String answer = chatProvider.complete(question, citations.stream().map(Citation::text).toList());
+            List<String> contextPassages = boundedContextPassages(question, citations);
+            String answer = chatProvider.complete(question, contextPassages);
             writeAnswer(action, question, answer, citations);
         } catch (ProviderException ex) {
-            GraphRAGHttpJson.writeError(action, HttpSC.BAD_GATEWAY_502, "provider_error", "provider indisponible");
+            String message = ex.getMessage();
+            if ( message == null || message.isBlank() )
+                message = "provider indisponible";
+            GraphRAGHttpJson.writeError(action, HttpSC.BAD_GATEWAY_502, "provider_error", message);
         } finally {
             datasetGraph.end();
         }
@@ -103,11 +111,44 @@ public final class GraphRAGAnswerAction extends ActionREST {
         Model model = DatasetFactory.wrap(datasetGraph).getDefaultModel();
         List<Citation> citations = new ArrayList<>();
         search.results().forEach(result -> {
-            var statement = model.getResource(result.uri()).getProperty(GRAG.text);
+            var statement = model.getResource(result.uri()).getProperty(MG_TEXT);
             if ( statement != null && statement.getObject().isLiteral() )
                 citations.add(new Citation(result.uri(), statement.getString()));
         });
         return List.copyOf(citations);
+    }
+
+    private List<String> boundedContextPassages(String question, List<Citation> citations) {
+        int remainingBudget = Math.max(1, 4096 - estimateTokens(question) - PROMPT_OVERHEAD_TOKENS);
+        List<String> passages = new ArrayList<>();
+        for ( Citation citation : citations ) {
+            if ( remainingBudget <= 0 )
+                break;
+            String boundedText = truncateToBudget(citation.text(), remainingBudget);
+            int used = estimateTokens(boundedText);
+            if ( used <= 0 )
+                continue;
+            passages.add(boundedText);
+            remainingBudget -= used;
+        }
+        return List.copyOf(passages);
+    }
+
+    private static String truncateToBudget(String text, int tokenBudget) {
+        String normalized = text == null ? "" : text.strip();
+        if ( normalized.isEmpty() )
+            return "";
+        String[] words = normalized.split("\\s+");
+        if ( words.length <= tokenBudget )
+            return normalized;
+        return String.join(" ", java.util.Arrays.copyOf(words, tokenBudget));
+    }
+
+    private static int estimateTokens(String text) {
+        String normalized = text == null ? "" : text.strip();
+        if ( normalized.isEmpty() )
+            return 0;
+        return normalized.split("\\s+").length;
     }
 
     private static void writeAnswer(HttpAction action, String question, String answer, List<Citation> citations) {
