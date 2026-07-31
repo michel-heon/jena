@@ -105,6 +105,12 @@
       <artifactId>langchain4j-open-ai</artifactId>
     </dependency>
 
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-simple</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+
     <!-- PDF ingestion (ADR-403): declared here only, NOT in Jena root BOM -->
     <dependency>
       <groupId>org.apache.pdfbox</groupId>

@@ -67,6 +67,21 @@ public final class GraphRAGFusekiUIServer {
      */
     public static void main(String... args) {
         Settings settings = Settings.parse(args);
+        ServerBootstrap bootstrap = prepare(settings);
+        FusekiServer server = bootstrap.server();
+
+        Runtime.getRuntime().addShutdownHook(new Thread(server::stop, "graphrag-ui-stop"));
+        server.start();
+        int port = server.getPort();
+        System.out.printf("GraphRAG UI: %d triplets normalises%n", bootstrap.tripleCount());
+        System.out.printf("Interface Fuseki  : http://localhost:%d/%n", port);
+        System.out.printf("SPARQL Playground : http://localhost:%d/%s/sparql%n", port, settings.datasetName());
+        System.out.printf("GraphRAG context  : http://localhost:%d/%s/graphrag/context%n", port, settings.datasetName());
+        System.out.printf("GraphRAG         : %s%n", settings.enabled() ? "active" : "inactif");
+        server.join();
+    }
+
+    static ServerBootstrap prepare(Settings settings) {
         if ( !Files.isRegularFile(settings.corpus()) )
             throw new IllegalArgumentException("Corpus introuvable: " + settings.corpus());
 
@@ -97,21 +112,14 @@ public final class GraphRAGFusekiUIServer {
                 .addServlet(Fuseki.serverFunctionPath("/server"),    new ActionServerStatus())
                 .staticFileBase(webappUrl.toString())
                 .build();
-
-        Runtime.getRuntime().addShutdownHook(new Thread(server::stop, "graphrag-ui-stop"));
-        server.start();
-        int port = server.getPort();
-        System.out.printf("GraphRAG UI: %d triplets normalises%n", tripleCount);
-        System.out.printf("Interface Fuseki  : http://localhost:%d/%n", port);
-        System.out.printf("SPARQL Playground : http://localhost:%d/%s/sparql%n", port, settings.datasetName());
-        System.out.printf("GraphRAG context  : http://localhost:%d/%s/graphrag/context%n", port, settings.datasetName());
-        System.out.printf("GraphRAG         : %s%n", settings.enabled() ? "active" : "inactif");
-        server.join();
+        return new ServerBootstrap(server, tripleCount);
     }
 
-    private record Settings(Path corpus, int port, String datasetName, boolean enabled) {
+    record ServerBootstrap(FusekiServer server, long tripleCount) {}
 
-        private static Settings parse(String[] args) {
+    record Settings(Path corpus, int port, String datasetName, boolean enabled) {
+
+        static Settings parse(String[] args) {
             if ( args.length != 4 )
                 throw new IllegalArgumentException(
                         "Usage: GraphRAGFusekiUIServer <corpus> <port> <dataset> <true|false>");
