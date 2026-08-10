@@ -50,9 +50,9 @@ Le module cible doit être déclaré après `jena-graphrag` dans le profil Maven
 
 Le travail ne déplace pas les tests unitaires de `jena-graphrag`, ne constitue pas un benchmark de modèles, n'ajoute pas d'UI absente du livrable et ne certifie pas tous les fournisseurs dès la première livraison.
 
-### État vérifié au 2026-08-08
+### État vérifié au 2026-08-10
 
-Le profil Maven `graphrag` contient actuellement `jena-graphrag` uniquement. Le nouveau répertoire contient ce socle ADR, mais pas encore le `pom.xml`, les corpus, les suites JUnit et Playwright ni l'orchestration Make décrits par l'issue.
+Le profil Maven `graphrag` déclare `jena-graphrag`, puis `jena-graphrag-integration-tests`. Ce dernier contient son `pom.xml`, un corpus RDF versionné sous `src/test/resources/corpus/`, un manifeste de provenance/licence/SHA-256 et des validations JUnit de ce socle. Les tests d'ingestion et indexation sur processus Fuseki, les fournisseurs réels, Playwright et l'orchestration Make restent à réaliser.
 
 Le statut `accepted` signifie que la décision importée et adaptée est retenue comme règle de réalisation. Il ne signifie pas que son implémentation existe déjà ; chaque ADR qui décrit une cible future doit le signaler explicitement.
 
@@ -188,4 +188,4 @@ Le répertoire source consulté le 2026-08-08 ne contient aucun ADR-001. Aucun d
 - [Documentation Apache Jena](https://jena.apache.org/documentation/)
 - [Architecture Decision Records](https://adr.github.io/)
 
-_Dernière mise à jour : 2026-08-08_
+_Dernière mise à jour : 2026-08-10_

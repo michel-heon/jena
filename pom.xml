@@ -246,6 +246,7 @@
       <id>graphrag</id>
       <modules>
         <module>jena-graphrag</module>
+        <module>jena-graphrag-integration-tests</module>
       </modules>
     </profile>
 
