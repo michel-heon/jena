@@ -43,6 +43,12 @@ The integration suite invokes production GraphRAG services against the versioned
 
 It also ingests a real PDF fixture through `DocumentIngestionService`, checks the emitted document and chunk provenance, then indexes those chunks in a real in-memory Lucene text index. `GraphRAGContextService` retrieves the indexed chunk by a term extracted from its ingested text. This local retrieval path makes no external provider call and uses no mocked provider.
 
+## Tranche 3
+
+`TestGraphRAGFusekiContracts` starts real ephemeral Fuseki servers with the production `GraphRAGModule`, imported RDF corpus and `/$/ping` enabled. It qualifies the enabled module's JSON configuration and context contracts, structured request errors for `search`, `answer` and `index`, and an unknown indexing-task response. It also proves that disabling GraphRAG leaves ping available while every tested GraphRAG route returns `404`.
+
+The suite deliberately exercises only paths that complete before a chat or embedding provider is called. Provider-backed search, indexing and answers require real configured credentials and remain tranche-4 scenarios.
+
 ## Real provider prerequisites
 
 Real-provider scenarios must define the environment-variable names in their GraphRAG assembler configuration with `grag:apiKeyEnv` and, when applicable, `grag:endpointEnv`. `ExternalProviderPrerequisites.requireConfiguredEnvironment(provider, System.getenv())` reports every configured variable that is absent or blank before a network call. It reports variable names only and never logs a secret value.
@@ -57,4 +63,10 @@ To execute the tranche-2 ingestion and local retrieval checks:
 
 ```bash
 mvn -Pgraphrag -pl jena-graphrag-integration-tests -Dtest=TestGraphRAGIngestionIntegration,TestCorpusManifest test
+```
+
+To execute the tranche-3 real Fuseki API contracts:
+
+```bash
+mvn -Pgraphrag -pl jena-graphrag-integration-tests -Dtest=TestGraphRAGFusekiContracts test
 ```
