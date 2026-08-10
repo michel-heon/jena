@@ -47,6 +47,9 @@ hs_err_*
 # Fuseki file area
 run/
 
+# Local GraphRAG provider credentials
+jena-graphrag-integration-tests/env/.env.user
+
 # Benchmark JSON results
 jena-benchmarks/jena-benchmarks-jmh/*.json
 
