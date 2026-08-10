@@ -49,6 +49,7 @@ run/
 
 # Local GraphRAG provider credentials
 jena-graphrag-integration-tests/env/.env.user
+jena-graphrag-integration-tests/env/generated/
 
 # Benchmark JSON results
 jena-benchmarks/jena-benchmarks-jmh/*.json

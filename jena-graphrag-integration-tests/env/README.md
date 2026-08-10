@@ -27,12 +27,12 @@ Run the following command from the repository root to create the local provider 
 make -C jena-graphrag-integration-tests bootstrap-real-providers
 ```
 
-The bootstrap verifies Git, Java and Maven, creates `.env.user` from `.env.user.example` when it is absent, and verifies that the local file is ignored by Git. It is idempotent and never reads, prints or writes provider values.
+The bootstrap verifies Git, Java and Maven, creates `.env.user` from `.env.user.example` when it is absent, and verifies that the local file is ignored by Git. It projects the local values into ignored `env/generated/` files for Make, shell scripts and Maven; Surefire then exposes them to Java through `System.getenv()`. It is idempotent and never prints provider values.
 
 Set the seven `GRAPHRAG_*` variables in `.env.user`. The file is local-only and must not be committed. Source it immediately before running a real-provider Maven profile:
 
 ```bash
 set -a
-. jena-graphrag-integration-tests/env/.env.user
+. jena-graphrag-integration-tests/env/generated/real-providers.env.sh
 set +a
 ```

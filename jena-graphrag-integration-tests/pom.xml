@@ -60,4 +60,51 @@
     </dependency>
   </dependencies>
 
+  <profiles>
+    <profile>
+      <id>graphrag-real-providers</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>properties-maven-plugin</artifactId>
+            <version>1.3.0</version>
+            <executions>
+              <execution>
+                <id>load-real-provider-properties</id>
+                <phase>initialize</phase>
+                <goals>
+                  <goal>read-project-properties</goal>
+                </goals>
+                <configuration>
+                  <files>
+                    <file>${project.basedir}/env/generated/real-providers.properties</file>
+                  </files>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+              <includes>
+                <include>**/RealProviderGraphRAGIT.java</include>
+              </includes>
+              <environmentVariables>
+                <GRAPHRAG_EMBEDDING_API_URL>${graphrag.embedding.api.url}</GRAPHRAG_EMBEDDING_API_URL>
+                <GRAPHRAG_EMBEDDING_API_KEY>${graphrag.embedding.api.key}</GRAPHRAG_EMBEDDING_API_KEY>
+                <GRAPHRAG_EMBEDDING_MODEL>${graphrag.embedding.model}</GRAPHRAG_EMBEDDING_MODEL>
+                <GRAPHRAG_EMBEDDING_DIMENSION>${graphrag.embedding.dimension}</GRAPHRAG_EMBEDDING_DIMENSION>
+                <GRAPHRAG_CHAT_API_URL>${graphrag.chat.api.url}</GRAPHRAG_CHAT_API_URL>
+                <GRAPHRAG_CHAT_API_KEY>${graphrag.chat.api.key}</GRAPHRAG_CHAT_API_KEY>
+                <GRAPHRAG_CHAT_MODEL>${graphrag.chat.model}</GRAPHRAG_CHAT_MODEL>
+              </environmentVariables>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+
 </project>

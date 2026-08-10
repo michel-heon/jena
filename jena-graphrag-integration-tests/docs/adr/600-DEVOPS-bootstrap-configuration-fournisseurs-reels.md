@@ -69,9 +69,9 @@ Cette cible locale appelle `scripts/graphrag-integration-provider-bootstrap.sh`.
 1. verifie la disponibilite de Git, Java et Maven, ainsi que la presence du depot et du module Maven ;
 2. verifie que `env/.env.user` est ignore par Git ;
 3. cree ce fichier depuis `env/.env.user.example` s'il est absent, avec les permissions `0600` ;
-4. ne lit pas, ne demande pas et n'affiche pas les valeurs des fournisseurs.
+4. projette la configuration locale dans des fichiers ignores pour Make, les scripts et Maven, sans afficher les valeurs des fournisseurs.
 
-Le fichier versionne `env/.env.user.example` ne contient que les noms de variables requis. `env/.env.user` est le seul emplacement local documente pour les valeurs de configuration. L'operateur le source explicitement dans son shell avant l'execution concernee; le bootstrap ne charge aucun secret dans son propre processus.
+Le fichier versionne `env/.env.user.example` ne contient que les noms de variables requis. `env/.env.user` est la source locale de configuration. Le bootstrap produit sous `env/generated/` un fragment Make, un fichier shell et un fichier de proprietes Maven, tous ignores et proteges par les permissions `0600`. Le fragment Make exporte les variables aux recettes et aux scripts; le fichier Maven les transmet a Surefire, qui les rend disponibles a Java avec `System.getenv()`.
 
 Les variables exportees par la CI restent autoritaires pour l'execution concernee. Ce bootstrap n'est pas un gestionnaire de secrets, ne substitue pas les variables definies par un autre fournisseur et ne tente pas de deviner des valeurs de configuration.
 
@@ -107,7 +107,7 @@ Rejetee : il gere des profils et projections propres a ce projet; son import int
 
 - deux invocations successives du bootstrap ne modifient pas `env/.env.user` existant ;
 - le fichier utilisateur est ignore par Git et l'exemple reste versionnable ;
-- aucune sortie ne contient une valeur de variable fournisseur ;
+- aucune sortie ne contient une valeur de variable fournisseur et les projections sont ignorees par Git ;
 - la cible et le script respectent la nomenclature de l'ADR 601 ;
 - l'execution dependante d'un fournisseur echoue explicitement si une variable requise reste absente.
 

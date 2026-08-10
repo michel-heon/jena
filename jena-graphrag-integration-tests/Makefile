@@ -13,7 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-.PHONY: bootstrap-real-providers
+.PHONY: bootstrap-real-providers real-providers
+
+-include env/generated/real-providers.mk
 
 bootstrap-real-providers: ## Prepare the ignored local real-provider environment file
 	@./scripts/graphrag-integration-provider-bootstrap.sh
+
+real-providers: bootstrap-real-providers ## Run the real-provider Maven profile with generated environment
+	@mvn -Pgraphrag,graphrag-real-providers test
