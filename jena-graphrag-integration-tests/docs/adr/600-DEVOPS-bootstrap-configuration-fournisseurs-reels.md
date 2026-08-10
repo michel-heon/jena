@@ -19,14 +19,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 adr: 600
-title: "Bootstrap de configuration des fournisseurs reels"
+title: "Bootstrap de configuration des fournisseurs externes"
 status: "accepted"
 date: 2026-08-10
 superseded_by: null
 replaces: null
 related_adrs: [101, 601, 602, 608]
-related_issues:
-  - "https://github.com/michel-heon/jena/issues/2"
+related_issues: []
 classification:
   lifecycle: "accepted"
   domain: "devops"
@@ -49,17 +48,17 @@ stakeholders: ["jena-graphrag maintainers", "integration-test contributors"]
 effort: "low"
 ---
 
-# ADR 600 : Bootstrap de configuration des fournisseurs reels
+# ADR 600 : Bootstrap de configuration des fournisseurs externes
 
 ## Contexte
 
-La tranche 4 de l'[issue #2](https://github.com/michel-heon/jena/issues/2) execute les fournisseurs HTTP de production pour les embeddings et le chat. Elle requiert sept variables `GRAPHRAG_*` pour les endpoints, cles API, modeles et la dimension d'embedding. Ces valeurs sont locales ou injectees par la CI et ne doivent jamais apparaitre dans Git, dans les diagnostics ou dans les rapports de test.
+Les parcours qui utilisent des fournisseurs externes requierent des parametres de connexion et, selon le fournisseur, des secrets. Ces valeurs sont locales ou injectees par la CI et ne doivent jamais apparaitre dans Git, dans les diagnostics ou dans les rapports de test.
 
-Le projet `jena-graphrag-project` applique une decision equivalente dans son ADR 600 : une configuration publique sert de modele, la surcharge utilisateur reste locale, et un bootstrap idempotent ne genere aucun secret. Le module d'integration Jena ne doit pas dependre de ce projet externe ni recopier son generateur multi-profils, qui couvre des consommateurs absents de ce depot.
+Une configuration publique doit servir de modele, la surcharge utilisateur doit rester locale, et son initialisation doit etre idempotente sans generer de secret. Le module d'integration Jena applique cette politique sans introduire de dependance vers un outil de configuration externe.
 
 ## Decision
 
-Le module fournit un bootstrap minimal limite au profil de qualification des fournisseurs reels :
+Le module fournit un bootstrap minimal pour preparer la configuration locale des fournisseurs externes :
 
 ```bash
 make -C jena-graphrag-integration-tests graphrag-integration-bootstrap-real-providers
@@ -72,9 +71,9 @@ Cette cible appelle `scripts/graphrag-integration-provider-bootstrap.sh`, confor
 3. cree ce fichier depuis `env/.env.user.example` s'il est absent, avec les permissions `0600` ;
 4. ne lit pas, ne demande pas et n'affiche pas les valeurs des fournisseurs.
 
-Le fichier versionne `env/.env.user.example` ne contient que les sept noms requis. `env/.env.user` est le seul emplacement local documente pour les valeurs de qualification. L'operateur le source explicitement dans son shell avant le profil Maven; le bootstrap ne charge aucun secret dans son propre processus.
+Le fichier versionne `env/.env.user.example` ne contient que les noms de variables requis. `env/.env.user` est le seul emplacement local documente pour les valeurs de configuration. L'operateur le source explicitement dans son shell avant l'execution concernee; le bootstrap ne charge aucun secret dans son propre processus.
 
-Les variables exportees par la CI restent autoritaires pour son invocation Maven. Ce bootstrap n'est pas un gestionnaire de secrets, ne substitue pas les variables generiques d'un autre fournisseur et ne tente pas de deviner un modele ou une dimension.
+Les variables exportees par la CI restent autoritaires pour l'execution concernee. Ce bootstrap n'est pas un gestionnaire de secrets, ne substitue pas les variables definies par un autre fournisseur et ne tente pas de deviner des valeurs de configuration.
 
 ## Alternatives considerees
 
@@ -101,8 +100,8 @@ Rejetee : il gere des profils et projections propres a ce projet; son import int
 
 ### Negatives
 
-- L'operateur doit renseigner les modeles et la dimension, qui ne peuvent pas etre deduits de maniere sure.
-- Le chargement explicite dans le shell est une etape supplementaire avant la qualification reelle.
+- L'operateur doit renseigner les valeurs propres a son fournisseur, qui ne peuvent pas etre deduites de maniere sure.
+- Le chargement explicite dans le shell est une etape supplementaire avant l'execution.
 
 ## Criteres de succes
 
@@ -110,7 +109,7 @@ Rejetee : il gere des profils et projections propres a ce projet; son import int
 - le fichier utilisateur est ignore par Git et l'exemple reste versionnable ;
 - aucune sortie ne contient une valeur de variable fournisseur ;
 - la cible et le script respectent la nomenclature de l'ADR 601 ;
-- la suite reelle echoue explicitement si une des sept variables reste absente.
+- l'execution dependante d'un fournisseur echoue explicitement si une variable requise reste absente.
 
 ## References
 
@@ -118,10 +117,9 @@ Rejetee : il gere des profils et projections propres a ce projet; son import int
 - [ADR-601, nomenclature des cibles et scripts](./601-DEVOPS-nomenclature-scripts.md)
 - [ADR-602, Makefile comme orchestrateur](./602-DEVOPS-makefile-orchestrateur.md)
 - [ADR-608, non-duplication fonctionnelle transversale](./608-DEVOPS-non-duplication-fonctionnelle-transversale.md)
-- [Issue #2](https://github.com/michel-heon/jena/issues/2)
 
 ## Historique
 
 | Date | Changement | Raison |
 |------|------------|--------|
-| 2026-08-10 | Creation et adoption | Encadrer la configuration locale necessaire aux fournisseurs reels de la tranche 4 |
+| 2026-08-10 | Creation et adoption | Encadrer la configuration locale necessaire aux fournisseurs externes |

@@ -130,7 +130,7 @@ Le répertoire source consulté le 2026-08-08 ne contient aucun ADR-001. Aucun d
 
 | ADR | Titre | Statut | Date | Domaine |
 |-----|-------|--------|------|---------|
-| [600](./600-DEVOPS-bootstrap-configuration-fournisseurs-reels.md) | Bootstrap de configuration des fournisseurs reels | Accepte | 2026-08-10 | DevOps |
+| [600](./600-DEVOPS-bootstrap-configuration-fournisseurs-reels.md) | Bootstrap de configuration des fournisseurs externes | Accepte | 2026-08-10 | DevOps |
 | [601](./601-DEVOPS-nomenclature-scripts.md) | Nomenclature des cibles et scripts d'intégration GraphRAG | Accepté | 2026-08-08 | DevOps |
 | [602](./602-DEVOPS-makefile-orchestrateur.md) | Makefile racine comme orchestrateur des tests d'intégration GraphRAG | Accepté | 2026-08-08 | DevOps |
 | [608](./608-DEVOPS-non-duplication-fonctionnelle-transversale.md) | Non-duplication fonctionnelle dans la qualification GraphRAG | Accepté | 2026-08-08 | DevOps |
