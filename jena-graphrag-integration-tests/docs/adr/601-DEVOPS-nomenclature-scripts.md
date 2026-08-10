@@ -57,7 +57,7 @@ L'issue [#2](https://github.com/michel-heon/jena/issues/2) prévoit une façade 
 
 ### Cibles Make publiques
 
-Toutes les cibles publiques de cette suite utilisent le préfixe `graphrag-integration-` et le kebab-case.
+Les cibles de la façade Make racine utilisent le préfixe `graphrag-integration-` et le kebab-case.
 
 | Cible | Intention stable |
 |-------|------------------|
@@ -68,6 +68,8 @@ Toutes les cibles publiques de cette suite utilisent le préfixe `graphrag-integ
 | `graphrag-integration` | Agréger la qualification complète documentée |
 
 Les cibles de cycle de vie internes ou publiques suivent le même préfixe et un verbe explicite, par exemple `graphrag-integration-start`, `graphrag-integration-wait` et `graphrag-integration-stop`, seulement si elles sont effectivement nécessaires et documentées.
+
+Une cible d'un Makefile de module, invoquée avec `make -C module`, peut employer un nom plus court si celui-ci reste explicite et ne prétend pas être une façade racine. Par exemple, `bootstrap-real-providers` prépare la configuration locale d'un seul module. Cette exception évite de répéter le contexte déjà porté par le chemin du module, sans introduire les noms ambigus `api`, `chat` ou `smoke`.
 
 ### Scripts
 

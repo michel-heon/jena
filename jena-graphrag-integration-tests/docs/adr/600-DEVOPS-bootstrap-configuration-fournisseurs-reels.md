@@ -61,10 +61,10 @@ Une configuration publique doit servir de modele, la surcharge utilisateur doit 
 Le module fournit un bootstrap minimal pour preparer la configuration locale des fournisseurs externes :
 
 ```bash
-make -C jena-graphrag-integration-tests graphrag-integration-bootstrap-real-providers
+make -C jena-graphrag-integration-tests bootstrap-real-providers
 ```
 
-Cette cible appelle `scripts/graphrag-integration-provider-bootstrap.sh`, conformement a la nomenclature de l'ADR 601. Elle :
+Cette cible locale appelle `scripts/graphrag-integration-provider-bootstrap.sh`. Son nom court et explicite est autorise par l'ADR 601; le script conserve la nomenclature partagee. Elle :
 
 1. verifie la disponibilite de Git, Java et Maven, ainsi que la presence du depot et du module Maven ;
 2. verifie que `env/.env.user` est ignore par Git ;
