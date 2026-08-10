@@ -96,8 +96,8 @@
                 <GRAPHRAG_EMBEDDING_API_KEY>${graphrag.embedding.api.key}</GRAPHRAG_EMBEDDING_API_KEY>
                 <GRAPHRAG_EMBEDDING_MODEL>${graphrag.embedding.model}</GRAPHRAG_EMBEDDING_MODEL>
                 <GRAPHRAG_EMBEDDING_DIMENSION>${graphrag.embedding.dimension}</GRAPHRAG_EMBEDDING_DIMENSION>
-                <GRAPHRAG_CHAT_API_URL>${graphrag.chat.api.url}</GRAPHRAG_CHAT_API_URL>
-                <GRAPHRAG_CHAT_API_KEY>${graphrag.chat.api.key}</GRAPHRAG_CHAT_API_KEY>
+                <OPENAI_API_URL>${openai.api.url}</OPENAI_API_URL>
+                <OPENAI_API_KEY>${openai.api.key}</OPENAI_API_KEY>
                 <GRAPHRAG_CHAT_MODEL>${graphrag.chat.model}</GRAPHRAG_CHAT_MODEL>
               </environmentVariables>
             </configuration>

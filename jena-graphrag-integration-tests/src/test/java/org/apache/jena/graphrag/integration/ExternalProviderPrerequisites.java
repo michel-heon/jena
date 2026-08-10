@@ -35,6 +35,14 @@ import org.apache.jena.rdf.model.Resource;
  */
 public final class ExternalProviderPrerequisites {
 
+    static final String EMBEDDING_ENDPOINT = "GRAPHRAG_EMBEDDING_API_URL";
+    static final String EMBEDDING_API_KEY = "GRAPHRAG_EMBEDDING_API_KEY";
+    static final String EMBEDDING_MODEL = "GRAPHRAG_EMBEDDING_MODEL";
+    static final String EMBEDDING_DIMENSION = "GRAPHRAG_EMBEDDING_DIMENSION";
+    static final String CHAT_ENDPOINT = "OPENAI_API_URL";
+    static final String CHAT_API_KEY = "OPENAI_API_KEY";
+    static final String CHAT_MODEL = "GRAPHRAG_CHAT_MODEL";
+
     private ExternalProviderPrerequisites() {}
 
     /**
@@ -50,6 +58,20 @@ public final class ExternalProviderPrerequisites {
         requireIfConfigured(provider, GraphRAGAssemblerVocab.endpointEnv, environment, missing);
         if ( !missing.isEmpty() )
             throw new IllegalStateException("Required provider environment variables are not set: "
+                    + String.join(", ", missing));
+    }
+
+    /** Fails before the real-provider Fuseki suite can start when its environment is incomplete. */
+    public static void requireRealProviderEnvironment(Map<String, String> environment) {
+        List<String> missing = new ArrayList<>();
+        for ( String variable : List.of(EMBEDDING_ENDPOINT, EMBEDDING_API_KEY, EMBEDDING_MODEL, EMBEDDING_DIMENSION,
+                CHAT_ENDPOINT, CHAT_API_KEY, CHAT_MODEL) ) {
+            String value = environment.get(variable);
+            if ( value == null || value.isBlank() )
+                missing.add(variable);
+        }
+        if ( !missing.isEmpty() )
+            throw new IllegalStateException("Required real-provider environment variables are not set: "
                     + String.join(", ", missing));
     }
 

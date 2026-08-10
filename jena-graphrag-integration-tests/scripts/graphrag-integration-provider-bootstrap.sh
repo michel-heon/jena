@@ -29,8 +29,8 @@ PROVIDER_VARIABLES=(
     GRAPHRAG_EMBEDDING_API_KEY
     GRAPHRAG_EMBEDDING_MODEL
     GRAPHRAG_EMBEDDING_DIMENSION
-    GRAPHRAG_CHAT_API_URL
-    GRAPHRAG_CHAT_API_KEY
+    OPENAI_API_URL
+    OPENAI_API_KEY
     GRAPHRAG_CHAT_MODEL
 )
 
@@ -96,8 +96,8 @@ property_name() {
         GRAPHRAG_EMBEDDING_API_KEY) printf 'graphrag.embedding.api.key' ;;
         GRAPHRAG_EMBEDDING_MODEL) printf 'graphrag.embedding.model' ;;
         GRAPHRAG_EMBEDDING_DIMENSION) printf 'graphrag.embedding.dimension' ;;
-        GRAPHRAG_CHAT_API_URL) printf 'graphrag.chat.api.url' ;;
-        GRAPHRAG_CHAT_API_KEY) printf 'graphrag.chat.api.key' ;;
+        OPENAI_API_URL) printf 'openai.api.url' ;;
+        OPENAI_API_KEY) printf 'openai.api.key' ;;
         GRAPHRAG_CHAT_MODEL) printf 'graphrag.chat.model' ;;
     esac
 }

@@ -54,6 +54,17 @@ public class TestExternalProviderPrerequisites {
                 Map.of("GRAPHRAG_IT_API_KEY", "present", "GRAPHRAG_IT_ENDPOINT", "https://example.test/")));
     }
 
+        @Test
+        public void incompleteRealProviderEnvironmentFailsWithoutValues() {
+        IllegalStateException error = assertThrows(IllegalStateException.class,
+            () -> ExternalProviderPrerequisites.requireRealProviderEnvironment(Map.of()));
+
+        assertEquals("Required real-provider environment variables are not set: "
+            + "GRAPHRAG_EMBEDDING_API_URL, GRAPHRAG_EMBEDDING_API_KEY, GRAPHRAG_EMBEDDING_MODEL, "
+            + "GRAPHRAG_EMBEDDING_DIMENSION, OPENAI_API_URL, OPENAI_API_KEY, "
+            + "GRAPHRAG_CHAT_MODEL", error.getMessage());
+        }
+
     private static Resource providerWithEnvironmentVariables() {
         Model model = ModelFactory.createDefaultModel();
         return model.createResource()
