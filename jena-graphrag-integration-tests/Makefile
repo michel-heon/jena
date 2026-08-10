@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-.PHONY: bootstrap-real-providers
+.PHONY: graphrag-integration-bootstrap-real-providers
 
-bootstrap-real-providers: ## Prepare the ignored local real-provider environment file
-	@./scripts/bootstrap-real-providers.sh
+graphrag-integration-bootstrap-real-providers: ## Prepare the ignored local real-provider environment file
+	@./scripts/graphrag-integration-provider-bootstrap.sh

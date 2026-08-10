@@ -24,7 +24,7 @@
 Run the following command from the repository root to create the local provider profile:
 
 ```bash
-make -C jena-graphrag-integration-tests bootstrap-real-providers
+make -C jena-graphrag-integration-tests graphrag-integration-bootstrap-real-providers
 ```
 
 The bootstrap verifies Git, Java and Maven, creates `.env.user` from `.env.user.example` when it is absent, and verifies that the local file is ignored by Git. It is idempotent and never reads, prints or writes provider values.

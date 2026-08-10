@@ -130,6 +130,7 @@ Le répertoire source consulté le 2026-08-08 ne contient aucun ADR-001. Aucun d
 
 | ADR | Titre | Statut | Date | Domaine |
 |-----|-------|--------|------|---------|
+| [600](./600-DEVOPS-bootstrap-configuration-fournisseurs-reels.md) | Bootstrap de configuration des fournisseurs reels | Accepte | 2026-08-10 | DevOps |
 | [601](./601-DEVOPS-nomenclature-scripts.md) | Nomenclature des cibles et scripts d'intégration GraphRAG | Accepté | 2026-08-08 | DevOps |
 | [602](./602-DEVOPS-makefile-orchestrateur.md) | Makefile racine comme orchestrateur des tests d'intégration GraphRAG | Accepté | 2026-08-08 | DevOps |
 | [608](./608-DEVOPS-non-duplication-fonctionnelle-transversale.md) | Non-duplication fonctionnelle dans la qualification GraphRAG | Accepté | 2026-08-08 | DevOps |
@@ -144,12 +145,12 @@ Le répertoire source consulté le 2026-08-08 ne contient aucun ADR-001. Aucun d
 
 | Indicateur | Valeur |
 |------------|--------|
-| **Total** | 9 |
-| **Acceptés** | 9 |
+| **Total** | 10 |
+| **Acceptés** | 10 |
 | **Proposés** | 0 |
 | **Brouillons** | 0 |
 | **Dépréciés ou supersédés** | 0 |
-| **Par domaine** | META : 3, ARCH : 1, DATA : 1, DEVOPS : 3, DOC : 1 |
+| **Par domaine** | META : 3, ARCH : 1, DATA : 1, DEVOPS : 4, DOC : 1 |
 
 ## Numérotation
 
@@ -161,7 +162,7 @@ Le répertoire source consulté le 2026-08-08 ne contient aucun ADR-001. Aucun d
 | `SEC` | 300-399 | Sécurité et isolation | 300 |
 | `DATA` | 400-499 | Corpus, fixtures et index | 401 |
 | `API` | 500-599 | Contrats HTTP, Fuseki et SPARQL | 500 |
-| `DEVOPS` | 600-699 | CI et automatisation | 609 |
+| `DEVOPS` | 600-699 | CI et automatisation | 603 |
 | `TEST` | 700-799 | Stratégie et qualification | 700 |
 | `BIZ` | 800-899 | Critères produit et livraison | 800 |
 | `DOC` | 900-999 | Documentation | 901 |
