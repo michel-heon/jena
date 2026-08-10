@@ -49,7 +49,7 @@ public class TestCorpusManifest {
         Properties manifest = readManifest();
         List<String> fixtures = List.of(manifest.getProperty("corpus.files").split(","));
 
-        assertEquals(15, fixtures.size());
+        assertEquals(16, fixtures.size());
         for (String fixtureName : fixtures) {
             for (String requiredField : REQUIRED_FIELDS) {
                 assertTrue(manifest.containsKey(fixtureName + "." + requiredField),

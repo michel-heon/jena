@@ -37,6 +37,12 @@ The corpus is organised as follows:
 
 The PDF reference fixtures were copied from the user-provided `/home/michel/00-GIT/jena-graphrag-project/docs/ref/` directory on request. Their manifest entries state `unverified-by-request` for their licence; they must not be treated as a redistribution clearance.
 
+## Tranche 2
+
+The integration suite invokes production GraphRAG services against the versioned corpus. It verifies that RDF import preserves source identifiers, normalizes GraphRAG `snake_case` terms, reifies singleton relationship predicates, retains foreign predicates, remains idempotent, and rejects malformed input without committing data.
+
+It also ingests a real PDF fixture through `DocumentIngestionService`, checks the emitted document and chunk provenance, then indexes those chunks in a real in-memory Lucene text index. `GraphRAGContextService` retrieves the indexed chunk by a term extracted from its ingested text. This local retrieval path makes no external provider call and uses no mocked provider.
+
 ## Real provider prerequisites
 
 Real-provider scenarios must define the environment-variable names in their GraphRAG assembler configuration with `grag:apiKeyEnv` and, when applicable, `grag:endpointEnv`. `ExternalProviderPrerequisites.requireConfiguredEnvironment(provider, System.getenv())` reports every configured variable that is absent or blank before a network call. It reports variable names only and never logs a secret value.
@@ -45,4 +51,10 @@ Real-provider scenarios must define the environment-variable names in their Grap
 
 ```bash
 mvn -Pgraphrag -pl jena-graphrag-integration-tests -Dtest=TestCorpusManifest,TestExternalProviderPrerequisites test
+```
+
+To execute the tranche-2 ingestion and local retrieval checks:
+
+```bash
+mvn -Pgraphrag -pl jena-graphrag-integration-tests -Dtest=TestGraphRAGIngestionIntegration,TestCorpusManifest test
 ```
