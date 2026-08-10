@@ -25,7 +25,7 @@ This module qualifies GraphRAG behavior that crosses module or process boundarie
 
 ## Tranche 1
 
-The initial tranche provides the Maven module, a small Apache-2.0 corpus, its versioned provenance manifest, and executable checks for corpus completeness, SHA-256 integrity, RDF validity, and malformed input rejection.
+The initial tranche provides the Maven module, authored RDF fixtures and PDF reference fixtures, their versioned provenance manifest, and executable checks for corpus completeness, SHA-256 integrity, RDF validity, PDF signatures, and malformed input rejection.
 
 The corpus is organised as follows:
 
@@ -34,6 +34,8 @@ The corpus is organised as follows:
 - `corpus/invalid/`: deliberately malformed input used to qualify rejection paths.
 
 `corpus/manifest.properties` records a stable identifier, relative path, provenance, licence, SHA-256, expected facts, scenarios, and ingestion path for every fixture.
+
+The PDF reference fixtures were copied from the user-provided `/home/michel/00-GIT/jena-graphrag-project/docs/ref/` directory on request. Their manifest entries state `unverified-by-request` for their licence; they must not be treated as a redistribution clearance.
 
 ## Real provider prerequisites
 

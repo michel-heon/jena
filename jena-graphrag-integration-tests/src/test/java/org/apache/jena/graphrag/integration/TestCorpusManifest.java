@@ -49,7 +49,7 @@ public class TestCorpusManifest {
         Properties manifest = readManifest();
         List<String> fixtures = List.of(manifest.getProperty("corpus.files").split(","));
 
-        assertEquals(3, fixtures.size());
+        assertEquals(15, fixtures.size());
         for (String fixtureName : fixtures) {
             for (String requiredField : REQUIRED_FIELDS) {
                 assertTrue(manifest.containsKey(fixtureName + "." + requiredField),
@@ -66,6 +66,19 @@ public class TestCorpusManifest {
     public void validFixturesContainDocumentsAndChunks() {
         assertContainsDocumentAndChunk("ingestion/team-graph.ttl");
         assertContainsDocumentAndChunk("chat/citation-graph.ttl");
+    }
+
+    @Test
+    public void pdfFixturesHavePdfSignature() throws IOException {
+        Properties manifest = readManifest();
+        for (String fixtureName : manifest.getProperty("corpus.files").split(",")) {
+            String resourcePath = manifest.getProperty(fixtureName + ".path");
+            if ( resourcePath.endsWith(".pdf") ) {
+                try (InputStream resource = resource(resourcePath)) {
+                    assertEquals("%PDF", new String(resource.readNBytes(4)));
+                }
+            }
+        }
     }
 
     @Test
