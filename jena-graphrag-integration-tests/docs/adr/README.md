@@ -60,7 +60,7 @@ Le statut `accepted` signifie que la décision importée et adaptée est retenue
 
 | Besoin de l'issue #2 | ADR actuels | Couverture |
 |----------------------|-------------|------------|
-| Gouvernance et vérification des faits | ADR-000, ADR-002 | Couverte |
+| Gouvernance, suivi des issues et vérification des faits | ADR-000, ADR-002, ADR-003 | Couverte |
 | Fournisseurs réels, sans mock ni fallback | ADR-101, ADR-602 | Couverte |
 | Corpus, RDF/PDF, provenance et assertions | ADR-400, ADR-608 | Couverte |
 | Nommage et orchestration Make | ADR-601, ADR-602 | Couverte |
@@ -110,6 +110,7 @@ Le fichier doit respecter [ADR-000](./000-META-processus-creation-adr.md), conte
 |-----|-------|--------|------|---------|
 | [000](./000-META-processus-creation-adr.md) | Processus de création et de gestion des ADR | Accepté | 2026-08-08 | Méta-processus |
 | [002](./002-META-agent-ia-non-hallucination.md) | Usage vérifié des agents IA et contrainte de non-hallucination | Accepté | 2026-08-08 | Méta-processus |
+| [003](./003-META-creation-et-usage-des-github-issues.md) | Création et usage des GitHub Issues | Accepté | 2026-08-10 | Méta-processus |
 
 Le répertoire source consulté le 2026-08-08 ne contient aucun ADR-001. Aucun document n'a été créé artificiellement pour combler ce numéro.
 
@@ -143,18 +144,18 @@ Le répertoire source consulté le 2026-08-08 ne contient aucun ADR-001. Aucun d
 
 | Indicateur | Valeur |
 |------------|--------|
-| **Total** | 8 |
-| **Acceptés** | 8 |
+| **Total** | 9 |
+| **Acceptés** | 9 |
 | **Proposés** | 0 |
 | **Brouillons** | 0 |
 | **Dépréciés ou supersédés** | 0 |
-| **Par domaine** | META : 2, ARCH : 1, DATA : 1, DEVOPS : 3, DOC : 1 |
+| **Par domaine** | META : 3, ARCH : 1, DATA : 1, DEVOPS : 3, DOC : 1 |
 
 ## Numérotation
 
 | Préfixe | Plage | Domaine | Prochain numéro disponible |
 |---------|-------|---------|----------------------------|
-| `META` | 000-099 | Processus et gouvernance | 003 |
+| `META` | 000-099 | Processus et gouvernance | 004 |
 | `ARCH` | 100-199 | Architecture du module de tests | 102 |
 | `INFRA` | 200-299 | Build et infrastructure de test | 200 |
 | `SEC` | 300-399 | Sécurité et isolation | 300 |
