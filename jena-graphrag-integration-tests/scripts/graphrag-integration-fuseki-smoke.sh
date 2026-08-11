@@ -25,6 +25,7 @@ port=$(node -e 'const server = require("net").createServer(); server.listen(0, "
 fuseki_pid=''
 playwright_script='test:smoke'
 server_arguments=()
+enable_graphrag=true
 
 cleanup() {
     status=$?
@@ -49,8 +50,16 @@ mvn -q -Pgraphrag -pl jena-graphrag-integration-tests dependency:build-classpath
     -DincludeScope=test -Dmdep.outputFile="$runtime_dir/classpath"
 
 classpath="$module_dir/target/test-classes:$module_dir/target/classes:$root_dir/jena-graphrag/target/classes:$(cat "$runtime_dir/classpath")"
-server_arguments=("$module_dir/src/test/resources/corpus/chat/citation-graph.ttl" "$port" "$dataset" true)
+if [[ "${GRAPHRAG_SMOKE_DISABLE_GRAPH_RAG:-false}" == 'true' ]]; then
+    enable_graphrag=false
+    playwright_script='test:disabled-graphrag-smoke'
+fi
+server_arguments=("$module_dir/src/test/resources/corpus/chat/citation-graph.ttl" "$port" "$dataset" "$enable_graphrag")
 if [[ "${GRAPHRAG_SMOKE_REAL_PROVIDERS:-false}" == 'true' ]]; then
+    if [[ "$enable_graphrag" != 'true' ]]; then
+        echo 'Real-provider smoke requires GraphRAG to be enabled.' >&2
+        exit 1
+    fi
     provider_environment="$module_dir/env/generated/real-providers.env.sh"
     if [[ ! -r "$provider_environment" ]]; then
         echo 'Real-provider environment is not prepared; run make bootstrap-real-providers first.' >&2

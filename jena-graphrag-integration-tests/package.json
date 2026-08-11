@@ -4,6 +4,7 @@
   "private": true,
   "description": "Playwright smoke tests for the GraphRAG Fuseki delivery.",
   "scripts": {
+    "test:disabled-graphrag-smoke": "playwright test --grep 'without GraphRAG'",
     "test:smoke": "playwright test --grep-invert 'real providers'",
     "test:real-providers-smoke": "playwright test --grep 'real providers'"
   },

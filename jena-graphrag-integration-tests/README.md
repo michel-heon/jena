@@ -91,13 +91,17 @@ From the repository root, the Make facade orchestrates the completed integration
 make graphrag-integration-ingestion
 make graphrag-integration-api
 make graphrag-integration-chat
+make graphrag-integration-disabled-graphrag-smoke
 make graphrag-integration-real-providers-smoke
+make graphrag-integration-report
 make graphrag-integration
 ```
 
-The first target runs corpus, provider-prerequisite, ingestion, indexing, and retrieval checks. The API target runs the real Fuseki contracts and the GraphRAG answer endpoint contract. The chat target bootstraps the local real-provider environment and runs `RealProviderGraphRAGIT`. The smoke target runs `npm ci`, installs Chromium through the locked Playwright version, starts `GraphRAGFusekiUIServer` on an ephemeral port, and checks the delivered Fuseki UI, `/$/ping`, the preloaded dataset, the GraphRAG configuration and context endpoints, and the SPARQL Playground. The real-provider smoke target uses the generated local environment to configure an ephemeral index in the UI server, indexes a document from the browser request context, and verifies a non-empty answer with a citation. It never prints provider values.
+The first target runs corpus, provider-prerequisite, ingestion, indexing, and retrieval checks. The API target runs the real Fuseki contracts and the GraphRAG answer endpoint contract. The chat target bootstraps the local real-provider environment and runs `RealProviderGraphRAGIT`. The smoke target runs `npm ci`, installs Chromium through the locked Playwright version, starts `GraphRAGFusekiUIServer` on an ephemeral port, and checks the delivered Fuseki UI, `/$/ping`, the preloaded dataset, the GraphRAG configuration and context endpoints, and the SPARQL Playground. The disabled-GraphRAG smoke target verifies that the UI and SPARQL remain usable while GraphRAG routes are unavailable. The real-provider smoke target uses the generated local environment to configure an ephemeral index in the UI server, indexes a document from the browser request context, and verifies a non-empty answer with a citation. It never prints provider values.
 
 The smoke runner stops Fuseki after every result. Playwright traces, screenshots, videos, reports, and the Fuseki log are retained under `target/playwright/` only when the smoke suite fails. The aggregate runs all four targets and therefore requires the real-provider configuration.
+
+From WSL2, `make graphrag-integration-report` serves the module-local Playwright HTML report and opens `http://127.0.0.1:9323` in the Windows default browser through `powershell.exe Start-Process`. Set `PLAYWRIGHT_REPORT_PORT` to use another port; stop the report server with `Ctrl-C`.
 
 ## Validation
 

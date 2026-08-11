@@ -120,6 +120,112 @@ async function verifyLargeDocumentIngestion({ page }) {
 }
 
 /**
+ * Exercises every provider-free GraphRAG route exposed by the enabled Fuseki server.
+ *
+ * @param {{ page: import('@playwright/test').Page }} fixtures Playwright test fixtures.
+ * @returns {Promise<void>} Resolves after asynchronous indexing completes.
+ */
+async function verifyEnabledGraphRAGRoutes({ page }) {
+  const configuration = await page.request.get(`/${dataset}/graphrag/config`);
+  expect(configuration.status()).toBe(200);
+  expect((await configuration.json()).enabled).toBe(true);
+
+  const context = await page.request.get(`/${dataset}/graphrag/context?q=Beta&mode=local&topK=1`);
+  expect(context.status()).toBe(200);
+  expect(Array.isArray((await context.json()).results)).toBe(true);
+
+  const search = await page.request.get(`/${dataset}/graphrag/search?q=Beta&topK=1`);
+  expect(search.status()).toBe(200);
+  expect(Array.isArray((await search.json()).results)).toBe(true);
+
+  const indexed = await page.request.post(`/${dataset}/graphrag/index`, {
+    data: {
+      title: 'Enabled GraphRAG route fixture',
+      content: 'The browser route fixture verifies GraphRAG indexing status.',
+      sourceUri: 'urn:graphrag:browser-enabled-routes'
+    }
+  });
+  expect(indexed.status()).toBe(202);
+  const taskId = (await indexed.json()).taskId;
+  expect(taskId).toEqual(expect.any(String));
+
+  await expect.poll(async () => {
+    const status = await page.request.get(`/${dataset}/graphrag/status?taskId=${encodeURIComponent(taskId)}`);
+    expect(status.status()).toBe(200);
+    return (await status.json()).status;
+  }).toBe('done');
+}
+
+/**
+ * Verifies that Fuseki UI and SPARQL remain usable when GraphRAG is not registered.
+ *
+ * @param {{ page: import('@playwright/test').Page }} fixtures Playwright test fixtures.
+ * @returns {Promise<void>} Resolves after UI, SPARQL, and absent GraphRAG route assertions pass.
+ */
+async function verifyGraphRAGDisabled({ page }) {
+  const ping = await page.request.get('/$/ping');
+  expect(ping.status()).toBe(200);
+
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Apache Jena Fuseki' })).toBeVisible();
+  await page.getByRole('button', { name: 'query' }).click();
+  const editor = page.locator('.CodeMirror textarea');
+  await editor.focus();
+  await editor.press('Control+A');
+  await editor.pressSequentially('SELECT (1 AS ?value) WHERE {}');
+  await page.getByRole('button', { name: 'Run query' }).click();
+  await expect(page.locator('#yasr table.dataTable')).toContainText('1');
+
+  const routes = [
+    `/${dataset}/graphrag/config`,
+    `/${dataset}/graphrag/context?q=Beta`,
+    `/${dataset}/graphrag/search?q=Beta`,
+    `/${dataset}/graphrag/status?taskId=absent`
+  ];
+  for (const route of routes) {
+    expect((await page.request.get(route)).status()).toBe(404);
+  }
+  expect((await page.request.post(`/${dataset}/graphrag/index`, { data: {} })).status()).toBe(405);
+}
+
+/**
+ * Runs SELECT queries in the delivered SPARQL Playground and asserts corpus results.
+ *
+ * @param {{ page: import('@playwright/test').Page }} fixtures Playwright test fixtures.
+ * @returns {Promise<void>} Resolves after the query result table exposes corpus values.
+ */
+async function verifySparqlPlaygroundQueries({ page }) {
+  await page.goto(`/#/dataset/${dataset}/query`);
+  const editor = page.locator('.CodeMirror textarea');
+  const runQuery = page.getByRole('button', { name: 'Run query' });
+
+  async function runSelect(query) {
+    await editor.focus();
+    await editor.press('Control+A');
+    await editor.pressSequentially(query);
+    await runQuery.click();
+  }
+
+  await runSelect(`
+    PREFIX grag: <http://ormynet.com/ns/msft-graphrag#>
+    PREFIX corpus: <https://jena.apache.org/graphrag/integration/corpus/>
+    SELECT ?title WHERE { corpus:document-beta grag:title ?title }
+  `);
+  await expect(page.locator('#yasr table.dataTable')).toContainText('Beta service brief');
+
+  await runSelect(`
+    PREFIX grag: <http://ormynet.com/ns/msft-graphrag#>
+    PREFIX corpus: <https://jena.apache.org/graphrag/integration/corpus/>
+    SELECT ?chunk ?document WHERE {
+      ?chunk a grag:Chunk ; grag:partOf ?document .
+      FILTER(?chunk = corpus:chunk-beta-0 && ?document = corpus:document-beta)
+    }
+  `);
+  await expect(page.locator('#yasr table.dataTable')).toContainText('chunk-beta-0');
+  await expect(page.locator('#yasr table.dataTable')).toContainText('document-beta');
+}
+
+/**
  * Indexes a document through the public GraphRAG API and verifies a real-provider answer.
  *
  * The launcher supplies the provider configuration through its process environment; no
@@ -163,4 +269,7 @@ async function verifyRealProviderAnswer({ page }) {
 test('Fuseki UI exposes the GraphRAG dataset, ping, and SPARQL Playground', verifyFusekiUi);
 test('Fuseki UI uploads RDF and makes the graph queryable', verifyRdfUpload);
 test('Fuseki UI remains usable after indexing a bounded large document', verifyLargeDocumentIngestion);
+test('Fuseki UI exposes every provider-free GraphRAG route when enabled', verifyEnabledGraphRAGRoutes);
+test('Fuseki UI and SPARQL remain usable without GraphRAG', verifyGraphRAGDisabled);
+test('Fuseki UI Playground runs corpus and GraphRAG SELECT queries', verifySparqlPlaygroundQueries);
 test('Fuseki UI real providers index and answer with a citation', verifyRealProviderAnswer);
