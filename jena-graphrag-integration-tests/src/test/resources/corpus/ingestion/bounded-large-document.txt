@@ -1,0 +1,61 @@
+SPDX-License-Identifier: Apache-2.0
+
+The GraphRAG integration fixture records a bounded operational document for browser testing. It describes a data service that receives source material, validates provenance, and preserves a traceable result for later retrieval. Every section uses ordinary technical prose so the fixture remains portable across providers and does not require a generated binary asset.
+
+The ingestion service accepts a document with a title, content, and absolute source identifier. It records a document resource, attaches its source file label, and writes a chunk whose text is the supplied content. An asynchronous task reports accepted, running, done, or failed states. Browser clients wait for the public status resource instead of assuming that an accepted request has already finished.
+
+The Fuseki interface remains the observable operational surface. After background work, a user can still load the dataset page, open the SPARQL Playground, and receive a successful ping. These checks distinguish a completed request from a server that accepted work but became unavailable while processing it.
+
+The GraphRAG integration fixture records a bounded operational document for browser testing. It describes a data service that receives source material, validates provenance, and preserves a traceable result for later retrieval. Every section uses ordinary technical prose so the fixture remains portable across providers and does not require a generated binary asset.
+
+The ingestion service accepts a document with a title, content, and absolute source identifier. It records a document resource, attaches its source file label, and writes a chunk whose text is the supplied content. An asynchronous task reports accepted, running, done, or failed states. Browser clients wait for the public status resource instead of assuming that an accepted request has already finished.
+
+The Fuseki interface remains the observable operational surface. After background work, a user can still load the dataset page, open the SPARQL Playground, and receive a successful ping. These checks distinguish a completed request from a server that accepted work but became unavailable while processing it.
+
+The GraphRAG integration fixture records a bounded operational document for browser testing. It describes a data service that receives source material, validates provenance, and preserves a traceable result for later retrieval. Every section uses ordinary technical prose so the fixture remains portable across providers and does not require a generated binary asset.
+
+The ingestion service accepts a document with a title, content, and absolute source identifier. It records a document resource, attaches its source file label, and writes a chunk whose text is the supplied content. An asynchronous task reports accepted, running, done, or failed states. Browser clients wait for the public status resource instead of assuming that an accepted request has already finished.
+
+The Fuseki interface remains the observable operational surface. After background work, a user can still load the dataset page, open the SPARQL Playground, and receive a successful ping. These checks distinguish a completed request from a server that accepted work but became unavailable while processing it.
+
+The GraphRAG integration fixture records a bounded operational document for browser testing. It describes a data service that receives source material, validates provenance, and preserves a traceable result for later retrieval. Every section uses ordinary technical prose so the fixture remains portable across providers and does not require a generated binary asset.
+
+The ingestion service accepts a document with a title, content, and absolute source identifier. It records a document resource, attaches its source file label, and writes a chunk whose text is the supplied content. An asynchronous task reports accepted, running, done, or failed states. Browser clients wait for the public status resource instead of assuming that an accepted request has already finished.
+
+The Fuseki interface remains the observable operational surface. After background work, a user can still load the dataset page, open the SPARQL Playground, and receive a successful ping. These checks distinguish a completed request from a server that accepted work but became unavailable while processing it.
+
+The GraphRAG integration fixture records a bounded operational document for browser testing. It describes a data service that receives source material, validates provenance, and preserves a traceable result for later retrieval. Every section uses ordinary technical prose so the fixture remains portable across providers and does not require a generated binary asset.
+
+The ingestion service accepts a document with a title, content, and absolute source identifier. It records a document resource, attaches its source file label, and writes a chunk whose text is the supplied content. An asynchronous task reports accepted, running, done, or failed states. Browser clients wait for the public status resource instead of assuming that an accepted request has already finished.
+
+The Fuseki interface remains the observable operational surface. After background work, a user can still load the dataset page, open the SPARQL Playground, and receive a successful ping. These checks distinguish a completed request from a server that accepted work but became unavailable while processing it.
+
+The GraphRAG integration fixture records a bounded operational document for browser testing. It describes a data service that receives source material, validates provenance, and preserves a traceable result for later retrieval. Every section uses ordinary technical prose so the fixture remains portable across providers and does not require a generated binary asset.
+
+The ingestion service accepts a document with a title, content, and absolute source identifier. It records a document resource, attaches its source file label, and writes a chunk whose text is the supplied content. An asynchronous task reports accepted, running, done, or failed states. Browser clients wait for the public status resource instead of assuming that an accepted request has already finished.
+
+The Fuseki interface remains the observable operational surface. After background work, a user can still load the dataset page, open the SPARQL Playground, and receive a successful ping. These checks distinguish a completed request from a server that accepted work but became unavailable while processing it.
+
+The GraphRAG integration fixture records a bounded operational document for browser testing. It describes a data service that receives source material, validates provenance, and preserves a traceable result for later retrieval. Every section uses ordinary technical prose so the fixture remains portable across providers and does not require a generated binary asset.
+
+The ingestion service accepts a document with a title, content, and absolute source identifier. It records a document resource, attaches its source file label, and writes a chunk whose text is the supplied content. An asynchronous task reports accepted, running, done, or failed states. Browser clients wait for the public status resource instead of assuming that an accepted request has already finished.
+
+The Fuseki interface remains the observable operational surface. After background work, a user can still load the dataset page, open the SPARQL Playground, and receive a successful ping. These checks distinguish a completed request from a server that accepted work but became unavailable while processing it.
+
+The GraphRAG integration fixture records a bounded operational document for browser testing. It describes a data service that receives source material, validates provenance, and preserves a traceable result for later retrieval. Every section uses ordinary technical prose so the fixture remains portable across providers and does not require a generated binary asset.
+
+The ingestion service accepts a document with a title, content, and absolute source identifier. It records a document resource, attaches its source file label, and writes a chunk whose text is the supplied content. An asynchronous task reports accepted, running, done, or failed states. Browser clients wait for the public status resource instead of assuming that an accepted request has already finished.
+
+The Fuseki interface remains the observable operational surface. After background work, a user can still load the dataset page, open the SPARQL Playground, and receive a successful ping. These checks distinguish a completed request from a server that accepted work but became unavailable while processing it.
+
+The GraphRAG integration fixture records a bounded operational document for browser testing. It describes a data service that receives source material, validates provenance, and preserves a traceable result for later retrieval. Every section uses ordinary technical prose so the fixture remains portable across providers and does not require a generated binary asset.
+
+The ingestion service accepts a document with a title, content, and absolute source identifier. It records a document resource, attaches its source file label, and writes a chunk whose text is the supplied content. An asynchronous task reports accepted, running, done, or failed states. Browser clients wait for the public status resource instead of assuming that an accepted request has already finished.
+
+The Fuseki interface remains the observable operational surface. After background work, a user can still load the dataset page, open the SPARQL Playground, and receive a successful ping. These checks distinguish a completed request from a server that accepted work but became unavailable while processing it.
+
+The GraphRAG integration fixture records a bounded operational document for browser testing. It describes a data service that receives source material, validates provenance, and preserves a traceable result for later retrieval. Every section uses ordinary technical prose so the fixture remains portable across providers and does not require a generated binary asset.
+
+The ingestion service accepts a document with a title, content, and absolute source identifier. It records a document resource, attaches its source file label, and writes a chunk whose text is the supplied content. An asynchronous task reports accepted, running, done, or failed states. Browser clients wait for the public status resource instead of assuming that an accepted request has already finished.
+
+The Fuseki interface remains the observable operational surface. After background work, a user can still load the dataset page, open the SPARQL Playground, and receive a successful ping. These checks distinguish a completed request from a server that accepted work but became unavailable while processing it.
