@@ -99,7 +99,26 @@
                 <OPENAI_API_URL>${openai.api.url}</OPENAI_API_URL>
                 <OPENAI_API_KEY>${openai.api.key}</OPENAI_API_KEY>
                 <GRAPHRAG_CHAT_MODEL>${graphrag.chat.model}</GRAPHRAG_CHAT_MODEL>
+                <GRAPHRAG_DEFAULT_MODE>${jena.graphrag.defaultMode}</GRAPHRAG_DEFAULT_MODE>
+                <GRAPHRAG_DEFAULT_TOP_K>${jena.graphrag.defaultTopK}</GRAPHRAG_DEFAULT_TOP_K>
+                <GRAPHRAG_MAX_TOP_K>${jena.graphrag.maxTopK}</GRAPHRAG_MAX_TOP_K>
+                <GRAPHRAG_INDEX_MAX_CONTENT_LENGTH>${jena.graphrag.index.maxContentLength}</GRAPHRAG_INDEX_MAX_CONTENT_LENGTH>
+                <GRAPHRAG_INGESTION_BASE_URI>${jena.graphrag.ingestion.baseUri}</GRAPHRAG_INGESTION_BASE_URI>
+                <GRAPHRAG_INGESTION_CHUNK_SIZE>${jena.graphrag.ingestion.chunkSize}</GRAPHRAG_INGESTION_CHUNK_SIZE>
+                <GRAPHRAG_INGESTION_CHUNK_OVERLAP>${jena.graphrag.ingestion.chunkOverlap}</GRAPHRAG_INGESTION_CHUNK_OVERLAP>
+                <GRAPHRAG_INGESTION_MAX_FILE_SIZE_BYTES>${jena.graphrag.ingestion.maxFileSizeBytes}</GRAPHRAG_INGESTION_MAX_FILE_SIZE_BYTES>
+                <GRAPHRAG_SERVER_MODE>${graphrag.server.mode}</GRAPHRAG_SERVER_MODE>
               </environmentVariables>
+              <systemPropertyVariables>
+                <jena.graphrag.defaultMode>${jena.graphrag.defaultMode}</jena.graphrag.defaultMode>
+                <jena.graphrag.defaultTopK>${jena.graphrag.defaultTopK}</jena.graphrag.defaultTopK>
+                <jena.graphrag.maxTopK>${jena.graphrag.maxTopK}</jena.graphrag.maxTopK>
+                <jena.graphrag.index.maxContentLength>${jena.graphrag.index.maxContentLength}</jena.graphrag.index.maxContentLength>
+                <jena.graphrag.ingestion.baseUri>${jena.graphrag.ingestion.baseUri}</jena.graphrag.ingestion.baseUri>
+                <jena.graphrag.ingestion.chunkSize>${jena.graphrag.ingestion.chunkSize}</jena.graphrag.ingestion.chunkSize>
+                <jena.graphrag.ingestion.chunkOverlap>${jena.graphrag.ingestion.chunkOverlap}</jena.graphrag.ingestion.chunkOverlap>
+                <jena.graphrag.ingestion.maxFileSizeBytes>${jena.graphrag.ingestion.maxFileSizeBytes}</jena.graphrag.ingestion.maxFileSizeBytes>
+              </systemPropertyVariables>
             </configuration>
           </plugin>
         </plugins>

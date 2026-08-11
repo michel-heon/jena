@@ -53,6 +53,34 @@ The suite deliberately exercises only paths that complete before a chat or embed
 
 Real-provider scenarios must define the environment-variable names in their GraphRAG assembler configuration with `grag:apiKeyEnv` and, when applicable, `grag:endpointEnv`. `ExternalProviderPrerequisites.requireConfiguredEnvironment(provider, System.getenv())` reports every configured variable that is absent or blank before a network call. It reports variable names only and never logs a secret value.
 
+## Tranche 4: real providers
+
+The opt-in `graphrag-real-providers` profile runs `RealProviderGraphRAGIT`. It starts an ephemeral production Fuseki server configured with the production HTTP embedding and chat providers, indexes a dedicated corpus, then verifies retrieval, a non-empty answer, and a citation to that corpus. It never uses a mock provider, a fake HTTP server, or a JUnit skip.
+
+Prepare a local provider profile with:
+
+```bash
+make -C jena-graphrag-integration-tests bootstrap-real-providers
+```
+
+This idempotent command checks Git, Java and Maven, creates `env/.env.user` from its non-secret example when absent, and verifies that the local file is ignored by Git. It reads local values only to generate ignored `0600` projections for Make, shell scripts, Maven and Java; it never requests provider values or writes them to output.
+
+Set these environment variables in the invoking shell. The endpoint and API-key variables are referenced through the assembler configuration; their values are not written to test output.
+
+| Variable | Purpose |
+|----------|---------|
+| `GRAPHRAG_EMBEDDING_API_URL` | OpenAI-compatible embeddings endpoint |
+| `GRAPHRAG_EMBEDDING_API_KEY` | Embeddings provider API key |
+| `GRAPHRAG_EMBEDDING_MODEL` | Embeddings model identifier |
+| `GRAPHRAG_EMBEDDING_DIMENSION` | Dimension emitted by the embeddings model |
+| `OPENAI_API_URL` | OpenAI-compatible chat endpoint |
+| `OPENAI_API_KEY` | Chat provider API key |
+| `GRAPHRAG_CHAT_MODEL` | Chat model identifier |
+
+For Azure legacy endpoints matching `/openai/deployments/{deployment-id}/...`, the bootstrap derives blank model variables from `{deployment-id}` and writes the OpenAI-compatible `/openai/v1/` base URL to the generated projections. This follows the Microsoft Foundry requirement that `model` contains the deployment name. Lucene 10.3.1 accepts at most `1024` dimensions, so the bootstrap derives `1024` for an unrenamed standard embedding deployment and the HTTP provider sends that value in the embedding request. A custom deployment name requires an explicit `GRAPHRAG_EMBEDDING_DIMENSION`, because the endpoint does not reveal its backing model or any reduced `dimensions` setting.
+
+Provider calls have a 60-second request timeout. Chat context is bounded by the production 4096-token input budget; no answer wording is asserted. A missing or blank variable fails before Fuseki starts and identifies only the missing variable names.
+
 ## Validation
 
 ```bash
@@ -69,4 +97,13 @@ To execute the tranche-3 real Fuseki API contracts:
 
 ```bash
 mvn -Pgraphrag -pl jena-graphrag-integration-tests -Dtest=TestGraphRAGFusekiContracts test
+```
+
+To execute the tranche-4 real-provider qualification:
+
+```bash
+set -a
+. jena-graphrag-integration-tests/env/.env.user
+set +a
+mvn -Pgraphrag,graphrag-real-providers -pl jena-graphrag-integration-tests test
 ```

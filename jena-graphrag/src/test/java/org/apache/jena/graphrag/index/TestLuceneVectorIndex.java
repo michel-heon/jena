@@ -59,6 +59,13 @@ public class TestLuceneVectorIndex {
     }
 
     @Test
+    public void constructor_acceptsLuceneMaximumDimension() {
+        try (LuceneVectorIndex ignored = new LuceneVectorIndex(new ByteBuffersDirectory(), 1024,
+                VectorSimilarityFunction.EUCLIDEAN)) {
+        }
+    }
+
+    @Test
     public void index_rejectsVectorWithUnexpectedDimension() {
         try (LuceneVectorIndex index = new LuceneVectorIndex(new ByteBuffersDirectory(), 2, VectorSimilarityFunction.EUCLIDEAN)) {
             assertThrows(IllegalArgumentException.class,

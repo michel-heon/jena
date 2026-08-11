@@ -48,6 +48,7 @@ hs_err_*
 run/
 
 # Local GraphRAG provider credentials
+jena-graphrag-integration-tests/env/.env
 jena-graphrag-integration-tests/env/.env.user
 jena-graphrag-integration-tests/env/generated/
 

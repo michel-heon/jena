@@ -22,6 +22,7 @@
 package org.apache.jena.graphrag.fuseki;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.URI;
@@ -35,6 +36,7 @@ import org.apache.jena.fuseki.main.FusekiServer;
 import org.apache.jena.fuseki.main.sys.FusekiModules;
 import org.apache.jena.graphrag.index.GraphRAGTextDatasetFactory;
 import org.apache.jena.graphrag.index.LuceneVectorIndex;
+import org.apache.jena.graphrag.provider.ProviderException;
 import org.apache.jena.graphrag.retrieval.GraphRAGSearchService;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.query.DatasetFactory;
@@ -105,6 +107,25 @@ public class TestGraphRAGAnswerEndpoint {
             JsonObject error = JSON.parse(response.body()).get("error").getAsObject();
             assertEquals(400, response.statusCode());
             assertEquals("invalid_request", error.get("code").getAsString().value());
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    public void providerFailure_returnsSanitizedGatewayError() throws Exception {
+        GraphRAGModule module = new GraphRAGModule(GraphRAGSearchAction::new,
+                (datasetGraph, configuration) -> new GraphRAGAnswerAction(datasetGraph, configuration,
+                        GraphRAGSearchAction.defaultSearchService(),
+                        (question, passages) -> { throw new ProviderException("apiKey=not-for-response"); }));
+        FusekiServer server = server(DatasetFactory.createTxnMem(), true, module);
+        try {
+            HttpResponse<String> response = get(server, "?q=GraphRAG");
+            JsonObject error = JSON.parse(response.body()).get("error").getAsObject();
+            assertEquals(502, response.statusCode());
+            assertEquals("provider_error", error.get("code").getAsString().value());
+            assertEquals("provider indisponible", error.get("message").getAsString().value());
+            assertFalse(response.body().contains("not-for-response"));
         } finally {
             server.stop();
         }

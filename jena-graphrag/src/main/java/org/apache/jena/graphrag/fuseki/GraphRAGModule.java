@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -44,10 +43,13 @@ import org.apache.jena.atlas.json.JsonObject;
 import org.apache.jena.atlas.json.JsonValue;
 import org.apache.jena.fuseki.main.FusekiServer;
 import org.apache.jena.fuseki.main.sys.FusekiModule;
+import org.apache.jena.graphrag.index.ChunkVectorIndexer;
 import org.apache.jena.graphrag.index.GraphRAGAssembler;
 import org.apache.jena.graphrag.index.GraphRAGAssemblerVocab;
 import org.apache.jena.graphrag.index.GraphRAGIndex;
+import org.apache.jena.graphrag.ingestion.ChunkVectorizationService;
 import org.apache.jena.graphrag.provider.MockChatCompletionProvider;
+import org.apache.jena.graphrag.provider.ProviderException;
 import org.apache.jena.graphrag.retrieval.GraphRAGSearchService;
 import org.apache.jena.fuseki.servlets.ActionREST;
 import org.apache.jena.fuseki.servlets.HttpAction;
@@ -119,7 +121,7 @@ public final class GraphRAGModule implements FusekiModule {
             GraphRAGTaskService taskService = new GraphRAGTaskService(configuration.maxActiveTasks(),
                     configuration.maxRetainedCompletedTasks());
             GraphRAGIndexingService indexingService = new GraphRAGIndexingService(indexingDataset(datasetGraph), taskService,
-                configuration);
+                configuration, configuredIndex());
             builder.addProcessor(name + "/graphrag/context", new GraphRAGContextAction(datasetGraph, configuration));
             builder.addProcessor(name + "/graphrag/search", searchAction(datasetGraph, configuration));
             builder.addProcessor(name + "/graphrag/answer", answerActionFactory == null
@@ -198,6 +200,10 @@ public final class GraphRAGModule implements FusekiModule {
             return base;
         TextIndex textIndex = configuredIndexes.getFirst().textIndex();
         return TextDatasetFactory.create(base, textIndex, true);
+    }
+
+    private synchronized GraphRAGIndex configuredIndex() {
+        return configuredIndexes.isEmpty() ? null : configuredIndexes.getFirst();
     }
 }
 
@@ -446,12 +452,19 @@ final class GraphRAGIndexingService {
     private final Dataset dataset;
     private final GraphRAGTaskService taskService;
     private final GraphRAGConfiguration configuration;
+    private final GraphRAGIndex graphRAGIndex;
 
     GraphRAGIndexingService(Dataset dataset, GraphRAGTaskService taskService,
                             GraphRAGConfiguration configuration) {
+        this(dataset, taskService, configuration, null);
+    }
+
+    GraphRAGIndexingService(Dataset dataset, GraphRAGTaskService taskService,
+                            GraphRAGConfiguration configuration, GraphRAGIndex graphRAGIndex) {
         this.dataset = Objects.requireNonNull(dataset);
         this.taskService = Objects.requireNonNull(taskService);
         this.configuration = Objects.requireNonNull(configuration);
+        this.graphRAGIndex = graphRAGIndex;
     }
 
     GraphRAGTask submit(GraphRAGIndexRequest request) {
@@ -480,7 +493,10 @@ final class GraphRAGIndexingService {
             index(request, taskId);
             taskService.markDone(taskId);
         } catch (RuntimeException ex) {
-            taskService.markFailed(taskId, "echec indexation GraphRAG");
+            String error = "echec indexation GraphRAG";
+            if ( ex instanceof ProviderException )
+                error += ": " + ex.getMessage();
+            taskService.markFailed(taskId, error);
         }
     }
 
@@ -505,6 +521,15 @@ final class GraphRAGIndexingService {
                 dataset.abort();
             dataset.end();
         }
+        vectorizeChunks();
+    }
+
+    private void vectorizeChunks() {
+        if ( graphRAGIndex == null )
+            return;
+        ChunkVectorIndexer vectorIndexer = new ChunkVectorIndexer(graphRAGIndex.vectorIndex(),
+                graphRAGIndex.embeddingProvider(), graphRAGIndex.vectorDimension());
+        new ChunkVectorizationService(vectorIndexer).vectorize(dataset);
     }
 }
 

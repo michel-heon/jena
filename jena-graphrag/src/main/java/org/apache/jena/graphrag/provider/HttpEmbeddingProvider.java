@@ -35,37 +35,42 @@ public final class HttpEmbeddingProvider implements EmbeddingProvider {
     private static final String AZURE_OPENAI_HOST = ".openai.azure.com";
 
     private final ProviderConfiguration configuration;
-    private final OpenAiEmbeddingModel model;
+    private final URI endpoint;
+    private final String modelName;
+    private final String apiKey;
 
     public HttpEmbeddingProvider(ProviderConfiguration configuration, URI endpoint, String model, String apiKey) {
         this.configuration = Objects.requireNonNull(configuration, "configuration");
         if ( !configuration.allowExternalCalls() )
             throw new ProviderException("External provider calls are disabled");
 
-        URI checkedEndpoint = requireHttpEndpoint(endpoint);
-        String checkedModel = requireNonBlank(model, "model");
-        String checkedApiKey = requireNonBlank(apiKey, "apiKey");
+        this.endpoint = requireHttpEndpoint(endpoint);
+        this.modelName = requireNonBlank(model, "model");
+        this.apiKey = requireNonBlank(apiKey, "apiKey");
+    }
 
+    private OpenAiEmbeddingModel createModel(int dimension) {
         OpenAiEmbeddingModel.OpenAiEmbeddingModelBuilder builder = OpenAiEmbeddingModel.builder()
-                .baseUrl(checkedEndpoint.toString())
-                .modelName(checkedModel)
-                .apiKey(checkedApiKey)
+                .baseUrl(endpoint.toString())
+                .modelName(modelName)
+                .apiKey(apiKey)
+                .dimensions(dimension)
                 .timeout(configuration.timeout())
                 .maxRetries(0)
                 .logRequests(false)
                 .logResponses(false);
 
-        if ( usesAzureApiKey(checkedEndpoint) )
-            builder.customHeaders(Map.of("api-key", checkedApiKey));
+        if ( usesAzureApiKey(endpoint) )
+            builder.customHeaders(Map.of("api-key", apiKey));
 
-        this.model = builder.build();
+        return builder.build();
     }
 
     @Override
     public float[] embed(String text, int dimension) {
         checkInputQuota(text);
         try {
-            Embedding embedding = model.embed(text).content();
+            Embedding embedding = createModel(dimension).embed(text).content();
             float[] vector = embedding.vector();
             if ( vector.length != dimension )
                 throw new ProviderException("Provider returned an unexpected embedding dimension");

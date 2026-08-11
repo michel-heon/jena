@@ -85,10 +85,7 @@ public final class GraphRAGAnswerAction extends ActionREST {
             String answer = chatProvider.complete(question, contextPassages);
             writeAnswer(action, question, answer, citations);
         } catch (ProviderException ex) {
-            String message = ex.getMessage();
-            if ( message == null || message.isBlank() )
-                message = "provider indisponible";
-            GraphRAGHttpJson.writeError(action, HttpSC.BAD_GATEWAY_502, "provider_error", message);
+            GraphRAGHttpJson.writeError(action, HttpSC.BAD_GATEWAY_502, "provider_error", "provider indisponible");
         } finally {
             datasetGraph.end();
         }

@@ -18,13 +18,15 @@ set -euo pipefail
 
 MODULE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "$MODULE_DIR/.." && pwd)"
+ENV_BASE="$MODULE_DIR/env/.env"
+ENV_BASE_EXAMPLE="$MODULE_DIR/env/.env.example"
 ENV_USER="$MODULE_DIR/env/.env.user"
 ENV_EXAMPLE="$MODULE_DIR/env/.env.user.example"
 GENERATED_DIR="$MODULE_DIR/env/generated"
 GENERATED_SHELL="$GENERATED_DIR/real-providers.env.sh"
 GENERATED_MAKE="$GENERATED_DIR/real-providers.mk"
 GENERATED_PROPERTIES="$GENERATED_DIR/real-providers.properties"
-PROVIDER_VARIABLES=(
+ENVIRONMENT_VARIABLES=(
     GRAPHRAG_EMBEDDING_API_URL
     GRAPHRAG_EMBEDDING_API_KEY
     GRAPHRAG_EMBEDDING_MODEL
@@ -32,6 +34,15 @@ PROVIDER_VARIABLES=(
     OPENAI_API_URL
     OPENAI_API_KEY
     GRAPHRAG_CHAT_MODEL
+    GRAPHRAG_DEFAULT_MODE
+    GRAPHRAG_DEFAULT_TOP_K
+    GRAPHRAG_MAX_TOP_K
+    GRAPHRAG_INDEX_MAX_CONTENT_LENGTH
+    GRAPHRAG_INGESTION_BASE_URI
+    GRAPHRAG_INGESTION_CHUNK_SIZE
+    GRAPHRAG_INGESTION_CHUNK_OVERLAP
+    GRAPHRAG_INGESTION_MAX_FILE_SIZE_BYTES
+    GRAPHRAG_SERVER_MODE
 )
 
 for command_name in git java mvn; do
@@ -46,9 +57,19 @@ if [[ ! -f "$REPO_ROOT/pom.xml" || ! -f "$MODULE_DIR/pom.xml" ]]; then
     exit 1
 fi
 
-if ! git -C "$REPO_ROOT" check-ignore -q "jena-graphrag-integration-tests/env/.env.user"; then
-    printf 'Local provider environment file is not ignored by Git: %s\n' "$ENV_USER" >&2
-    exit 1
+for environment_file in "jena-graphrag-integration-tests/env/.env" "jena-graphrag-integration-tests/env/.env.user"; do
+    if ! git -C "$REPO_ROOT" check-ignore -q "$environment_file"; then
+        printf 'Local provider environment file is not ignored by Git\n' >&2
+        exit 1
+    fi
+done
+
+if [[ ! -f "$ENV_BASE" ]]; then
+    cp "$ENV_BASE_EXAMPLE" "$ENV_BASE"
+    chmod 0600 "$ENV_BASE"
+    printf 'Created local GraphRAG environment file: jena-graphrag-integration-tests/env/.env\n'
+else
+    printf 'Local GraphRAG environment file already exists\n'
 fi
 
 if [[ ! -f "$ENV_USER" ]]; then
@@ -60,15 +81,60 @@ else
 fi
 
 declare -A provider_values=()
-while IFS= read -r line || [[ -n "$line" ]]; do
-    [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
-    if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
-        provider_values["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
-    else
-        printf 'Invalid local provider configuration line\n' >&2
-        exit 1
+read_environment_file() {
+    local environment_file="$1"
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+        if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+            provider_values["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
+        else
+            printf 'Invalid local provider configuration line\n' >&2
+            exit 1
+        fi
+    done < "$environment_file"
+}
+
+read_environment_file "$ENV_BASE"
+read_environment_file "$ENV_USER"
+
+if [[ ! -f "$ENV_BASE" || ! -f "$ENV_USER" ]]; then
+    printf 'Local provider environment is unavailable\n' >&2
+    exit 1
+fi
+
+azure_deployment_name() {
+    local endpoint="$1"
+    if [[ "$endpoint" =~ /openai/deployments/([^/?]+) ]]; then
+        printf '%s' "${BASH_REMATCH[1]}"
     fi
-done < "$ENV_USER"
+}
+
+documented_embedding_dimension() {
+    case "$1" in
+        text-embedding-ada-002|text-embedding-3-small|text-embedding-3-large) printf '1024' ;;
+    esac
+}
+
+openai_compatible_base_url() {
+    local endpoint="$1"
+    if [[ "$endpoint" =~ ^(https?://[^/]+)/openai/deployments/ ]]; then
+        printf '%s/openai/v1/' "${BASH_REMATCH[1]}"
+    else
+        printf '%s' "$endpoint"
+    fi
+}
+
+if [[ -z "${provider_values[GRAPHRAG_EMBEDDING_MODEL]:-}" ]]; then
+    provider_values[GRAPHRAG_EMBEDDING_MODEL]="$(azure_deployment_name "${provider_values[GRAPHRAG_EMBEDDING_API_URL]:-}")"
+fi
+if [[ -z "${provider_values[GRAPHRAG_CHAT_MODEL]:-}" ]]; then
+    provider_values[GRAPHRAG_CHAT_MODEL]="$(azure_deployment_name "${provider_values[OPENAI_API_URL]:-}")"
+fi
+if [[ -z "${provider_values[GRAPHRAG_EMBEDDING_DIMENSION]:-}" ]]; then
+    provider_values[GRAPHRAG_EMBEDDING_DIMENSION]="$(documented_embedding_dimension "${provider_values[GRAPHRAG_EMBEDDING_MODEL]:-}")"
+fi
+provider_values[GRAPHRAG_EMBEDDING_API_URL]="$(openai_compatible_base_url "${provider_values[GRAPHRAG_EMBEDDING_API_URL]:-}")"
+provider_values[OPENAI_API_URL]="$(openai_compatible_base_url "${provider_values[OPENAI_API_URL]:-}")"
 
 shell_quote() {
     printf "'%s'" "${1//\'/\'\\\'}"
@@ -99,26 +165,37 @@ property_name() {
         OPENAI_API_URL) printf 'openai.api.url' ;;
         OPENAI_API_KEY) printf 'openai.api.key' ;;
         GRAPHRAG_CHAT_MODEL) printf 'graphrag.chat.model' ;;
+        GRAPHRAG_DEFAULT_MODE) printf 'jena.graphrag.defaultMode' ;;
+        GRAPHRAG_DEFAULT_TOP_K) printf 'jena.graphrag.defaultTopK' ;;
+        GRAPHRAG_MAX_TOP_K) printf 'jena.graphrag.maxTopK' ;;
+        GRAPHRAG_INDEX_MAX_CONTENT_LENGTH) printf 'jena.graphrag.index.maxContentLength' ;;
+        GRAPHRAG_INGESTION_BASE_URI) printf 'jena.graphrag.ingestion.baseUri' ;;
+        GRAPHRAG_INGESTION_CHUNK_SIZE) printf 'jena.graphrag.ingestion.chunkSize' ;;
+        GRAPHRAG_INGESTION_CHUNK_OVERLAP) printf 'jena.graphrag.ingestion.chunkOverlap' ;;
+        GRAPHRAG_INGESTION_MAX_FILE_SIZE_BYTES) printf 'jena.graphrag.ingestion.maxFileSizeBytes' ;;
+        GRAPHRAG_SERVER_MODE) printf 'graphrag.server.mode' ;;
     esac
 }
 
 mkdir -p "$GENERATED_DIR"
 {
-    printf '# Generated from env/.env.user. Do not edit.\n'
-    for variable_name in "${PROVIDER_VARIABLES[@]}"; do
+    printf '# Generated from env/.env and env/.env.user. Do not edit.\n'
+    for variable_name in "${ENVIRONMENT_VARIABLES[@]}"; do
         printf 'export %s=%s\n' "$variable_name" "$(shell_quote "${provider_values[$variable_name]:-}")"
     done
 } > "$GENERATED_SHELL"
 {
-    printf '# Generated from env/.env.user. Do not edit.\n'
-    for variable_name in "${PROVIDER_VARIABLES[@]}"; do
+    printf '# Generated from env/.env and env/.env.user. Do not edit.\n'
+    for variable_name in "${ENVIRONMENT_VARIABLES[@]}"; do
         printf 'export %s := %s\n' "$variable_name" "$(make_escape "${provider_values[$variable_name]:-}")"
     done
 } > "$GENERATED_MAKE"
 {
-    printf '# Generated from env/.env.user. Do not edit.\n'
-    for variable_name in "${PROVIDER_VARIABLES[@]}"; do
-        printf '%s=%s\n' "$(property_name "$variable_name")" "$(properties_escape "${provider_values[$variable_name]:-}")"
+    printf '# Generated from env/.env and env/.env.user. Do not edit.\n'
+    for variable_name in "${ENVIRONMENT_VARIABLES[@]}"; do
+        property="$(property_name "$variable_name")"
+        [[ -z "$property" ]] && continue
+        printf '%s=%s\n' "$property" "$(properties_escape "${provider_values[$variable_name]:-}")"
     done
 } > "$GENERATED_PROPERTIES"
 chmod 0600 "$GENERATED_SHELL" "$GENERATED_MAKE" "$GENERATED_PROPERTIES"

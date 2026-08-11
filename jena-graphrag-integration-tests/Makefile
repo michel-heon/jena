@@ -21,4 +21,4 @@ bootstrap-real-providers: ## Prepare the ignored local real-provider environment
 	@./scripts/graphrag-integration-provider-bootstrap.sh
 
 real-providers: bootstrap-real-providers ## Run the real-provider Maven profile with generated environment
-	@mvn -Pgraphrag,graphrag-real-providers test
+	@mvn -f ../pom.xml -Pgraphrag,graphrag-real-providers -pl jena-graphrag-integration-tests -am test

@@ -21,15 +21,15 @@
 
 # Local Real-Provider Environment
 
-Run the following command from the repository root to create the local provider profile:
+Run the following command from the repository root to create the local GraphRAG profile:
 
 ```bash
 make -C jena-graphrag-integration-tests bootstrap-real-providers
 ```
 
-The bootstrap verifies Git, Java and Maven, creates `.env.user` from `.env.user.example` when it is absent, and verifies that the local file is ignored by Git. It projects the local values into ignored `env/generated/` files for Make, shell scripts and Maven; Surefire then exposes them to Java through `System.getenv()`. It is idempotent and never prints provider values.
+The bootstrap verifies Git, Java and Maven, creates `.env` from `.env.example` and `.env.user` from `.env.user.example` when either is absent, and verifies that both local files are ignored by Git. `.env` supplies GraphRAG runtime settings; `.env.user` overrides it with local provider settings. It projects the merged values into ignored `env/generated/` files for Make, shell scripts and Maven; Surefire exposes the runtime settings to Java as both environment variables and JVM properties. It is idempotent and never prints provider values.
 
-Set the seven `GRAPHRAG_*` variables in `.env.user`. The file is local-only and must not be committed. Source it immediately before running a real-provider Maven profile:
+Set GraphRAG runtime settings and embedding credentials in `.env`; keep chat-specific overrides in `.env.user`. Both files are local-only and must not be committed. `GRAPHRAG_SERVER_MODE` is projected for launch scripts; GraphRAG Java configuration consumes `GRAPHRAG_DEFAULT_MODE`, the top-K limits, the index content limit, and the ingestion settings. Source the generated values immediately before running a real-provider Maven profile:
 
 ```bash
 set -a

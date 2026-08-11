@@ -62,7 +62,7 @@ Le statut `accepted` signifie que la décision importée et adaptée est retenue
 |----------------------|-------------|------------|
 | Gouvernance, suivi des issues et vérification des faits | ADR-000, ADR-002, ADR-003 | Couverte |
 | Fournisseurs réels, sans mock ni fallback | ADR-101, ADR-602 | Couverte |
-| Corpus, RDF/PDF, provenance et assertions | ADR-400, ADR-608 | Couverte |
+| Corpus, RDF/PDF, provenance et assertions | ADR-400, ADR-401, ADR-402, ADR-403, ADR-608 | Couverte |
 | Nommage et orchestration Make | ADR-601, ADR-602 | Couverte |
 | Répartition JUnit / Playwright et non-duplication | ADR-608, ADR-900 | Partielle |
 | Structure Maven et intégration au profil `graphrag` | Aucun ADR dédié | À décider |
@@ -125,6 +125,9 @@ Le répertoire source consulté le 2026-08-08 ne contient aucun ADR-001. Aucun d
 | ADR | Titre | Statut | Date | Domaine |
 |-----|-------|--------|------|---------|
 | [400](./400-DATA-vocabulaire-rdf-grag.md) | Vocabulaire RDF `mg:` comme contrat des corpus et assertions GraphRAG | Accepté | 2026-08-08 | Données |
+| [401](./401-DATA-index-hybride-texte-vecteurs.md) | Index GraphRAG texte et vecteurs Lucene | Accepté | 2026-08-10 | Données |
+| [402](./402-DATA-normalisation-import-mg-relationship.md) | Normalisation d'import GraphRAG et relations réifiées | Accepté | 2026-08-10 | Données |
+| [403](./403-DATA-parseur-pdf-chunking-tracabilite.md) | Ingestion PDF, chunking et traçabilité GraphRAG | Accepté | 2026-08-10 | Données |
 
 ### DEVOPS - Orchestration et automatisation (600-699)
 
@@ -145,12 +148,12 @@ Le répertoire source consulté le 2026-08-08 ne contient aucun ADR-001. Aucun d
 
 | Indicateur | Valeur |
 |------------|--------|
-| **Total** | 10 |
-| **Acceptés** | 10 |
+| **Total** | 13 |
+| **Acceptés** | 13 |
 | **Proposés** | 0 |
 | **Brouillons** | 0 |
 | **Dépréciés ou supersédés** | 0 |
-| **Par domaine** | META : 3, ARCH : 1, DATA : 1, DEVOPS : 4, DOC : 1 |
+| **Par domaine** | META : 3, ARCH : 1, DATA : 4, DEVOPS : 4, DOC : 1 |
 
 ## Numérotation
 
@@ -160,7 +163,7 @@ Le répertoire source consulté le 2026-08-08 ne contient aucun ADR-001. Aucun d
 | `ARCH` | 100-199 | Architecture du module de tests | 102 |
 | `INFRA` | 200-299 | Build et infrastructure de test | 200 |
 | `SEC` | 300-399 | Sécurité et isolation | 300 |
-| `DATA` | 400-499 | Corpus, fixtures et index | 401 |
+| `DATA` | 400-499 | Corpus, fixtures et index | 404 |
 | `API` | 500-599 | Contrats HTTP, Fuseki et SPARQL | 500 |
 | `DEVOPS` | 600-699 | CI et automatisation | 603 |
 | `TEST` | 700-799 | Stratégie et qualification | 700 |
