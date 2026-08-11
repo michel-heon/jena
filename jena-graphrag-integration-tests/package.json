@@ -1,0 +1,13 @@
+{
+  "name": "apache-jena-graphrag-integration-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright smoke tests for the GraphRAG Fuseki delivery.",
+  "scripts": {
+    "test:smoke": "playwright test --grep-invert 'real providers'",
+    "test:real-providers-smoke": "playwright test --grep 'real providers'"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.58.2"
+  }
+}

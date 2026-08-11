@@ -119,3 +119,6 @@ jena-fuseki2/jena-fuseki-ui/yarn-error.log
 jena-fuseki2/jena-fuseki-ui/.nycrc
 jena-fuseki2/jena-fuseki-ui/tests/.eslintrc.js
 jena-fuseki2/jena-fuseki-ui/coverage/**/*
+
+## GraphRAG integration Playwright dependencies
+jena-graphrag-integration-tests/node_modules/**/*

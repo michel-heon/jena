@@ -85,18 +85,19 @@ Provider failures returned by `/{dataset}/graphrag/answer` are structured and do
 
 ## Root Make targets
 
-From the repository root, the Make facade orchestrates the completed JUnit tranches:
+From the repository root, the Make facade orchestrates the completed integration tranches:
 
 ```bash
 make graphrag-integration-ingestion
 make graphrag-integration-api
 make graphrag-integration-chat
+make graphrag-integration-real-providers-smoke
 make graphrag-integration
 ```
 
-The first target runs corpus, provider-prerequisite, ingestion, indexing, and retrieval checks. The API target runs the real Fuseki contracts and the GraphRAG answer endpoint contract. The chat target bootstraps the local real-provider environment and runs `RealProviderGraphRAGIT`. The aggregate runs those three targets in order and therefore requires the real-provider configuration.
+The first target runs corpus, provider-prerequisite, ingestion, indexing, and retrieval checks. The API target runs the real Fuseki contracts and the GraphRAG answer endpoint contract. The chat target bootstraps the local real-provider environment and runs `RealProviderGraphRAGIT`. The smoke target runs `npm ci`, installs Chromium through the locked Playwright version, starts `GraphRAGFusekiUIServer` on an ephemeral port, and checks the delivered Fuseki UI, `/$/ping`, the preloaded dataset, the GraphRAG configuration and context endpoints, and the SPARQL Playground. The real-provider smoke target uses the generated local environment to configure an ephemeral index in the UI server, indexes a document from the browser request context, and verifies a non-empty answer with a citation. It never prints provider values.
 
-`graphrag-integration-smoke` is reserved for the Playwright browser suite. It currently fails explicitly because that suite and its Node lockfile are not yet delivered; it is intentionally excluded from the aggregate until then.
+The smoke runner stops Fuseki after every result. Playwright traces, screenshots, videos, reports, and the Fuseki log are retained under `target/playwright/` only when the smoke suite fails. The aggregate runs all four targets and therefore requires the real-provider configuration.
 
 ## Validation
 

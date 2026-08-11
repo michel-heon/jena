@@ -14,7 +14,8 @@
 # limitations under the License.
 
 .PHONY: graphrag-integration-ingestion graphrag-integration-api \
-	graphrag-integration-chat graphrag-integration-smoke graphrag-integration
+	graphrag-integration-chat graphrag-integration-smoke \
+	graphrag-integration-real-providers-smoke graphrag-integration
 
 graphrag-integration-ingestion: ## Run corpus, prerequisite, ingestion, indexing, and retrieval tests
 	@mvn -Pgraphrag -pl jena-graphrag-integration-tests -am \
@@ -29,7 +30,13 @@ graphrag-integration-chat: ## Run real-provider GraphRAG qualification
 	@$(MAKE) -C jena-graphrag-integration-tests real-providers
 
 graphrag-integration-smoke: ## Run Playwright smoke tests when the browser suite is delivered
-	@printf '%s\n' 'GraphRAG Playwright smoke tests are not configured yet.' >&2
-	@exit 2
+	@npm --prefix jena-graphrag-integration-tests ci
+	@npm --prefix jena-graphrag-integration-tests exec -- playwright install chromium
+	@$(MAKE) -C jena-graphrag-integration-tests smoke
 
-graphrag-integration: graphrag-integration-ingestion graphrag-integration-api graphrag-integration-chat ## Run available GraphRAG integration suites
+graphrag-integration-real-providers-smoke: ## Run the real-provider Fuseki UI Playwright smoke suite
+	@npm --prefix jena-graphrag-integration-tests ci
+	@npm --prefix jena-graphrag-integration-tests exec -- playwright install chromium
+	@$(MAKE) -C jena-graphrag-integration-tests real-providers-smoke
+
+graphrag-integration: graphrag-integration-ingestion graphrag-integration-api graphrag-integration-chat graphrag-integration-smoke ## Run all GraphRAG integration suites
