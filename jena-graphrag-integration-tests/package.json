@@ -5,8 +5,9 @@
   "description": "Playwright smoke tests for the GraphRAG Fuseki delivery.",
   "scripts": {
     "test:disabled-graphrag-smoke": "playwright test --grep 'without GraphRAG'",
-    "test:smoke": "playwright test --grep-invert 'real providers|without GraphRAG'",
-    "test:real-providers-smoke": "playwright test --grep 'real providers'"
+    "test:smoke": "playwright test --grep-invert 'real providers|without GraphRAG|ultimate PDF corpus'",
+    "test:real-providers-smoke": "playwright test --grep '^Fuseki UI real providers index and answer with a citation$'",
+    "test:ultimate-smoke": "playwright test --grep 'ultimate PDF corpus'"
   },
   "devDependencies": {
     "@playwright/test": "1.58.2"

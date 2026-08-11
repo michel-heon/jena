@@ -71,6 +71,18 @@ if [[ "${GRAPHRAG_SMOKE_REAL_PROVIDERS:-false}" == 'true' ]]; then
     server_arguments+=("$runtime_dir/real-provider-index")
     playwright_script='test:real-providers-smoke'
 fi
+if [[ "${GRAPHRAG_SMOKE_ULTIMATE:-false}" == 'true' ]]; then
+    if [[ "${GRAPHRAG_SMOKE_REAL_PROVIDERS:-false}" != 'true' ]]; then
+        echo 'Ultimate PDF smoke requires real providers.' >&2
+        exit 1
+    fi
+    export GRAPHRAG_SYSTEM_PROMPT='Answer only from the ingested GraphRAG research PDF corpus. Cite retrieved sources and say when the corpus lacks the answer.'
+    pdf_corpus="$module_dir/src/test/resources/corpus/ingestion/pdf"
+    materialized_corpus="$runtime_dir/pdf-corpus.ttl"
+    java -cp "$classpath" org.apache.jena.graphrag.integration.PdfCorpusMaterializer "$pdf_corpus" "$materialized_corpus"
+    server_arguments[0]="$materialized_corpus"
+    playwright_script='test:ultimate-smoke'
+fi
 
 java -cp "$classpath" org.apache.jena.graphrag.fuseki.GraphRAGFusekiUIServer \
     "${server_arguments[@]}" >"$log_file" 2>&1 &

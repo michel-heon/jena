@@ -94,6 +94,7 @@ make graphrag-integration-api
 make graphrag-integration-chat
 make graphrag-integration-disabled-graphrag-smoke
 make graphrag-integration-real-providers-smoke
+make graphrag-integration-ultimate-pdf-corpus-smoke
 make graphrag-integration-exhaustive-smoke
 make graphrag-integration-report
 make graphrag-integration
@@ -101,7 +102,13 @@ make graphrag-integration
 
 The first target runs corpus, provider-prerequisite, ingestion, indexing, and retrieval checks. The API target runs the real Fuseki contracts and the GraphRAG answer endpoint contract. The chat target bootstraps the local real-provider environment and runs `RealProviderGraphRAGIT`. The smoke target runs `npm ci`, installs Chromium through the locked Playwright version, starts `GraphRAGFusekiUIServer` on an ephemeral port, and checks the delivered Fuseki UI, `/$/ping`, the preloaded dataset, the GraphRAG configuration and context endpoints, and the SPARQL Playground. The disabled-GraphRAG smoke target verifies that the UI and SPARQL remain usable while GraphRAG routes are unavailable. The real-provider smoke target uses the generated local environment to configure an ephemeral index in the UI server, indexes a document from the browser request context, and verifies a non-empty answer with a citation. It never prints provider values.
 
-The smoke runner stops Fuseki after every result. Playwright traces, screenshots, videos, reports, and the Fuseki log are retained under `target/playwright/` only when the smoke suite fails. `graphrag-integration-exhaustive-smoke` runs the enabled, disabled, and real-provider browser suites sequentially; it stops on the first failure and therefore requires the real-provider configuration. The real-provider browser suite sets a non-sensitive default `GRAPHRAG_SYSTEM_PROMPT` when none is supplied; its value is not returned by `/graphrag/config`, logged, or asserted in the browser report. The aggregate runs all four targets and therefore requires the real-provider configuration.
+The smoke runner stops Fuseki after every result. Playwright traces, screenshots, videos, reports, and the Fuseki log are retained under `target/playwright/` only when the smoke suite fails. `graphrag-integration-exhaustive-smoke` runs the enabled, disabled, real-provider, and ultimate PDF-corpus browser suites sequentially; it stops on the first failure and therefore requires the real-provider configuration. The real-provider browser suite sets a non-sensitive default `GRAPHRAG_SYSTEM_PROMPT` when none is supplied; its value is not returned by `/graphrag/config`, logged, or asserted in the browser report. The aggregate runs all four targets and therefore requires the real-provider configuration.
+
+## Tranche 7: ultimate PDF corpus qualification
+
+`make graphrag-integration-ultimate-pdf-corpus-smoke` starts the production Fuseki UI with a server-configured directory containing the 12 PDF fixtures under `corpus/ingestion/pdf/`. The browser can only call `POST /{dataset}/graphrag/ingest-pdfs`; it supplies no filesystem path. The server enumerates regular PDF files in that configured directory, runs `DocumentIngestionService` for each file, vectorizes the resulting chunks once with the real embedding provider, and exposes the usual task status resource.
+
+The Playwright scenario waits for the task, verifies exactly 12 PDF source files in the dataset, applies a corpus-specific system prompt, and submits five independent chat questions. Each answer must be non-empty and cite an ingested PDF chunk, without asserting provider-specific wording. It makes external embedding and chat calls, so it can take several minutes and incurs the provider's normal usage cost. The prompt and provider values remain process-local and are never emitted in API responses, logs, or Playwright artifacts.
 
 From WSL2, `make graphrag-integration-report` serves the module-local Playwright HTML report and opens `http://127.0.0.1:9323` in the Windows default browser through `powershell.exe Start-Process`. Set `PLAYWRIGHT_REPORT_PORT` to use another port; stop the report server with `Ctrl-C`.
 

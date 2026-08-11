@@ -289,6 +289,73 @@ async function verifyRealProviderAnswer({ page }) {
   ]));
 }
 
+/**
+ * Ingests the configured GraphRAG PDF research corpus and qualifies five cited real-provider chats.
+ *
+ * @param {{ page: import('@playwright/test').Page }} fixtures Playwright test fixtures.
+ * @returns {Promise<void>} Resolves after all PDFs are indexed and each chat response cites a PDF chunk.
+ */
+async function verifyUltimatePdfCorpus({ page }) {
+  test.setTimeout(600_000);
+
+  const configuration = await page.request.get(`/${dataset}/graphrag/config`);
+  expect(configuration.status()).toBe(200);
+  expect(JSON.stringify(await configuration.json())).not.toMatch(/system[_-]?prompt/i);
+
+  const indexing = await page.request.post(`/${dataset}/graphrag/index`, {
+    data: {
+      title: 'PDF corpus vectorization trigger',
+      content: 'Index the GraphRAG PDF corpus prepared by the production ingestion service.',
+      sourceUri: 'urn:graphrag:browser-pdf-corpus-trigger'
+    }
+  });
+  expect(indexing.status()).toBe(202);
+  const taskId = (await indexing.json()).taskId;
+  expect(taskId).toEqual(expect.any(String));
+
+  await expect.poll(async () => {
+    const task = await page.request.get(`/${dataset}/graphrag/status?taskId=${encodeURIComponent(taskId)}`);
+    expect(task.status()).toBe(200);
+    return (await task.json()).status;
+  }, { timeout: 540_000, intervals: [1_000, 2_000, 5_000] }).toBe('done');
+
+  const documents = await page.request.get(`/${dataset}/sparql`, {
+    params: {
+      query: `
+        PREFIX grag: <http://ormynet.com/ns/msft-graphrag#>
+        SELECT (COUNT(DISTINCT ?sourceFile) AS ?count) WHERE {
+          ?document a grag:Document ; grag:sourceFile ?sourceFile .
+          FILTER(STRENDS(LCASE(STR(?sourceFile)), '.pdf'))
+        }
+      `,
+      format: 'application/sparql-results+json'
+    }
+  });
+  expect(documents.status()).toBe(200);
+  expect((await documents.json()).results.bindings).toContainEqual({
+    count: { type: 'literal', value: '12', datatype: 'http://www.w3.org/2001/XMLSchema#integer' }
+  });
+
+  const questions = [
+    'What is GraphRAG?',
+    'What is the difference between local and global GraphRAG?',
+    'How can an RDF knowledge graph support GraphRAG?',
+    'What is KG2RAG?',
+    'How is SPARQL generated from natural language over federated knowledge graphs?'
+  ];
+  for (const question of questions) {
+    const answer = await page.request.get(`/${dataset}/graphrag/answer`, {
+      params: { q: question, topK: '5' }
+    });
+    expect(answer.status()).toBe(200);
+    const answerBody = await answer.json();
+    expect(answerBody.answer.trim()).not.toBe('');
+    expect(answerBody.citations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ uri: expect.stringMatching(/^http:\/\/ormynet\.com\/ns\/data#chunk-/) })
+    ]));
+  }
+}
+
 test('Fuseki UI exposes the GraphRAG dataset, ping, and SPARQL Playground', verifyFusekiUi);
 test('Fuseki UI uploads RDF and makes the graph queryable', verifyRdfUpload);
 test('Fuseki UI remains usable after indexing a bounded large document', verifyLargeDocumentIngestion);
@@ -297,3 +364,4 @@ test('Fuseki UI exposes structured safe GraphRAG errors', verifyGraphRAGPublicEr
 test('Fuseki UI and SPARQL remain usable without GraphRAG', verifyGraphRAGDisabled);
 test('Fuseki UI Playground runs corpus and GraphRAG SELECT queries', verifySparqlPlaygroundQueries);
 test('Fuseki UI real providers index and answer with a citation', verifyRealProviderAnswer);
+test('Fuseki UI ultimate PDF corpus ingestion indexes and chats with real providers', verifyUltimatePdfCorpus);

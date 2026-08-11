@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-.PHONY: bootstrap-real-providers disabled-graphrag-smoke exhaustive-smoke help real-providers real-providers-smoke report smoke
+.PHONY: bootstrap-real-providers disabled-graphrag-smoke exhaustive-smoke help real-providers real-providers-smoke report smoke ultimate-pdf-corpus-smoke
 
 PLAYWRIGHT_REPORT_PORT ?= 9323
 
@@ -31,13 +31,17 @@ real-providers: bootstrap-real-providers ## Run the real-provider Maven profile 
 real-providers-smoke: bootstrap-real-providers ## Run the real-provider Fuseki UI Playwright smoke suite
 	@GRAPHRAG_SMOKE_REAL_PROVIDERS=true ./scripts/graphrag-integration-fuseki-smoke.sh
 
+ultimate-pdf-corpus-smoke: bootstrap-real-providers ## Ingest all PDF corpus files and run five cited real-provider chats
+	@GRAPHRAG_SMOKE_REAL_PROVIDERS=true GRAPHRAG_SMOKE_ULTIMATE=true ./scripts/graphrag-integration-fuseki-smoke.sh
+
 disabled-graphrag-smoke: ## Run the Fuseki UI Playwright smoke suite with GraphRAG disabled
 	@GRAPHRAG_SMOKE_DISABLE_GRAPH_RAG=true ./scripts/graphrag-integration-fuseki-smoke.sh
 
-exhaustive-smoke: ## Run enabled, disabled, and real-provider Fuseki UI Playwright smoke suites
+exhaustive-smoke: ## Run enabled, disabled, real-provider, and ultimate PDF corpus browser suites
 	@$(MAKE) smoke
 	@$(MAKE) disabled-graphrag-smoke
 	@$(MAKE) real-providers-smoke
+	@$(MAKE) ultimate-pdf-corpus-smoke
 
 report: ## Serve the Playwright HTML report and open it in the Windows browser from WSL
 	@test -f target/playwright/report/index.html || { echo 'Playwright report not found; run make smoke first.' >&2; exit 1; }
