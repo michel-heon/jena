@@ -129,6 +129,19 @@ public class TestHttpProviders {
     }
 
     @Test
+    public void authenticationFailure_isClassifiedWithoutExposingSecret() throws Exception {
+        try (TestServer server = TestServer.responding(401, "{\"error\":\"Unauthorized\"}")) {
+            HttpEmbeddingProvider provider = new HttpEmbeddingProvider(configuration(Duration.ofSeconds(2), 10),
+                    server.uri(), "model", API_KEY);
+
+            ProviderException exception = assertThrows(ProviderException.class, () -> provider.embed("hello", 2));
+
+            assertEquals(ProviderException.Category.AUTHENTICATION, exception.category());
+            assertFalse(exception.toString().contains(API_KEY));
+        }
+    }
+
+    @Test
     public void requestTimeout_isApplied() throws Exception {
         CountDownLatch release = new CountDownLatch(1);
         try (TestServer server = TestServer.blocking(release)) {
@@ -136,7 +149,8 @@ public class TestHttpProviders {
                     server.uri(), "model", API_KEY);
 
             try {
-                assertThrows(ProviderException.class, () -> provider.embed("hello", 2));
+                ProviderException exception = assertThrows(ProviderException.class, () -> provider.embed("hello", 2));
+                assertEquals(ProviderException.Category.TIMEOUT, exception.category());
             } finally {
                 release.countDown();
             }

@@ -81,6 +81,23 @@ For Azure legacy endpoints matching `/openai/deployments/{deployment-id}/...`, t
 
 Provider calls have a 60-second request timeout. Chat context is bounded by the production 4096-token input budget; no answer wording is asserted. A missing or blank variable fails before Fuseki starts and identifies only the missing variable names.
 
+Provider failures returned by `/{dataset}/graphrag/answer` are structured and do not expose endpoint, credential, or provider response details: an authentication rejection is `502` with `provider_authentication_failed`, a provider timeout is `504` with `provider_timeout`, and other provider failures are `502` with `provider_unavailable`.
+
+## Root Make targets
+
+From the repository root, the Make facade orchestrates the completed JUnit tranches:
+
+```bash
+make graphrag-integration-ingestion
+make graphrag-integration-api
+make graphrag-integration-chat
+make graphrag-integration
+```
+
+The first target runs corpus, provider-prerequisite, ingestion, indexing, and retrieval checks. The API target runs the real Fuseki contracts and the GraphRAG answer endpoint contract. The chat target bootstraps the local real-provider environment and runs `RealProviderGraphRAGIT`. The aggregate runs those three targets in order and therefore requires the real-provider configuration.
+
+`graphrag-integration-smoke` is reserved for the Playwright browser suite. It currently fails explicitly because that suite and its Node lockfile are not yet delivered; it is intentionally excluded from the aggregate until then.
+
 ## Validation
 
 ```bash

@@ -85,7 +85,14 @@ public final class GraphRAGAnswerAction extends ActionREST {
             String answer = chatProvider.complete(question, contextPassages);
             writeAnswer(action, question, answer, citations);
         } catch (ProviderException ex) {
-            GraphRAGHttpJson.writeError(action, HttpSC.BAD_GATEWAY_502, "provider_error", "provider indisponible");
+            switch ( ex.category() ) {
+            case AUTHENTICATION -> GraphRAGHttpJson.writeError(action, HttpSC.BAD_GATEWAY_502,
+                "provider_authentication_failed", "authentification du fournisseur refusee");
+            case TIMEOUT -> GraphRAGHttpJson.writeError(action, HttpSC.GATEWAY_TIMEOUT_504,
+                "provider_timeout", "delai du fournisseur depasse");
+            case UNAVAILABLE -> GraphRAGHttpJson.writeError(action, HttpSC.BAD_GATEWAY_502,
+                "provider_unavailable", "provider indisponible");
+            }
         } finally {
             datasetGraph.end();
         }

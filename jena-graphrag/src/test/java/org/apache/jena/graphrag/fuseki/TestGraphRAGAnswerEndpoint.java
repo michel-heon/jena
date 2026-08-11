@@ -113,7 +113,7 @@ public class TestGraphRAGAnswerEndpoint {
     }
 
     @Test
-    public void providerFailure_returnsSanitizedGatewayError() throws Exception {
+    public void providerFailure_returnsSanitizedUnavailableError() throws Exception {
         GraphRAGModule module = new GraphRAGModule(GraphRAGSearchAction::new,
                 (datasetGraph, configuration) -> new GraphRAGAnswerAction(datasetGraph, configuration,
                         GraphRAGSearchAction.defaultSearchService(),
@@ -123,12 +123,22 @@ public class TestGraphRAGAnswerEndpoint {
             HttpResponse<String> response = get(server, "?q=GraphRAG");
             JsonObject error = JSON.parse(response.body()).get("error").getAsObject();
             assertEquals(502, response.statusCode());
-            assertEquals("provider_error", error.get("code").getAsString().value());
+            assertEquals("provider_unavailable", error.get("code").getAsString().value());
             assertEquals("provider indisponible", error.get("message").getAsString().value());
             assertFalse(response.body().contains("not-for-response"));
         } finally {
             server.stop();
         }
+    }
+
+    @Test
+    public void providerAuthenticationFailure_returnsSanitizedGatewayError() throws Exception {
+        assertProviderFailure(ProviderException.Category.AUTHENTICATION, 502, "provider_authentication_failed");
+    }
+
+    @Test
+    public void providerTimeout_returnsSanitizedGatewayTimeout() throws Exception {
+        assertProviderFailure(ProviderException.Category.TIMEOUT, 504, "provider_timeout");
     }
 
     @Test
@@ -158,5 +168,23 @@ public class TestGraphRAGAnswerEndpoint {
         HttpRequest request = HttpRequest.newBuilder(URI.create(
                 "http://localhost:" + server.getPort() + "/ds/graphrag/answer" + query)).GET().build();
         return HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private static void assertProviderFailure(ProviderException.Category category, int expectedStatus, String expectedCode)
+            throws Exception {
+        GraphRAGModule module = new GraphRAGModule(GraphRAGSearchAction::new,
+                (datasetGraph, configuration) -> new GraphRAGAnswerAction(datasetGraph, configuration,
+                        GraphRAGSearchAction.defaultSearchService(),
+                        (question, passages) -> { throw new ProviderException(category, "apiKey=not-for-response"); }));
+        FusekiServer server = server(DatasetFactory.createTxnMem(), true, module);
+        try {
+            HttpResponse<String> response = get(server, "?q=GraphRAG");
+            JsonObject error = JSON.parse(response.body()).get("error").getAsObject();
+            assertEquals(expectedStatus, response.statusCode());
+            assertEquals(expectedCode, error.get("code").getAsString().value());
+            assertFalse(response.body().contains("not-for-response"));
+        } finally {
+            server.stop();
+        }
     }
 }
