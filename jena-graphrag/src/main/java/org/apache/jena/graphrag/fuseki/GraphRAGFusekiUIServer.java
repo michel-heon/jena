@@ -132,6 +132,8 @@ public final class GraphRAGFusekiUIServer {
         requireEnvironment(environment, "GRAPHRAG_EMBEDDING_API_KEY");
         requireEnvironment(environment, "OPENAI_API_URL");
         requireEnvironment(environment, "OPENAI_API_KEY");
+        if ( environment.containsKey("GRAPHRAG_SYSTEM_PROMPT") && !environment.get("GRAPHRAG_SYSTEM_PROMPT").isBlank() )
+            service.addLiteral(GraphRAGAssemblerVocab.systemPromptEnv, "GRAPHRAG_SYSTEM_PROMPT");
 
         Resource index = config.createResource("urn:graphrag:ui:real:index")
                 .addProperty(RDF.type, GraphRAGAssemblerVocab.GraphRAGIndex)

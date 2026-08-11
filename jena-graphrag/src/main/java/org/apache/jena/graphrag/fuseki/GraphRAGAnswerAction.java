@@ -82,7 +82,7 @@ public final class GraphRAGAnswerAction extends ActionREST {
             GraphRAGSearch search = searchService.search(datasetGraph, question, topK, configuration.hybridAlpha());
             List<Citation> citations = citations(search);
             List<String> contextPassages = boundedContextPassages(question, citations);
-            String answer = chatProvider.complete(question, contextPassages);
+            String answer = chatProvider.complete(question, contextPassages, configuration.systemPrompt());
             writeAnswer(action, question, answer, citations);
         } catch (ProviderException ex) {
             switch ( ex.category() ) {

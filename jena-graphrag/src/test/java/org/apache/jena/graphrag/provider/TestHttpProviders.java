@@ -86,6 +86,20 @@ public class TestHttpProviders {
     }
 
     @Test
+    public void chatProvider_includesConfiguredSystemPromptInRequest() throws Exception {
+        try (TestServer server = TestServer.responding(200,
+                "{\"choices\":[{\"message\":{\"content\":\"answer\"}}]}")) {
+            HttpChatCompletionProvider provider = new HttpChatCompletionProvider(configuration(Duration.ofSeconds(2), 10),
+                    server.uri(), "chat-model", API_KEY);
+
+            assertEquals("answer", provider.complete("question", List.of("context"), "Use context only."));
+            assertEquals("Use context only.\n\nQuestion:\nquestion\n\nContext:\ncontext",
+                server.requestBody().get("messages").getAsArray().get(0).getAsObject()
+                    .get("content").getAsString().value());
+        }
+    }
+
+    @Test
     public void chatProvider_acceptsAzureStyleChatCompletionsEndpoint() throws Exception {
         try (TestServer server = TestServer.responding(200,
                 "{\"choices\":[{\"message\":{\"content\":\"answer\"}}]}")) {

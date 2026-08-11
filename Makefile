@@ -16,7 +16,7 @@
 .PHONY: graphrag-integration-ingestion graphrag-integration-api \
 	graphrag-integration-chat graphrag-integration-smoke \
 	graphrag-integration-disabled-graphrag-smoke \
-	graphrag-integration-real-providers-smoke graphrag-integration-report \
+	graphrag-integration-real-providers-smoke graphrag-integration-exhaustive-smoke graphrag-integration-report \
 	graphrag-integration
 
 graphrag-integration-ingestion: ## Run corpus, prerequisite, ingestion, indexing, and retrieval tests
@@ -45,6 +45,11 @@ graphrag-integration-real-providers-smoke: ## Run the real-provider Fuseki UI Pl
 	@npm --prefix jena-graphrag-integration-tests ci
 	@npm --prefix jena-graphrag-integration-tests exec -- playwright install chromium
 	@$(MAKE) -C jena-graphrag-integration-tests real-providers-smoke
+
+graphrag-integration-exhaustive-smoke: ## Run all Tranche 6 Fuseki UI Playwright smoke suites
+	@npm --prefix jena-graphrag-integration-tests ci
+	@npm --prefix jena-graphrag-integration-tests exec -- playwright install chromium
+	@$(MAKE) -C jena-graphrag-integration-tests exhaustive-smoke
 
 graphrag-integration-report: ## Serve the Playwright report and open it in the Windows browser from WSL
 	@$(MAKE) -C jena-graphrag-integration-tests report

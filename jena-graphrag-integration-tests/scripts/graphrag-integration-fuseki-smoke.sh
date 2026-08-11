@@ -67,6 +67,7 @@ if [[ "${GRAPHRAG_SMOKE_REAL_PROVIDERS:-false}" == 'true' ]]; then
     fi
     # The generated file exports provider values; this script never prints them.
     source "$provider_environment"
+    export GRAPHRAG_SYSTEM_PROMPT="${GRAPHRAG_SYSTEM_PROMPT:-Answer from the supplied GraphRAG context and cite it.}"
     server_arguments+=("$runtime_dir/real-provider-index")
     playwright_script='test:real-providers-smoke'
 fi

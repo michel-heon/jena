@@ -54,9 +54,11 @@ import org.apache.jena.rdf.model.StmtIterator;
  * @param maxIndexContentLength maximum accepted {@code /graphrag/index} content length
  * @param maxActiveTasks maximum number of concurrently active GraphRAG tasks
  * @param maxRetainedCompletedTasks maximum number of completed task records retained in memory
+ * @param systemPrompt optional system prompt resolved from the configured environment variable
  */
 record GraphRAGConfiguration(String defaultMode, int defaultTopK, int maxTopK, double hybridAlpha,
-                             int maxIndexContentLength, int maxActiveTasks, int maxRetainedCompletedTasks) {
+                             int maxIndexContentLength, int maxActiveTasks, int maxRetainedCompletedTasks,
+                             String systemPrompt) {
 
     /** System property overriding the default retrieval mode. */
     static final String DEFAULT_MODE_PROPERTY = "jena.graphrag.defaultMode";
@@ -81,6 +83,12 @@ record GraphRAGConfiguration(String defaultMode, int defaultTopK, int maxTopK, d
     private static final int FALLBACK_MAX_ACTIVE_TASKS = 2;
     private static final int FALLBACK_MAX_RETAINED_COMPLETED_TASKS = 100;
 
+    GraphRAGConfiguration(String defaultMode, int defaultTopK, int maxTopK, double hybridAlpha,
+                          int maxIndexContentLength, int maxActiveTasks, int maxRetainedCompletedTasks) {
+        this(defaultMode, defaultTopK, maxTopK, hybridAlpha, maxIndexContentLength, maxActiveTasks,
+                maxRetainedCompletedTasks, "");
+    }
+
     GraphRAGConfiguration(String defaultMode, int defaultTopK, int maxTopK, double hybridAlpha) {
         this(defaultMode, defaultTopK, maxTopK, hybridAlpha, FALLBACK_MAX_INDEX_CONTENT_LENGTH,
                 FALLBACK_MAX_ACTIVE_TASKS, FALLBACK_MAX_RETAINED_COMPLETED_TASKS);
@@ -101,6 +109,7 @@ record GraphRAGConfiguration(String defaultMode, int defaultTopK, int maxTopK, d
             throw new IllegalArgumentException("maxActiveTasks doit etre positif");
         if ( maxRetainedCompletedTasks < 1 )
             throw new IllegalArgumentException("maxRetainedCompletedTasks doit etre positif");
+        Objects.requireNonNull(systemPrompt, "systemPrompt");
     }
 
     /**
@@ -132,21 +141,48 @@ record GraphRAGConfiguration(String defaultMode, int defaultTopK, int maxTopK, d
      * @return validated endpoint configuration
      */
     static GraphRAGConfiguration fromModel(Model configModel) {
+        return fromModel(configModel, System.getenv());
+    }
+
+    static GraphRAGConfiguration fromModel(Model configModel, Map<String, String> environment) {
         GraphRAGConfiguration fallback = fromSystemProperties();
         if ( configModel == null )
             return fallback;
 
         Property hybridAlpha = configModel.createProperty(GraphRAGModule.CONFIG_NS + "hybridAlpha");
         StmtIterator statements = configModel.listStatements(null, hybridAlpha, (RDFNode) null);
+        double configuredHybridAlpha = fallback.hybridAlpha();
+        try {
+            if ( statements.hasNext() ) {
+                RDFNode value = statements.nextStatement().getObject();
+                if ( !value.isLiteral() )
+                    throw new IllegalArgumentException("grag:hybridAlpha doit etre un litteral numerique");
+                configuredHybridAlpha = value.asLiteral().getDouble();
+            }
+        } finally {
+            statements.close();
+        }
+        return new GraphRAGConfiguration(fallback.defaultMode(), fallback.defaultTopK(), fallback.maxTopK(),
+                configuredHybridAlpha, fallback.maxIndexContentLength(), fallback.maxActiveTasks(),
+                fallback.maxRetainedCompletedTasks(), systemPrompt(configModel, environment));
+    }
+
+    private static String systemPrompt(Model configModel, Map<String, String> environment) {
+        Property systemPromptEnv = configModel.createProperty(GraphRAGModule.CONFIG_NS + "systemPromptEnv");
+        StmtIterator statements = configModel.listStatements(null, systemPromptEnv, (RDFNode) null);
         try {
             if ( !statements.hasNext() )
-                return fallback;
+                return "";
             RDFNode value = statements.nextStatement().getObject();
             if ( !value.isLiteral() )
-                throw new IllegalArgumentException("grag:hybridAlpha doit etre un litteral numerique");
-            return new GraphRAGConfiguration(fallback.defaultMode(), fallback.defaultTopK(), fallback.maxTopK(),
-                    value.asLiteral().getDouble(), fallback.maxIndexContentLength(), fallback.maxActiveTasks(),
-                    fallback.maxRetainedCompletedTasks());
+                throw new IllegalArgumentException("grag:systemPromptEnv doit etre un litteral");
+            String variable = value.asLiteral().getString();
+            if ( !variable.matches("[A-Z][A-Z0-9_]*") )
+                throw new IllegalArgumentException("grag:systemPromptEnv est invalide");
+            String prompt = Objects.requireNonNull(environment, "environment").get(variable);
+            if ( prompt == null || prompt.isBlank() )
+                throw new IllegalArgumentException("Variable de system prompt requise absente: " + variable);
+            return prompt;
         } finally {
             statements.close();
         }

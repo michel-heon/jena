@@ -76,6 +76,7 @@ Set these environment variables in the invoking shell. The endpoint and API-key 
 | `OPENAI_API_URL` | OpenAI-compatible chat endpoint |
 | `OPENAI_API_KEY` | Chat provider API key |
 | `GRAPHRAG_CHAT_MODEL` | Chat model identifier |
+| `GRAPHRAG_SYSTEM_PROMPT` | Optional instruction injected only into real-provider chat requests |
 
 For Azure legacy endpoints matching `/openai/deployments/{deployment-id}/...`, the bootstrap derives blank model variables from `{deployment-id}` and writes the OpenAI-compatible `/openai/v1/` base URL to the generated projections. This follows the Microsoft Foundry requirement that `model` contains the deployment name. Lucene 10.3.1 accepts at most `1024` dimensions, so the bootstrap derives `1024` for an unrenamed standard embedding deployment and the HTTP provider sends that value in the embedding request. A custom deployment name requires an explicit `GRAPHRAG_EMBEDDING_DIMENSION`, because the endpoint does not reveal its backing model or any reduced `dimensions` setting.
 
@@ -93,13 +94,14 @@ make graphrag-integration-api
 make graphrag-integration-chat
 make graphrag-integration-disabled-graphrag-smoke
 make graphrag-integration-real-providers-smoke
+make graphrag-integration-exhaustive-smoke
 make graphrag-integration-report
 make graphrag-integration
 ```
 
 The first target runs corpus, provider-prerequisite, ingestion, indexing, and retrieval checks. The API target runs the real Fuseki contracts and the GraphRAG answer endpoint contract. The chat target bootstraps the local real-provider environment and runs `RealProviderGraphRAGIT`. The smoke target runs `npm ci`, installs Chromium through the locked Playwright version, starts `GraphRAGFusekiUIServer` on an ephemeral port, and checks the delivered Fuseki UI, `/$/ping`, the preloaded dataset, the GraphRAG configuration and context endpoints, and the SPARQL Playground. The disabled-GraphRAG smoke target verifies that the UI and SPARQL remain usable while GraphRAG routes are unavailable. The real-provider smoke target uses the generated local environment to configure an ephemeral index in the UI server, indexes a document from the browser request context, and verifies a non-empty answer with a citation. It never prints provider values.
 
-The smoke runner stops Fuseki after every result. Playwright traces, screenshots, videos, reports, and the Fuseki log are retained under `target/playwright/` only when the smoke suite fails. The aggregate runs all four targets and therefore requires the real-provider configuration.
+The smoke runner stops Fuseki after every result. Playwright traces, screenshots, videos, reports, and the Fuseki log are retained under `target/playwright/` only when the smoke suite fails. `graphrag-integration-exhaustive-smoke` runs the enabled, disabled, and real-provider browser suites sequentially; it stops on the first failure and therefore requires the real-provider configuration. The real-provider browser suite sets a non-sensitive default `GRAPHRAG_SYSTEM_PROMPT` when none is supplied; its value is not returned by `/graphrag/config`, logged, or asserted in the browser report. The aggregate runs all four targets and therefore requires the real-provider configuration.
 
 From WSL2, `make graphrag-integration-report` serves the module-local Playwright HTML report and opens `http://127.0.0.1:9323` in the Windows default browser through `powershell.exe Start-Process`. Set `PLAYWRIGHT_REPORT_PORT` to use another port; stop the report server with `Ctrl-C`.
 

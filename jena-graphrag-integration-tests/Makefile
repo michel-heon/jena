@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-.PHONY: bootstrap-real-providers disabled-graphrag-smoke help real-providers real-providers-smoke report smoke
+.PHONY: bootstrap-real-providers disabled-graphrag-smoke exhaustive-smoke help real-providers real-providers-smoke report smoke
 
 PLAYWRIGHT_REPORT_PORT ?= 9323
 
@@ -33,6 +33,11 @@ real-providers-smoke: bootstrap-real-providers ## Run the real-provider Fuseki U
 
 disabled-graphrag-smoke: ## Run the Fuseki UI Playwright smoke suite with GraphRAG disabled
 	@GRAPHRAG_SMOKE_DISABLE_GRAPH_RAG=true ./scripts/graphrag-integration-fuseki-smoke.sh
+
+exhaustive-smoke: ## Run enabled, disabled, and real-provider Fuseki UI Playwright smoke suites
+	@$(MAKE) smoke
+	@$(MAKE) disabled-graphrag-smoke
+	@$(MAKE) real-providers-smoke
 
 report: ## Serve the Playwright HTML report and open it in the Windows browser from WSL
 	@test -f target/playwright/report/index.html || { echo 'Playwright report not found; run make smoke first.' >&2; exit 1; }

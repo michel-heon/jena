@@ -157,6 +157,25 @@ async function verifyEnabledGraphRAGRoutes({ page }) {
 }
 
 /**
+ * Verifies that public invalid GraphRAG requests expose only a structured safe error.
+ *
+ * @param {{ page: import('@playwright/test').Page }} fixtures Playwright test fixtures.
+ * @returns {Promise<void>} Resolves after the browser receives the structured error response.
+ */
+async function verifyGraphRAGPublicError({ page }) {
+  const response = await page.request.get(`/${dataset}/graphrag/answer`);
+  expect(response.status()).toBe(400);
+  expect(response.headers()['content-type']).toContain('application/json');
+
+  const body = await response.json();
+  expect(body.error).toEqual(expect.objectContaining({
+    code: 'invalid_request',
+    message: "parametre 'q' requis"
+  }));
+  expect(JSON.stringify(body)).not.toMatch(/api[_-]?key|authorization|bearer|secret|token/i);
+}
+
+/**
  * Verifies that Fuseki UI and SPARQL remain usable when GraphRAG is not registered.
  *
  * @param {{ page: import('@playwright/test').Page }} fixtures Playwright test fixtures.
@@ -237,6 +256,10 @@ async function verifySparqlPlaygroundQueries({ page }) {
 async function verifyRealProviderAnswer({ page }) {
   test.setTimeout(150_000);
 
+  const configuration = await page.request.get(`/${dataset}/graphrag/config`);
+  expect(configuration.status()).toBe(200);
+  expect(JSON.stringify(await configuration.json())).not.toMatch(/system[_-]?prompt/i);
+
   const indexed = await page.request.post(`/${dataset}/graphrag/index`, {
     data: {
       title: 'GraphRAG browser integration corpus',
@@ -270,6 +293,7 @@ test('Fuseki UI exposes the GraphRAG dataset, ping, and SPARQL Playground', veri
 test('Fuseki UI uploads RDF and makes the graph queryable', verifyRdfUpload);
 test('Fuseki UI remains usable after indexing a bounded large document', verifyLargeDocumentIngestion);
 test('Fuseki UI exposes every provider-free GraphRAG route when enabled', verifyEnabledGraphRAGRoutes);
+test('Fuseki UI exposes structured safe GraphRAG errors', verifyGraphRAGPublicError);
 test('Fuseki UI and SPARQL remain usable without GraphRAG', verifyGraphRAGDisabled);
 test('Fuseki UI Playground runs corpus and GraphRAG SELECT queries', verifySparqlPlaygroundQueries);
 test('Fuseki UI real providers index and answer with a citation', verifyRealProviderAnswer);

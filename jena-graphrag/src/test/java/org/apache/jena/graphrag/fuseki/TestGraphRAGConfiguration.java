@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Map;
 
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
@@ -104,6 +105,30 @@ public class TestGraphRAGConfiguration {
             GraphRAGConfiguration configuration = GraphRAGConfiguration.fromModel(config);
 
             assertEquals(0.25, configuration.hybridAlpha());
+        }
+
+        @Test
+        public void modelResolvesSystemPromptFromNamedEnvironmentVariable() {
+            Model config = ModelFactory.createDefaultModel();
+            config.createResource("urn:graphrag:service")
+                  .addLiteral(config.createProperty(GraphRAGModule.CONFIG_NS + "systemPromptEnv"),
+                          "GRAPHRAG_TEST_SYSTEM_PROMPT");
+
+            GraphRAGConfiguration configuration = GraphRAGConfiguration.fromModel(config,
+                    Map.of("GRAPHRAG_TEST_SYSTEM_PROMPT", "Use cited context only."));
+
+            assertEquals("Use cited context only.", configuration.systemPrompt());
+        }
+
+        @Test
+        public void modelRejectsMissingSystemPromptEnvironmentVariable() {
+            Model config = ModelFactory.createDefaultModel();
+            config.createResource("urn:graphrag:service")
+                  .addLiteral(config.createProperty(GraphRAGModule.CONFIG_NS + "systemPromptEnv"),
+                          "GRAPHRAG_TEST_SYSTEM_PROMPT");
+
+            assertThrows(IllegalArgumentException.class,
+                    () -> GraphRAGConfiguration.fromModel(config, Map.of()));
         }
 
             @Test

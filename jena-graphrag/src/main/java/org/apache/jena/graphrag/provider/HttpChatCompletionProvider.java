@@ -68,7 +68,14 @@ public final class HttpChatCompletionProvider implements ChatCompletionProvider 
 
     @Override
     public String complete(String question, List<String> contextPassages) {
+        return complete(question, contextPassages, "");
+    }
+
+    @Override
+    public String complete(String question, List<String> contextPassages, String systemPrompt) {
         String prompt = "Question:\n" + question + "\n\nContext:\n" + String.join("\n\n", contextPassages);
+        if ( !Objects.requireNonNull(systemPrompt, "systemPrompt").isBlank() )
+            prompt = systemPrompt.strip() + "\n\n" + prompt;
         checkInputQuota(prompt);
         try {
             String answer = model.chat(prompt);

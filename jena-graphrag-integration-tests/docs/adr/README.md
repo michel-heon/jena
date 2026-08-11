@@ -129,6 +129,12 @@ Le répertoire source consulté le 2026-08-08 ne contient aucun ADR-001. Aucun d
 | [402](./402-DATA-normalisation-import-mg-relationship.md) | Normalisation d'import GraphRAG et relations réifiées | Accepté | 2026-08-10 | Données |
 | [403](./403-DATA-parseur-pdf-chunking-tracabilite.md) | Ingestion PDF, chunking et traçabilité GraphRAG | Accepté | 2026-08-10 | Données |
 
+### API - Contrats Fuseki et HTTP (500-599)
+
+| ADR | Titre | Statut | Date | Domaine |
+|-----|-------|--------|------|---------|
+| [500](./500-API-system-prompt-fournisseur-chat.md) | System prompt optionnel des fournisseurs chat GraphRAG | Accepté | 2026-08-11 | API |
+
 ### DEVOPS - Orchestration et automatisation (600-699)
 
 | ADR | Titre | Statut | Date | Domaine |
@@ -148,12 +154,12 @@ Le répertoire source consulté le 2026-08-08 ne contient aucun ADR-001. Aucun d
 
 | Indicateur | Valeur |
 |------------|--------|
-| **Total** | 13 |
-| **Acceptés** | 13 |
+| **Total** | 14 |
+| **Acceptés** | 14 |
 | **Proposés** | 0 |
 | **Brouillons** | 0 |
 | **Dépréciés ou supersédés** | 0 |
-| **Par domaine** | META : 3, ARCH : 1, DATA : 4, DEVOPS : 4, DOC : 1 |
+| **Par domaine** | META : 3, ARCH : 1, DATA : 4, API : 1, DEVOPS : 4, DOC : 1 |
 
 ## Numérotation
 
@@ -164,7 +170,7 @@ Le répertoire source consulté le 2026-08-08 ne contient aucun ADR-001. Aucun d
 | `INFRA` | 200-299 | Build et infrastructure de test | 200 |
 | `SEC` | 300-399 | Sécurité et isolation | 300 |
 | `DATA` | 400-499 | Corpus, fixtures et index | 404 |
-| `API` | 500-599 | Contrats HTTP, Fuseki et SPARQL | 500 |
+| `API` | 500-599 | Contrats HTTP, Fuseki et SPARQL | 501 |
 | `DEVOPS` | 600-699 | CI et automatisation | 603 |
 | `TEST` | 700-799 | Stratégie et qualification | 700 |
 | `BIZ` | 800-899 | Critères produit et livraison | 800 |
@@ -192,4 +198,4 @@ Le répertoire source consulté le 2026-08-08 ne contient aucun ADR-001. Aucun d
 - [Documentation Apache Jena](https://jena.apache.org/documentation/)
 - [Architecture Decision Records](https://adr.github.io/)
 
-_Dernière mise à jour : 2026-08-10_
+_Dernière mise à jour : 2026-08-11_

@@ -74,7 +74,7 @@ public class TestGraphRAGFusekiUIServerRuntime {
     public void serverBootsOnCorpusAndExposesUiPingConfigAndContext() throws Exception {
         Path corpus = copyCorpus();
         GraphRAGFusekiUIServer.ServerBootstrap bootstrap = GraphRAGFusekiUIServer.prepare(
-                new GraphRAGFusekiUIServer.Settings(corpus, 0, "ds", true));
+            new GraphRAGFusekiUIServer.Settings(corpus, 0, "ds", true, null));
         assertTrue(bootstrap.tripleCount() > 0, "Le corpus de qualification doit charger des triplets");
 
         FusekiServer server = bootstrap.server();
@@ -111,7 +111,7 @@ public class TestGraphRAGFusekiUIServerRuntime {
     public void disabledGraphRagKeepsUiAvailableButHidesEndpoints() throws Exception {
         Path corpus = copyCorpus();
         GraphRAGFusekiUIServer.ServerBootstrap bootstrap = GraphRAGFusekiUIServer.prepare(
-                new GraphRAGFusekiUIServer.Settings(corpus, 0, "ds", false));
+            new GraphRAGFusekiUIServer.Settings(corpus, 0, "ds", false, null));
 
         FusekiServer server = bootstrap.server();
         try {
