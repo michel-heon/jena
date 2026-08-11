@@ -85,6 +85,60 @@ async function verifyRdfUpload({ page }) {
 }
 
 /**
+ * Qualifies the public context contract for basic chunk, local relationship, and global community retrieval.
+ *
+ * @param {{ page: import('@playwright/test').Page }} fixtures Playwright test fixtures.
+ * @returns {Promise<void>} Resolves after every GraphRAG context mode returns its cited result shape.
+ */
+async function verifyGraphRAGContextModes({ page }) {
+  const basic = await page.request.get(`/${dataset}/graphrag/context?q=Beta&mode=basic&topK=1`);
+  expect(basic.status()).toBe(200);
+  await expect(basic.json()).resolves.toEqual(expect.objectContaining({
+    query: 'Beta',
+    mode: 'basic',
+    results: [expect.objectContaining({
+      uri: 'https://jena.apache.org/graphrag/integration/corpus/chunk-beta-0',
+      type: 'chunk',
+      chunkUri: 'https://jena.apache.org/graphrag/integration/corpus/chunk-beta-0',
+      documentUri: 'https://jena.apache.org/graphrag/integration/corpus/document-beta',
+      sourceText: expect.stringContaining('Beta service'),
+      chunkText: expect.stringContaining('Beta service')
+    })]
+  }));
+
+  const local = await page.request.get(`/${dataset}/graphrag/context?q=Beta&mode=local&topK=1`);
+  expect(local.status()).toBe(200);
+  await expect(local.json()).resolves.toEqual(expect.objectContaining({
+    query: 'Beta',
+    mode: 'local',
+    results: [expect.objectContaining({
+      uri: 'https://jena.apache.org/graphrag/integration/corpus/beta-publishes-citations',
+      type: 'relationship',
+      entityUri: 'https://jena.apache.org/graphrag/integration/corpus/beta-service',
+      entityName: 'Beta service',
+      neighborUri: 'https://jena.apache.org/graphrag/integration/corpus/retrieved-chunks',
+      neighborName: 'Retrieved chunks',
+      sourceText: expect.stringContaining('publishes citations'),
+      weight: 1
+    })]
+  }));
+
+  const global = await page.request.get(`/${dataset}/graphrag/context?q=citations&mode=global&topK=1`);
+  expect(global.status()).toBe(200);
+  await expect(global.json()).resolves.toEqual(expect.objectContaining({
+    query: 'citations',
+    mode: 'global',
+    results: [expect.objectContaining({
+      uri: 'https://jena.apache.org/graphrag/integration/corpus/beta-citation-community',
+      type: 'community',
+      communityUri: 'https://jena.apache.org/graphrag/integration/corpus/beta-citation-community',
+      communityTitle: 'Beta citation community',
+      sourceText: expect.stringContaining('publishes citations')
+    })]
+  }));
+}
+
+/**
  * Indexes a bounded large document and verifies that Fuseki remains browser-accessible.
  *
  * @param {{ page: import('@playwright/test').Page }} fixtures Playwright test fixtures.
@@ -360,6 +414,7 @@ test('Fuseki UI exposes the GraphRAG dataset, ping, and SPARQL Playground', veri
 test('Fuseki UI uploads RDF and makes the graph queryable', verifyRdfUpload);
 test('Fuseki UI remains usable after indexing a bounded large document', verifyLargeDocumentIngestion);
 test('Fuseki UI exposes every provider-free GraphRAG route when enabled', verifyEnabledGraphRAGRoutes);
+test('Fuseki UI returns cited basic, local, and global GraphRAG context', verifyGraphRAGContextModes);
 test('Fuseki UI exposes structured safe GraphRAG errors', verifyGraphRAGPublicError);
 test('Fuseki UI and SPARQL remain usable without GraphRAG', verifyGraphRAGDisabled);
 test('Fuseki UI Playground runs corpus and GraphRAG SELECT queries', verifySparqlPlaygroundQueries);

@@ -29,3 +29,28 @@ corpus:chunk-beta-0 a grag:Chunk ;
     grag:id "chunk-beta-0" ;
     grag:text "The Beta service publishes citations for retrieved chunks." ;
     grag:partOf corpus:document-beta .
+
+corpus:beta-service a grag:Entity ;
+    grag:id "beta-service" ;
+    grag:name "Beta service" ;
+    grag:hasEntity corpus:chunk-beta-0 ;
+    grag:inCommunity corpus:beta-citation-community .
+
+corpus:retrieved-chunks a grag:Entity ;
+    grag:id "retrieved-chunks" ;
+    grag:name "Retrieved chunks" ;
+    grag:hasEntity corpus:chunk-beta-0 ;
+    grag:inCommunity corpus:beta-citation-community .
+
+corpus:beta-publishes-citations a grag:Relationship ;
+    grag:source corpus:beta-service ;
+    grag:target corpus:retrieved-chunks ;
+    grag:description "The Beta service publishes citations for retrieved chunks." ;
+    grag:weight 1.0 .
+
+corpus:beta-service grag:relatedTo corpus:retrieved-chunks .
+
+corpus:beta-citation-community a grag:Community ;
+    grag:title "Beta citation community" ;
+    grag:summary "The Beta service publishes citations for retrieved chunks." ;
+    grag:fullContent "The Beta service publishes citations for retrieved chunks." .

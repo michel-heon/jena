@@ -80,6 +80,24 @@ public final class GraphRAGContextService {
                         ORDER BY STR(?chunk)
                         """;
 
+    private static final String GLOBAL_FALLBACK_QUERY = """
+                        PREFIX mg: <http://ormynet.com/ns/msft-graphrag#>
+
+                        SELECT ?community (SAMPLE(?literal) AS ?literal) (SAMPLE(?title) AS ?title)
+                        WHERE {
+                            ?community a mg:Community .
+                            OPTIONAL { ?community mg:title ?title }
+                            {
+                                ?community mg:summary ?literal .
+                            } UNION {
+                                ?community mg:fullContent ?literal .
+                            }
+                            FILTER(CONTAINS(LCASE(STR(?literal)), LCASE(?query)))
+                        }
+                        GROUP BY ?community
+                        ORDER BY STR(?community)
+                        """;
+
     private static final String LOCAL_TEXT_QUERY = """
                         PREFIX text: <http://jena.apache.org/text#>
                         PREFIX mg:   <http://ormynet.com/ns/msft-graphrag#>
@@ -191,9 +209,11 @@ public final class GraphRAGContextService {
     }
 
     private static GraphRAGContext retrieveBasic(DatasetGraph datasetGraph, String query, int topK) {
-        List<Result> results = hasTextIndex(datasetGraph)
-                ? retrieveBasicWithTextIndex(datasetGraph, query, topK)
-                : retrieveBasicFallback(datasetGraph, query, topK);
+        List<Result> results = new ArrayList<>();
+        if ( hasTextIndex(datasetGraph) )
+            appendDistinct(results, retrieveBasicWithTextIndex(datasetGraph, query, topK), topK);
+        if ( results.size() < topK )
+            appendDistinct(results, retrieveBasicFallback(datasetGraph, query, topK), topK);
         return new GraphRAGContext(query, BASIC_MODE, List.copyOf(results));
     }
 
@@ -288,6 +308,15 @@ public final class GraphRAGContextService {
     }
 
     private static GraphRAGContext retrieveGlobal(DatasetGraph datasetGraph, String query, int topK) {
+        List<Result> results = new ArrayList<>();
+        if ( hasTextIndex(datasetGraph) )
+            appendDistinct(results, retrieveGlobalWithTextIndex(datasetGraph, query, topK), topK);
+        if ( results.size() < topK )
+            appendDistinct(results, retrieveGlobalFallback(datasetGraph, query, topK), topK);
+        return new GraphRAGContext(query, GLOBAL_MODE, List.copyOf(results));
+    }
+
+    private static List<Result> retrieveGlobalWithTextIndex(DatasetGraph datasetGraph, String query, int topK) {
         Model bindings = ModelFactory.createDefaultModel();
         Query contextQuery = QueryFactory.create(GLOBAL_QUERY.formatted(topK, topK));
         contextQuery.setLimit(topK);
@@ -300,7 +329,23 @@ public final class GraphRAGContextService {
             while ( resultSet.hasNext() )
                 results.add(toGlobalResult(resultSet.next()));
         }
-        return new GraphRAGContext(query, GLOBAL_MODE, List.copyOf(results));
+        return results;
+    }
+
+    private static List<Result> retrieveGlobalFallback(DatasetGraph datasetGraph, String query, int topK) {
+        Model bindings = ModelFactory.createDefaultModel();
+        Query contextQuery = QueryFactory.create(GLOBAL_FALLBACK_QUERY);
+        contextQuery.setLimit(topK);
+        List<Result> results = new ArrayList<>();
+        try (QueryExecution qexec = QueryExecution.dataset(DatasetFactory.wrap(datasetGraph))
+                .query(contextQuery)
+                .substitution("query", bindings.createLiteral(query))
+                .build()) {
+            ResultSet resultSet = qexec.execSelect();
+            while ( resultSet.hasNext() )
+                results.add(toGlobalResult(resultSet.next()));
+        }
+        return results;
     }
 
     private static Result toLocalResult(QuerySolution solution) {
@@ -374,7 +419,7 @@ public final class GraphRAGContextService {
                 : "";
         return Result.community(
                 solution.getResource("community").getURI(),
-                solution.getLiteral("score").getDouble(),
+            solution.contains("score") ? solution.getLiteral("score").getDouble() : 1.0,
                 sourceText,
                 title);
     }

@@ -28,9 +28,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import org.apache.jena.graphrag.GraphRAGImporter;
 import org.apache.jena.graphrag.index.GraphRAGTextDatasetFactory;
+import org.apache.jena.graphrag.ingestion.ChunkExtractionService;
 import org.apache.jena.graphrag.ingestion.DocumentIngestionConfig;
 import org.apache.jena.graphrag.ingestion.DocumentIngestionService;
 import org.apache.jena.graphrag.retrieval.GraphRAGContext;
@@ -127,6 +129,37 @@ public class TestGraphRAGIngestionIntegration {
 
             assertTrue(context.results().stream()
                     .anyMatch(result -> chunk.getURI().equals(result.chunkUri())));
+        } finally {
+            dataset.end();
+        }
+    }
+
+    @Test
+    public void pdfCorpus_enrichmentCreatesSemanticGraph() throws IOException {
+        Dataset dataset = DatasetFactory.createTxnMem();
+        Path pdf = copyResource("ingestion/pdf/reecriture-microsoft-graphrag-rdf-knowledge-graph-part-3.pdf");
+        ChunkExtractionService enrichment = new ChunkExtractionService("https://jena.apache.org/graphrag/integration/",
+                text -> List.of("GraphRAG", "Jena"),
+                (text, entities) -> List.of(new org.apache.jena.graphrag.provider.RelationshipExtractor.Relationship(
+                        "GraphRAG", "Jena", "documents")),
+                (community, findings) -> "GraphRAG and Jena: " + String.join(", ", findings));
+
+        ChunkExtractionService.Result result = new DocumentIngestionService(DocumentIngestionConfig.defaults())
+                .ingestAndExtract(pdf, dataset, enrichment);
+
+        assertTrue(result.chunksSeen() > 0);
+        assertEquals(2, result.entitiesCreated());
+        assertEquals(result.chunksSeen(), result.relationshipsCreated());
+        assertEquals(1, result.communitiesCreated());
+        dataset.begin(ReadWrite.READ);
+        try {
+            Model model = dataset.getDefaultModel();
+            assertTrue(model.contains(null, RDF.type, GRAG.Entity));
+            assertTrue(model.contains(null, RDF.type, GRAG.Relationship));
+            assertTrue(model.contains(null, RDF.type, GRAG.Community));
+            assertTrue(model.contains(null, GRAG.hasEntity));
+            assertTrue(model.contains(null, GRAG.relatedTo));
+            assertTrue(model.contains(null, GRAG.inCommunity));
         } finally {
             dataset.end();
         }

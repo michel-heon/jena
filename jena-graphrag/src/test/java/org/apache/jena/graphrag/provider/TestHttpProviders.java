@@ -112,6 +112,73 @@ public class TestHttpProviders {
         }
     }
 
+    @Test
+    public void entityExtractor_callsChatProviderAndParsesJson() throws Exception {
+        try (TestServer server = TestServer.responding(200,
+                "{\"choices\":[{\"message\":{\"content\":\"{\\\"entities\\\":[\\\"Alice\\\",\\\"Bob\\\"]}\"}}]}")) {
+            HttpEntityExtractor extractor = new HttpEntityExtractor(configuration(Duration.ofSeconds(2), 100),
+                    server.uri(), "chat-model", API_KEY);
+
+            assertEquals(List.of("Alice", "Bob"), extractor.extract("Alice knows Bob."));
+            assertEquals("Bearer " + API_KEY, server.authorization());
+            assertEquals("chat-model", server.requestBody().get("model").getAsString().value());
+        }
+    }
+
+    @Test
+    public void entityExtractor_acceptsJsonMarkdownCodeFence() throws Exception {
+        try (TestServer server = TestServer.responding(200,
+                "{\"choices\":[{\"message\":{\"content\":\"```json\\n{\\\"entities\\\":[\\\"Alice\\\"]}\\n```\"}}]}")) {
+            HttpEntityExtractor extractor = new HttpEntityExtractor(configuration(Duration.ofSeconds(2), 100),
+                    server.uri(), "chat-model", API_KEY);
+
+            assertEquals(List.of("Alice"), extractor.extract("Alice."));
+        }
+    }
+
+    @Test
+    public void relationshipExtractor_callsChatProviderAndParsesJson() throws Exception {
+        try (TestServer server = TestServer.responding(200,
+                "{\"choices\":[{\"message\":{\"content\":\"{\\\"relationships\\\":[{\\\"source\\\":\\\"Alice\\\",\\\"target\\\":\\\"Bob\\\",\\\"description\\\":\\\"knows\\\"}]}\"}}]}")) {
+            HttpRelationshipExtractor extractor = new HttpRelationshipExtractor(configuration(Duration.ofSeconds(2), 100),
+                    server.uri(), "chat-model", API_KEY);
+
+            assertEquals(List.of(new RelationshipExtractor.Relationship("Alice", "Bob", "knows")),
+                    extractor.extract("Alice knows Bob.", List.of("Alice", "Bob")));
+        }
+    }
+
+    @Test
+    public void communitySummarizer_callsChatProviderAndParsesJson() throws Exception {
+        try (TestServer server = TestServer.responding(200,
+                "{\"choices\":[{\"message\":{\"content\":\"{\\\"summary\\\":\\\"Alice and Bob collaborate.\\\"}\"}}]}")) {
+            HttpCommunitySummarizer summarizer = new HttpCommunitySummarizer(configuration(Duration.ofSeconds(2), 100),
+                    server.uri(), "chat-model", API_KEY);
+
+            assertEquals("Alice and Bob collaborate.", summarizer.summarize("Alice, Bob", List.of("collaborates")));
+        }
+    }
+
+    @Test
+    public void communitySummarizer_doesNotCallProviderWithoutFindings() {
+        HttpCommunitySummarizer summarizer = new HttpCommunitySummarizer((question, context) -> {
+            throw new AssertionError("an empty community has no findings to summarize");
+        });
+
+        assertEquals("No extracted relationships for Alice.", summarizer.summarize("Alice", List.of()));
+    }
+
+    @Test
+    public void extractionProvider_rejectsNonJsonCompletion() throws Exception {
+        try (TestServer server = TestServer.responding(200,
+                "{\"choices\":[{\"message\":{\"content\":\"Alice and Bob\"}}]}")) {
+            HttpEntityExtractor extractor = new HttpEntityExtractor(configuration(Duration.ofSeconds(2), 100),
+                    server.uri(), "chat-model", API_KEY);
+
+            assertThrows(ProviderException.class, () -> extractor.extract("Alice knows Bob."));
+        }
+    }
+
         @Test
         public void azureEndpoint_usesApiKeyHeaderInsteadOfBearerAuthorization() throws Exception {
             assertThrows(ProviderException.class,
