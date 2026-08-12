@@ -43,6 +43,7 @@ import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.query.ReadWrite;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
+import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.vocabulary.GRAG;
 import org.apache.jena.vocabulary.RDF;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -62,6 +63,38 @@ public class TestGraphRAGAnswerEndpoint {
             assertEquals("What is GraphRAG?", body.get("query").getAsString().value());
             assertEquals("[mock] No context available for: What is GraphRAG?", body.get("answer").getAsString().value());
             assertTrue(body.get("citations").getAsArray().isEmpty());
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    public void enabledModule_explicitModesWithoutContextReturnDeterministicAbstention() throws Exception {
+        FusekiServer server = server(true);
+        try {
+            for ( String mode : new String[] { "basic", "local", "global" } ) {
+                HttpResponse<String> response = get(server, "?q=What%20is%20GraphRAG%3F&mode=" + mode);
+                JsonObject body = JSON.parse(response.body());
+
+                assertEquals(200, response.statusCode());
+                assertEquals("Aucun contexte GraphRAG correspondant a la question.", body.get("answer").getAsString().value());
+                assertTrue(body.get("citations").getAsArray().isEmpty());
+            }
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    public void invalidMode_returnsStructuredBadRequest() throws Exception {
+        FusekiServer server = server(true);
+        try {
+            HttpResponse<String> response = get(server, "?q=GraphRAG&mode=drift");
+            JsonObject error = JSON.parse(response.body()).get("error").getAsObject();
+
+            assertEquals(400, response.statusCode());
+            assertEquals("invalid_request", error.get("code").getAsString().value());
+            assertEquals("mode invalide: drift", error.get("message").getAsString().value());
         } finally {
             server.stop();
         }
@@ -96,6 +129,46 @@ public class TestGraphRAGAnswerEndpoint {
             } finally {
                 server.stop();
             }
+        }
+    }
+
+    @Test
+    public void explicitMode_usesContextPassagesAndMatchingCitations() throws Exception {
+        Dataset dataset = DatasetFactory.createTxnMem();
+        dataset.begin(ReadWrite.WRITE);
+        try {
+            Model model = dataset.getDefaultModel();
+            model.createResource("urn:chunk:basic")
+                    .addProperty(RDF.type, GRAG.Chunk)
+                    .addProperty(GRAG.text, "Basic passage");
+            Resource source = model.createResource("urn:entity:graphrag")
+                    .addProperty(RDF.type, GRAG.Entity)
+                    .addProperty(GRAG.name, "GraphRAG");
+            Resource target = model.createResource("urn:entity:jena")
+                    .addProperty(RDF.type, GRAG.Entity)
+                    .addProperty(GRAG.name, "Jena");
+            model.createResource("urn:relationship:graphrag-jena")
+                    .addProperty(RDF.type, GRAG.Relationship)
+                    .addProperty(GRAG.source, source)
+                    .addProperty(GRAG.target, target)
+                    .addProperty(GRAG.description, "Local passage");
+            model.createResource("urn:community:global")
+                    .addProperty(RDF.type, GRAG.Community)
+                    .addProperty(GRAG.summary, "Global passage");
+            dataset.commit();
+        } finally {
+            dataset.end();
+        }
+        GraphRAGModule module = new GraphRAGModule(GraphRAGSearchAction::new,
+                (datasetGraph, configuration) -> new GraphRAGAnswerAction(datasetGraph, configuration,
+                        GraphRAGSearchAction.defaultSearchService(), (question, passages) -> String.join("|", passages)));
+        FusekiServer server = server(dataset, true, module);
+        try {
+            assertModeAnswer(server, "basic", "Basic", "urn:chunk:basic", "Basic passage");
+            assertModeAnswer(server, "local", "GraphRAG", "urn:relationship:graphrag-jena", "Local passage");
+            assertModeAnswer(server, "global", "Global", "urn:community:global", "Global passage");
+        } finally {
+            server.stop();
         }
     }
 
@@ -168,6 +241,15 @@ public class TestGraphRAGAnswerEndpoint {
         HttpRequest request = HttpRequest.newBuilder(URI.create(
                 "http://localhost:" + server.getPort() + "/ds/graphrag/answer" + query)).GET().build();
         return HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private static void assertModeAnswer(FusekiServer server, String mode, String question,
+            String expectedUri, String expectedPassage) throws Exception {
+        JsonObject body = JSON.parse(get(server, "?q=" + question + "&mode=" + mode + "&topK=1").body());
+        assertEquals(expectedPassage, body.get("answer").getAsString().value());
+        JsonObject citation = body.get("citations").getAsArray().getFirst().getAsObject();
+        assertEquals(expectedUri, citation.get("uri").getAsString().value());
+        assertEquals(expectedPassage, citation.get("text").getAsString().value());
     }
 
     private static void assertProviderFailure(ProviderException.Category category, int expectedStatus, String expectedCode)

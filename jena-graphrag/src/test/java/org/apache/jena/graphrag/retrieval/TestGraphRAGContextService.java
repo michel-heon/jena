@@ -77,6 +77,22 @@ public class TestGraphRAGContextService {
     }
 
     @Test
+    public void retrieveLocal_matchesEntityNameContainedInQuestion() {
+        Dataset dataset = dataset();
+        dataset.begin(ReadWrite.READ);
+        try {
+            GraphRAGContext context = new GraphRAGContextService()
+                    .retrieve(dataset.asDatasetGraph(), "What is Scrooge?", 5);
+
+            assertEquals("local", context.mode());
+            assertEquals(1, context.results().size());
+            assertEquals("MARLEY", context.results().getFirst().neighborName());
+        } finally {
+            dataset.end();
+        }
+    }
+
+    @Test
     public void retrieve_emptyDatasetReturnsNoResults() {
         Dataset dataset = DatasetFactory.createTxnMem();
         dataset.begin(ReadWrite.READ);

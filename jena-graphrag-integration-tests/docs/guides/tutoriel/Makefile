@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# AI contributors: update README.md when adding, removing, or changing a public
+# Makefile rule or its behavior, whenever the tutorial documentation is affected.
+
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
@@ -43,7 +46,7 @@ WINDOWS_FUSEKI_URL = http://$$(hostname -I | awk '{print $$1}'):$$(cat "$(PORT_F
 
 .PHONY: help providers-bootstrap pdfs-check project-prepare corpus-materialize \
 	corpus-semantic-extract fuseki-start fuseki-ping fuseki-open graphrag-config indexing-start indexing-status \
-	indexing-wait corpus-verify-pdfs corpus-statistic entities-list relationships-list communities-list findings-list chat-ask-questions chat-question context-question fuseki-stop tutorial-clean tutorial-run
+	indexing-wait corpus-verify-pdfs corpus-statistic graph-cat ttt-cat entities-list relationships-list communities-list findings-list chat-ask-questions chat-question context-question fuseki-stop tutorial-clean tutorial-run
 
 help: ## Display tutorial steps
 	@printf '%s\n' \
@@ -63,6 +66,7 @@ help: ## Display tutorial steps
 		'  corpus-materialize        Ingest PDFs into the local Turtle corpus.' \
 		'  corpus-semantic-extract   Extract entities, relationships, and communities.' \
 		'  corpus-statistic          Show local corpus and semantic graph counts.' \
+		'  graph-cat                 Dump the local RDF graph page by page with Jena.' \
 		'' \
 		'Fuseki and indexing' \
 		'  fuseki-start              Start Fuseki with the enriched corpus.' \
@@ -80,7 +84,7 @@ help: ## Display tutorial steps
 		'  communities-list          List extracted communities.' \
 		'  findings-list             List extracted findings from the local Turtle corpus.' \
 		'  chat-ask-questions        Run the five tutorial questions.' \
-		'  chat-question             Ask one question: make chat-question QUESTION="..."' \
+		'  chat-question             Ask one question: make chat-question QUESTION="..." MODE=local' \
 		'  context-question          Inspect context: make context-question QUESTION="..." MODE=local' \
 		'' \
 		'All steps' \
@@ -200,6 +204,11 @@ corpus-statistic: pdfs-check $(CORPUS_FILE) $(ARQ_CLASS) ## Display GraphRAG res
 			arq.arq --data "$(CORPUS_FILE)" --query=- --results=JSON | \
 		node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk).on("end", () => { const row = JSON.parse(input).results.bindings[0]; const count = name => Number(row[name]?.value ?? 0).toLocaleString("en-US"); const line = (label, name) => console.log("  " + label.padEnd(36) + count(name)); console.log("GraphRAG corpus statistics"); console.log(""); console.log("Resources"); line("Triples", "triples"); line("Documents", "documents"); line("PDF documents", "pdfDocuments"); line("Chunks", "chunks"); console.log(""); console.log("Semantic enrichment"); line("Entities", "entities"); line("Relationships", "relationships"); line("Communities", "communities"); line("Findings", "findings"); console.log(""); console.log("Structural links"); line("Chunk -> document (partOf)", "partOfLinks"); line("Chunk -> entity (hasEntity)", "entityLinks"); line("Entity -> entity (relatedTo)", "relatedToLinks"); line("Entity -> community (inCommunity)", "communityLinks"); });'
 
+graph-cat: $(CORPUS_FILE) $(CLASSPATH_FILE) $(ARQ_CLASS) ## Display the RDF graph content page by page with the Jena command
+	@echo "Graph content for $(CORPUS_FILE)"
+	@java -cp "$(ARQ_CLASS:%/arq/arq.class=%):$(MODULE_DIR)/target/test-classes:$(MODULE_DIR)/target/classes:$(ROOT_DIR)/jena-graphrag/target/classes:$$(cat "$(CLASSPATH_FILE)")" \
+		jena.riot --output=TURTLE "$(CORPUS_FILE)" | more
+
 entities-list: $(CORPUS_FILE) $(ARQ_CLASS) ## List GraphRAG entities from the local Turtle corpus
 	@printf '%s\n' 'PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> SELECT ?entity ?name WHERE { ?entity a grag:Entity ; grag:name ?name } ORDER BY LCASE(STR(?name))' | \
 		java -cp "$(ARQ_CLASS:%/arq/arq.class=%):$(MODULE_DIR)/target/test-classes:$(MODULE_DIR)/target/classes:$(ROOT_DIR)/jena-graphrag/target/classes:$$(cat "$(CLASSPATH_FILE)")" \
@@ -237,11 +246,12 @@ chat-ask-questions: ## Ask five questions and verify cited PDF answers
 		echo; \
 	done
 
-chat-question: ## Ask QUESTION and display its cited PDF answer
-	@[[ -n "$(QUESTION)" ]] || { echo 'Usage: make chat-question QUESTION="Your question"' >&2; exit 1; }
+chat-question: ## Ask QUESTION and display citations, optionally using MODE=basic, local, or global
+	@[[ -n "$(QUESTION)" ]] || { echo 'Usage: make chat-question QUESTION="Your question" [MODE=local]' >&2; exit 1; }
+	@[[ -z "$(MODE)" || "$(MODE)" == basic || "$(MODE)" == local || "$(MODE)" == global ]] || { echo 'MODE must be basic, local, or global.' >&2; exit 1; }
 	@echo "Question: $(QUESTION)"
-	@curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/graphrag/answer" --data-urlencode "q=$(QUESTION)" --data-urlencode 'topK=5' | \
-		node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk).on("end", () => { const response = JSON.parse(input); const citations = response.citations ?? []; const pdfCitations = citations.filter(citation => /^http:\/\/ormynet\.com\/ns\/data#chunk-/.test(citation.uri)); if (!response.answer || !response.answer.trim() || pdfCitations.length === 0) process.exit(1); console.log("Answer:\n" + response.answer.trim()); console.log("PDF citations:"); for (const citation of pdfCitations) console.log("  " + citation.uri); });'
+	@curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/graphrag/answer" --data-urlencode "q=$(QUESTION)" --data-urlencode 'topK=5' $(if $(MODE),--data-urlencode "mode=$(MODE)") | \
+		MODE="$(MODE)" node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk).on("end", () => { const response = JSON.parse(input); const citations = response.citations ?? []; const displayedCitations = process.env.MODE ? citations : citations.filter(citation => /^http:\/\/ormynet\.com\/ns\/data#chunk-/.test(citation.uri)); if (!response.answer || !response.answer.trim() || (!process.env.MODE && displayedCitations.length === 0)) process.exit(1); console.log("Answer:\n" + response.answer.trim()); if (displayedCitations.length === 0) { console.log("No matching mode context."); return; } console.log(process.env.MODE ? "Mode citations:" : "PDF citations:"); for (const citation of displayedCitations) console.log("  " + citation.uri); });'
 
 context-question: ## Retrieve context for QUESTION with MODE=basic, local, or global
 	@[[ -n "$(QUESTION)" ]] || { echo 'Usage: make context-question QUESTION="Your question" MODE=local' >&2; exit 1; }

@@ -31,6 +31,8 @@ import org.apache.jena.fuseki.servlets.HttpAction;
 import org.apache.jena.fuseki.servlets.ServletOps;
 import org.apache.jena.graphrag.provider.ChatCompletionProvider;
 import org.apache.jena.graphrag.provider.ProviderException;
+import org.apache.jena.graphrag.retrieval.GraphRAGContext;
+import org.apache.jena.graphrag.retrieval.GraphRAGContextService;
 import org.apache.jena.graphrag.retrieval.GraphRAGSearch;
 import org.apache.jena.graphrag.retrieval.GraphRAGSearchService;
 import org.apache.jena.query.DatasetFactory;
@@ -40,16 +42,25 @@ import org.apache.jena.rdf.model.Property;
 import org.apache.jena.sparql.core.DatasetGraph;
 import org.apache.jena.web.HttpSC;
 
-/** GraphRAG retrieval-augmented answer operation. */
+/**
+ * GraphRAG retrieval-augmented answer operation.
+ * <p>
+ * The optional {@code mode} parameter accepts {@code basic}, {@code local}, or
+ * {@code global}. An explicit mode retrieves GraphRAG context for the chat
+ * provider, or returns a deterministic abstention when no context matches. A
+ * missing {@code mode} preserves established hybrid retrieval.
+ */
 public final class GraphRAGAnswerAction extends ActionREST {
     private static final Property MG_TEXT = DatasetFactory.create().getDefaultModel()
             .createProperty("http://ormynet.com/ns/msft-graphrag#text");
     private static final int PROMPT_OVERHEAD_TOKENS = 16;
+        private static final String NO_CONTEXT_ANSWER = "Aucun contexte GraphRAG correspondant a la question.";
 
     private final DatasetGraph datasetGraph;
     private final GraphRAGConfiguration configuration;
     private final GraphRAGSearchService searchService;
     private final ChatCompletionProvider chatProvider;
+    private final GraphRAGContextService contextService = new GraphRAGContextService();
 
     GraphRAGAnswerAction(DatasetGraph datasetGraph, GraphRAGConfiguration configuration,
                          GraphRAGSearchService searchService, ChatCompletionProvider chatProvider) {
@@ -69,6 +80,11 @@ public final class GraphRAGAnswerAction extends ActionREST {
             GraphRAGHttpJson.writeError(action, HttpSC.BAD_REQUEST_400, "invalid_request", "parametre 'q' requis");
             return;
         }
+        String mode = action.getRequestParameter("mode");
+        if ( mode != null && !GraphRAGContextService.supportsMode(mode) ) {
+            GraphRAGHttpJson.writeError(action, HttpSC.BAD_REQUEST_400, "invalid_request", "mode invalide: " + mode);
+            return;
+        }
         int topK;
         try {
             topK = parseTopK(action);
@@ -79,8 +95,13 @@ public final class GraphRAGAnswerAction extends ActionREST {
 
         datasetGraph.begin(ReadWrite.READ);
         try {
-            GraphRAGSearch search = searchService.search(datasetGraph, question, topK, configuration.hybridAlpha());
-            List<Citation> citations = citations(search);
+            List<Citation> citations = mode == null
+                    ? citations(searchService.search(datasetGraph, question, topK, configuration.hybridAlpha()))
+                    : citations(contextService.retrieve(datasetGraph, mode, question, topK));
+            if ( mode != null && citations.isEmpty() ) {
+                writeAnswer(action, question, NO_CONTEXT_ANSWER, citations);
+                return;
+            }
             List<String> contextPassages = boundedContextPassages(question, citations);
             String answer = chatProvider.complete(question, contextPassages, configuration.systemPrompt());
             writeAnswer(action, question, answer, citations);
@@ -120,6 +141,12 @@ public final class GraphRAGAnswerAction extends ActionREST {
                 citations.add(new Citation(result.uri(), statement.getString()));
         });
         return List.copyOf(citations);
+    }
+
+    private static List<Citation> citations(GraphRAGContext context) {
+        return context.results().stream()
+                .map(result -> new Citation(result.uri(), result.sourceText()))
+                .toList();
     }
 
     private List<String> boundedContextPassages(String question, List<Citation> citations) {

@@ -129,6 +129,14 @@ make corpus-statistic
 
 La cible est en lecture seule. Elle applique la requête SPARQL directement au fichier Turtle enrichi, sans démarrer Fuseki. Elle affiche les triplets, documents, PDF, chunks, entités, relations, communautés, findings et les liens `partOf`, `hasEntity`, `relatedTo` et `inCommunity`.
 
+Pour parcourir l'intégralité du graphe RDF local, page par page:
+
+```bash
+make graph-cat
+```
+
+Cette cible sérialise le corpus Turtle avec la commande RIOT de Jena, puis l'affiche avec `more`. Elle est également en lecture seule et ne nécessite pas Fuseki.
+
 ## Étape 11: poser les cinq questions
 
 ```bash
@@ -145,13 +153,21 @@ La cible interroge successivement:
 
 Pour chaque réponse, elle vérifie une réponse non vide et une citation dont l'URI commence par `http://ormynet.com/ns/data#chunk-`. La formulation exacte n'est pas vérifiée, car elle dépend du fournisseur.
 
-Pour poser une question libre avec les mêmes contrôles:
+Pour poser une question libre avec la recherche hybride par défaut et les mêmes contrôles:
 
 ```bash
 make chat-question QUESTION="What is the role of embeddings in GraphRAG?"
 ```
 
-L'endpoint de chat utilise sa recherche hybride et n'accepte pas actuellement de paramètre `mode`; `GRAPHRAG_DEFAULT_MODE` concerne l'endpoint de contexte. Pour interroger directement le contexte avec un mode donné, utiliser l'une des valeurs `basic`, `local` ou `global`:
+`chat-question` peut aussi sélectionner le contexte fourni au chat avec `MODE=basic`, `MODE=local` ou `MODE=global`:
+
+```bash
+make chat-question QUESTION="What is GraphRAG?" MODE=local
+```
+
+Le mode est transmis à l'endpoint de production `/graphrag/answer`; le fournisseur de chat répond à partir du contexte sélectionné et les citations correspondent aux ressources récupérées (chunks pour `basic`, relations pour `local`, communautés pour `global`). Lorsqu'aucun contexte ne correspond, l'endpoint retourne une abstention déterministe sans appeler le fournisseur; `chat-question` l'affiche sans erreur. Sans `MODE`, la recherche hybride et le contrôle des citations PDF sont préservés.
+
+`context-question` reste une commande de diagnostic: elle interroge `/graphrag/context`, affiche le contexte RDF brut et n'appelle aucun fournisseur ni LLM. Pour inspecter directement ce contexte avec un mode donné, utiliser l'une des valeurs `basic`, `local` ou `global`:
 
 ```bash
 make context-question QUESTION="What is GraphRAG?" MODE=local

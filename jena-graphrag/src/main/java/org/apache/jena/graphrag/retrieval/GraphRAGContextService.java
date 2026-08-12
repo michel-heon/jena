@@ -134,7 +134,8 @@ public final class GraphRAGContextService {
                    ?description ?weight ?rank
             WHERE {
               ?entity a mg:Entity ; mg:name ?entityName .
-              FILTER(CONTAINS(LCASE(STR(?entityName)), LCASE(?query)))
+                FILTER(CONTAINS(LCASE(STR(?entityName)), LCASE(?query))
+                    || CONTAINS(LCASE(?query), LCASE(STR(?entityName))))
               ?rel a mg:Relationship ; mg:source ?entity ; mg:target ?neighbor .
               ?neighbor mg:name ?neighborName .
               OPTIONAL { ?rel mg:description ?description }
