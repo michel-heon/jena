@@ -169,14 +169,15 @@ public class TestGraphRAGContextEndpoint {
     }
 
     @Test
-    public void invalidModeReturnsBadRequest() throws Exception {
+    public void driftWithoutConfiguredCommunityIndexReturnsBadRequest() throws Exception {
         FusekiServer server = server(dataset(), true);
         try {
             HttpResponse<String> response = get(server, "?q=scrooge&mode=drift");
             assertEquals(400, response.statusCode());
             assertTrue(response.headers().firstValue("content-type").orElse("").contains("application/json"));
             JsonObject body = JSON.parse(response.body());
-            assertEquals("mode invalide: drift", body.get("error").getAsString().value());
+            assertEquals("mode drift requiert un index vectoriel de communautes configure",
+                    body.get("error").getAsString().value());
         } finally {
             server.stop();
         }

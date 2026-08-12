@@ -56,18 +56,27 @@ public final class GraphRAGContextService {
     public static final String BASIC_MODE = "basic";
     public static final String LOCAL_MODE = "local";
     public static final String GLOBAL_MODE = "global";
+    public static final String DRIFT_MODE = "drift";
 
     private static final int TEXT_EXPANSION_FACTOR = 5;
 
     private final GraphRAGSearchService searchService;
+    private final CommunityReportVectorSearchService communityReportSearchService;
 
     public GraphRAGContextService() {
-        this(null);
+        this(null, null);
     }
 
     /** Creates a context service that uses the supplied vector search for basic mode. */
     public GraphRAGContextService(GraphRAGSearchService searchService) {
+        this(searchService, null);
+    }
+
+    /** Creates a context service with optional typed vector retrieval for DRIFT community reports. */
+    public GraphRAGContextService(GraphRAGSearchService searchService,
+                                  CommunityReportVectorSearchService communityReportSearchService) {
         this.searchService = searchService;
+        this.communityReportSearchService = communityReportSearchService;
     }
 
     private static final String BASIC_QUERY = """
@@ -254,11 +263,34 @@ public final class GraphRAGContextService {
             return retrieveBasic(datasetGraph, query, topK);
         if ( GLOBAL_MODE.equals(mode) )
             return retrieveGlobal(datasetGraph, query, topK);
+        if ( DRIFT_MODE.equals(mode) )
+            return retrieveDrift(datasetGraph, query, topK);
         return retrieveLocal(datasetGraph, query, topK);
     }
 
     public static boolean supportsMode(String mode) {
-        return BASIC_MODE.equals(mode) || LOCAL_MODE.equals(mode) || GLOBAL_MODE.equals(mode);
+        return BASIC_MODE.equals(mode) || LOCAL_MODE.equals(mode) || GLOBAL_MODE.equals(mode) || DRIFT_MODE.equals(mode);
+    }
+
+    private GraphRAGContext retrieveDrift(DatasetGraph datasetGraph, String query, int topK) {
+        if ( communityReportSearchService == null )
+            throw new IllegalArgumentException("mode drift requiert un index vectoriel de communautes configure");
+        Model model = DatasetFactory.wrap(datasetGraph).getDefaultModel();
+        List<Result> results = new ArrayList<>();
+        for ( CommunityReportVectorSearchService.Result vectorResult : communityReportSearchService.search(query, topK).results() ) {
+            Resource community = model.getResource(vectorResult.communityUri());
+            if ( !model.contains(community, RDF.type, GRAG.Community) )
+                continue;
+            Statement report = community.getProperty(GRAG.summary);
+            if ( report == null )
+                report = community.getProperty(GRAG.fullContent);
+            if ( report == null || !report.getObject().isLiteral() )
+                continue;
+            Statement title = community.getProperty(GRAG.title);
+            results.add(Result.community(community.getURI(), vectorResult.score(), report.getString(),
+                    title != null && title.getObject().isLiteral() ? title.getString() : ""));
+        }
+        return new GraphRAGContext(query, DRIFT_MODE, List.copyOf(results));
     }
 
     private GraphRAGContext retrieveBasic(DatasetGraph datasetGraph, String query, int topK) {

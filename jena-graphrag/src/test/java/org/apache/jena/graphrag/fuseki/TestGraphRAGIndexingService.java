@@ -36,6 +36,7 @@ import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.vocabulary.GRAG;
 import org.apache.jena.vocabulary.RDF;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -59,6 +60,32 @@ public class TestGraphRAGIndexingService {
 
             assertEquals(GraphRAGTaskStatus.DONE, completedTask.status());
             assertTrue(graphRAGIndex.vectorIndex().contains("urn:test:source#chunk-" + task.taskId()));
+        }
+    }
+
+    @Test
+    public void configuredIndex_vectorizesExistingCommunityReportsDuringIndexingTask() throws Exception {
+        Dataset dataset = DatasetFactory.createTxnMem();
+        dataset.begin(org.apache.jena.query.ReadWrite.WRITE);
+        try {
+            dataset.getDefaultModel().createResource("urn:test:community")
+                    .addProperty(RDF.type, GRAG.Community)
+                    .addLiteral(GRAG.summary, "Community report");
+            dataset.commit();
+        } finally {
+            dataset.end();
+        }
+        GraphRAGAssembler.init();
+        try (GraphRAGIndex graphRAGIndex = (GraphRAGIndex) Assembler.general().open(indexSpec())) {
+            GraphRAGTaskService taskService = new GraphRAGTaskService(1, 10);
+            GraphRAGIndexingService service = new GraphRAGIndexingService(dataset, taskService,
+                    new GraphRAGConfiguration("local", 5, 100, 0.5), graphRAGIndex);
+
+            GraphRAGTask task = service.submit(new GraphRAGIndexRequest("Test", "Indexed GraphRAG content", "urn:test:source"));
+            GraphRAGTask completedTask = awaitCompletion(taskService, task.taskId());
+
+            assertEquals(GraphRAGTaskStatus.DONE, completedTask.status());
+            assertTrue(graphRAGIndex.communityVectorIndex().contains("urn:test:community"));
         }
     }
 

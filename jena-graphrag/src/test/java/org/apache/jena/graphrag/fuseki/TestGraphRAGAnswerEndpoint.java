@@ -40,6 +40,8 @@ import org.apache.jena.fuseki.main.sys.FusekiModules;
 import org.apache.jena.graphrag.index.GraphRAGTextDatasetFactory;
 import org.apache.jena.graphrag.index.LuceneVectorIndex;
 import org.apache.jena.graphrag.provider.ProviderException;
+import org.apache.jena.graphrag.retrieval.CommunityReportVectorSearchService;
+import org.apache.jena.graphrag.retrieval.GraphRAGContextService;
 import org.apache.jena.graphrag.retrieval.GraphRAGSearchService;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.query.DatasetFactory;
@@ -90,17 +92,53 @@ public class TestGraphRAGAnswerEndpoint {
     }
 
     @Test
-    public void invalidMode_returnsStructuredBadRequest() throws Exception {
-        FusekiServer server = server(true);
+    public void driftMode_synthesizesCommunityPrimerAndDeduplicatedLocalEvidence() throws Exception {
+        Dataset dataset = DatasetFactory.createTxnMem();
+        dataset.begin(ReadWrite.WRITE);
         try {
-            HttpResponse<String> response = get(server, "?q=GraphRAG&mode=drift");
-            JsonObject error = JSON.parse(response.body()).get("error").getAsObject();
-
-            assertEquals(400, response.statusCode());
-            assertEquals("invalid_request", error.get("code").getAsString().value());
-            assertEquals("mode invalide: drift", error.get("message").getAsString().value());
+            Model model = dataset.getDefaultModel();
+            model.createResource("urn:community:drift")
+                    .addProperty(RDF.type, GRAG.Community)
+                    .addProperty(GRAG.summary, "Scrooge community report");
+            Resource scrooge = model.createResource("urn:entity:scrooge")
+                    .addProperty(RDF.type, GRAG.Entity).addProperty(GRAG.name, "Scrooge");
+            Resource marley = model.createResource("urn:entity:marley")
+                    .addProperty(RDF.type, GRAG.Entity).addProperty(GRAG.name, "Marley");
+            model.createResource("urn:relationship:scrooge-marley")
+                    .addProperty(RDF.type, GRAG.Relationship).addProperty(GRAG.source, scrooge)
+                    .addProperty(GRAG.target, marley).addProperty(GRAG.description, "Scrooge knew Marley.");
+            dataset.commit();
         } finally {
-            server.stop();
+            dataset.end();
+        }
+        try (LuceneVectorIndex communityIndex = new LuceneVectorIndex(new ByteBuffersDirectory(), 2,
+                VectorSimilarityFunction.EUCLIDEAN)) {
+            communityIndex.index("urn:community:drift", new float[] { 1.0f, 0.0f });
+            CommunityReportVectorSearchService communitySearch = new CommunityReportVectorSearchService(
+                    communityIndex, (text, dimension) -> new float[] { 1.0f, 0.0f }, 2);
+            GraphRAGContextService contextService = new GraphRAGContextService(null, communitySearch);
+            List<List<String>> providerCalls = new ArrayList<>();
+            GraphRAGModule module = new GraphRAGModule(GraphRAGSearchAction::new,
+                    (datasetGraph, configuration) -> new GraphRAGAnswerAction(datasetGraph, configuration,
+                            GraphRAGSearchAction.defaultSearchService(), (question, passages) -> {
+                                providerCalls.add(List.copyOf(passages));
+                                return "answer-" + providerCalls.size();
+                            }, contextService));
+            FusekiServer server = server(dataset, true, module);
+            try {
+                JsonObject body = JSON.parse(get(server, "?q=Scrooge&mode=drift&topK=1").body());
+
+                assertEquals("answer-2", body.get("answer").getAsString().value());
+                assertEquals("community_primer_exhausted", body.get("reasonStop").getAsString().value());
+                assertEquals(1, body.get("followUpCount").getAsNumber().value().intValue());
+                assertEquals(2, providerCalls.size());
+                assertEquals("urn:community:drift", body.get("citations").getAsArray().get(0).getAsObject()
+                        .get("uri").getAsString().value());
+                assertEquals("urn:relationship:scrooge-marley", body.get("citations").getAsArray().get(1).getAsObject()
+                        .get("uri").getAsString().value());
+            } finally {
+                server.stop();
+            }
         }
     }
 

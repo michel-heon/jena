@@ -22,9 +22,11 @@
 package org.apache.jena.graphrag.fuseki;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 import org.apache.jena.atlas.json.JsonBuilder;
 import org.apache.jena.fuseki.servlets.ActionREST;
@@ -46,16 +48,17 @@ import org.apache.jena.web.HttpSC;
 /**
  * GraphRAG retrieval-augmented answer operation.
  * <p>
- * The optional {@code mode} parameter accepts {@code basic}, {@code local}, or
- * {@code global}. An explicit mode retrieves GraphRAG context for the chat
- * provider, or returns a deterministic abstention when no context matches. A
- * missing {@code mode} preserves established hybrid retrieval.
+ * The optional {@code mode} parameter accepts {@code basic}, {@code local},
+ * {@code global}, or {@code drift}. An explicit mode retrieves GraphRAG
+ * context for the chat provider, or returns a deterministic abstention when no
+ * context matches. A missing {@code mode} preserves established hybrid retrieval.
  */
 public final class GraphRAGAnswerAction extends ActionREST {
     private static final Property MG_TEXT = DatasetFactory.create().getDefaultModel()
             .createProperty("http://ormynet.com/ns/msft-graphrag#text");
     private static final int PROMPT_OVERHEAD_TOKENS = 16;
-        private static final String NO_CONTEXT_ANSWER = "Aucun contexte GraphRAG correspondant a la question.";
+    private static final int MAX_DRIFT_FOLLOW_UPS = 3;
+    private static final String NO_CONTEXT_ANSWER = "Aucun contexte GraphRAG correspondant a la question.";
 
     private final DatasetGraph datasetGraph;
     private final GraphRAGConfiguration configuration;
@@ -101,6 +104,11 @@ public final class GraphRAGAnswerAction extends ActionREST {
             return;
         }
 
+        if ( GraphRAGContextService.DRIFT_MODE.equals(mode) ) {
+            answerDrift(action, question, topK);
+            return;
+        }
+
         datasetGraph.begin(ReadWrite.READ);
         try {
             List<Citation> citations = mode == null
@@ -115,18 +123,66 @@ public final class GraphRAGAnswerAction extends ActionREST {
                     : chatProvider.complete(question, boundedContextPassages(question, citations), configuration.systemPrompt());
             writeAnswer(action, question, answer, citations);
         } catch (ProviderException ex) {
-            switch ( ex.category() ) {
-            case AUTHENTICATION -> GraphRAGHttpJson.writeError(action, HttpSC.BAD_GATEWAY_502,
-                "provider_authentication_failed", "authentification du fournisseur refusee");
-            case TIMEOUT -> GraphRAGHttpJson.writeError(action, HttpSC.GATEWAY_TIMEOUT_504,
-                "provider_timeout", "delai du fournisseur depasse");
-            case UNAVAILABLE -> GraphRAGHttpJson.writeError(action, HttpSC.BAD_GATEWAY_502,
-                "provider_unavailable", "provider indisponible");
-            }
+            writeProviderError(action, ex);
         } finally {
             datasetGraph.end();
         }
     }
+
+    private void answerDrift(HttpAction action, String question, int topK) {
+        datasetGraph.begin(ReadWrite.READ);
+        try {
+            DriftTraversal traversal = new DriftTraversal(citations(
+                    contextService.retrieve(datasetGraph, GraphRAGContextService.DRIFT_MODE, question, topK)));
+            if ( traversal.citations.isEmpty() ) {
+                traversal.stopReason = "empty_primer";
+                writeDriftAnswer(action, question, NO_CONTEXT_ANSWER, traversal);
+                return;
+            }
+
+            String initialAnswer = chatProvider.complete(question, boundedContextPassages(question, traversal.citations),
+                    configuration.systemPrompt());
+            for ( Citation communityReport : List.copyOf(traversal.citations) ) {
+                if ( traversal.followUpCount() == MAX_DRIFT_FOLLOW_UPS ) {
+                    traversal.stopReason = "max_follow_ups_reached";
+                    break;
+                }
+                String followUp = "community-report:" + communityReport.uri();
+                traversal.pendingFollowUps.add(followUp);
+                GraphRAGContext localContext = contextService.retrieve(datasetGraph, GraphRAGContextService.LOCAL_MODE,
+                        communityReport.text(), 1);
+                for ( Citation localEvidence : citations(localContext) )
+                    traversal.addCitation(localEvidence);
+                traversal.pendingFollowUps.remove(followUp);
+                traversal.completedFollowUps++;
+            }
+            if ( traversal.stopReason == null )
+                traversal.stopReason = "community_primer_exhausted";
+            List<String> synthesisEvidence = new ArrayList<>();
+            synthesisEvidence.add(initialAnswer);
+            synthesisEvidence.addAll(boundedContextPassages(question, traversal.citations));
+            String answer = chatProvider.complete(question, boundedPassages(question, synthesisEvidence),
+                    configuration.systemPrompt());
+            writeDriftAnswer(action, question, answer, traversal);
+        } catch (IllegalArgumentException ex) {
+            GraphRAGHttpJson.writeError(action, HttpSC.BAD_REQUEST_400, "invalid_request", ex.getMessage());
+        } catch (ProviderException ex) {
+            writeProviderError(action, ex);
+        } finally {
+            datasetGraph.end();
+        }
+    }
+
+        private static void writeProviderError(HttpAction action, ProviderException exception) {
+        switch ( exception.category() ) {
+        case AUTHENTICATION -> GraphRAGHttpJson.writeError(action, HttpSC.BAD_GATEWAY_502,
+            "provider_authentication_failed", "authentification du fournisseur refusee");
+        case TIMEOUT -> GraphRAGHttpJson.writeError(action, HttpSC.GATEWAY_TIMEOUT_504,
+            "provider_timeout", "delai du fournisseur depasse");
+        case UNAVAILABLE -> GraphRAGHttpJson.writeError(action, HttpSC.BAD_GATEWAY_502,
+            "provider_unavailable", "provider indisponible");
+        }
+        }
 
     private String globalAnswer(String question, List<Citation> citations) {
         List<String> intermediateAnswers = new ArrayList<>();
@@ -237,7 +293,40 @@ public final class GraphRAGAnswerAction extends ActionREST {
         GraphRAGHttpJson.writeJson(action, builder.build(), HttpSC.OK_200);
     }
 
+    private static void writeDriftAnswer(HttpAction action, String question, String answer, DriftTraversal traversal) {
+        JsonBuilder builder = new JsonBuilder();
+        builder.startObject().pair("query", question).pair("answer", answer)
+                .pair("reasonStop", traversal.stopReason).pair("followUpCount", traversal.followUpCount())
+                .key("citations").startArray();
+        traversal.citations.forEach(citation -> builder.startObject().pair("uri", citation.uri())
+                .pair("text", citation.text()).finishObject());
+        builder.finishArray().finishObject();
+        GraphRAGHttpJson.writeJson(action, builder.build(), HttpSC.OK_200);
+    }
+
     private record Citation(String uri, String text) {}
+
+    private static final class DriftTraversal {
+        private final List<Citation> citations;
+        private final Set<String> visitedResources = new HashSet<>();
+        private final List<String> pendingFollowUps = new ArrayList<>();
+        private int completedFollowUps;
+        private String stopReason;
+
+        private DriftTraversal(List<Citation> primer) {
+            this.citations = new ArrayList<>();
+            primer.forEach(this::addCitation);
+        }
+
+        private void addCitation(Citation citation) {
+            if ( visitedResources.add(citation.uri()) )
+                citations.add(citation);
+        }
+
+        private int followUpCount() {
+            return completedFollowUps;
+        }
+    }
 
     @Override protected void doHead(HttpAction action)    { ServletOps.errorMethodNotAllowed("HEAD"); }
     @Override protected void doPut(HttpAction action)     { ServletOps.errorMethodNotAllowed("PUT"); }

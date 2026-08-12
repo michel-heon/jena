@@ -116,6 +116,8 @@ public final class GraphRAGContextAction extends ActionREST {
         try {
             GraphRAGContext context = contextService.retrieve(datasetGraph, mode, query, topK);
             writeJson(action, context);
+        } catch (IllegalArgumentException ex) {
+            writeError(action, ex.getMessage());
         } finally {
             datasetGraph.end();
         }

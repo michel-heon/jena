@@ -277,6 +277,40 @@ public class TestGraphRAGContextService {
     }
 
     @Test
+    public void retrieveDrift_returnsOnlyNearestVectorIndexedCommunityReports() {
+        Dataset dataset = DatasetFactory.createTxnMem();
+        dataset.begin(ReadWrite.WRITE);
+        try {
+            addCommunity(dataset, "urn:community:lexical", "Lexical", "The question term occurs here", "Lexical report");
+            addCommunity(dataset, "urn:community:vector", "Vector", "Semantically related report", "Vector report");
+            dataset.commit();
+        } finally {
+            dataset.end();
+        }
+        try (LuceneVectorIndex communityIndex = new LuceneVectorIndex(new ByteBuffersDirectory(), 2,
+                VectorSimilarityFunction.EUCLIDEAN)) {
+            communityIndex.index("urn:community:lexical", new float[] { 0.0f, 1.0f });
+            communityIndex.index("urn:community:vector", new float[] { 1.0f, 0.0f });
+            CommunityReportVectorSearchService communitySearch = new CommunityReportVectorSearchService(
+                    communityIndex, (text, dimension) -> new float[] { 1.0f, 0.0f }, 2);
+            GraphRAGContextService service = new GraphRAGContextService(null, communitySearch);
+
+            dataset.begin(ReadWrite.READ);
+            try {
+                GraphRAGContext context = service.retrieve(dataset.asDatasetGraph(), "drift", "question term", 1);
+                assertEquals("drift", context.mode());
+                assertEquals(1, context.results().size());
+                GraphRAGContext.Result result = context.results().getFirst();
+                assertEquals("community", result.type());
+                assertEquals("urn:community:vector", result.uri());
+                assertEquals("Semantically related report", result.sourceText());
+            } finally {
+                dataset.end();
+            }
+        }
+    }
+
+    @Test
     public void retrieveGlobal_referenceCorpusDiversifiesCommunityLevelsBeforeFillingBudget() {
         Dataset dataset = referenceDataset();
         dataset.begin(ReadWrite.READ);

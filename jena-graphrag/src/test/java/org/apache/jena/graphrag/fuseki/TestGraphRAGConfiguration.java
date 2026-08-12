@@ -67,7 +67,7 @@ public class TestGraphRAGConfiguration {
     @Test
     public void rejectsUnsupportedDefaultMode() {
         assertThrows(IllegalArgumentException.class,
-            () -> new GraphRAGConfiguration("drift", 5, 100, 0.5));
+            () -> new GraphRAGConfiguration("unsupported", 5, 100, 0.5));
     }
 
     @Test

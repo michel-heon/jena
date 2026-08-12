@@ -40,27 +40,32 @@ public final class GraphRAGIndex implements AutoCloseable {
     private final boolean enabled;
     private final Path textIndexDirectory;
     private final Path vectorIndexDirectory;
+    private final Path communityVectorIndexDirectory;
     private final int vectorDimension;
     private final TextIndex textIndex;
     private final LuceneVectorIndex vectorIndex;
+    private final LuceneVectorIndex communityVectorIndex;
     private final EmbeddingProvider embeddingProvider;
     private final ChatCompletionProvider chatCompletionProvider;
 
-    private GraphRAGIndex(boolean enabled, Path textIndexDirectory, Path vectorIndexDirectory, int vectorDimension,
-                         TextIndex textIndex, LuceneVectorIndex vectorIndex, EmbeddingProvider embeddingProvider,
+    private GraphRAGIndex(boolean enabled, Path textIndexDirectory, Path vectorIndexDirectory, Path communityVectorIndexDirectory,
+                         int vectorDimension, TextIndex textIndex, LuceneVectorIndex vectorIndex,
+                         LuceneVectorIndex communityVectorIndex, EmbeddingProvider embeddingProvider,
                          ChatCompletionProvider chatCompletionProvider) {
         this.enabled = enabled;
         this.textIndexDirectory = textIndexDirectory;
         this.vectorIndexDirectory = vectorIndexDirectory;
+        this.communityVectorIndexDirectory = communityVectorIndexDirectory;
         this.vectorDimension = vectorDimension;
         this.textIndex = textIndex;
         this.vectorIndex = vectorIndex;
+        this.communityVectorIndex = communityVectorIndex;
         this.embeddingProvider = embeddingProvider;
         this.chatCompletionProvider = chatCompletionProvider;
     }
 
     static GraphRAGIndex disabled() {
-        return new GraphRAGIndex(false, null, null, 0, null, null, null, null);
+        return new GraphRAGIndex(false, null, null, null, 0, null, null, null, null, null);
     }
 
     static GraphRAGIndex open(Path textIndexDirectory, Path vectorIndexDirectory, int vectorDimension,
@@ -75,8 +80,11 @@ public final class GraphRAGIndex implements AutoCloseable {
             TextIndex textIndex = TextDatasetFactory.createLuceneIndex(FSDirectory.open(textIndexDirectory), textConfig);
             LuceneVectorIndex vectorIndex = new LuceneVectorIndex(FSDirectory.open(vectorIndexDirectory), vectorDimension,
                     VectorSimilarityFunction.EUCLIDEAN);
-                return new GraphRAGIndex(true, textIndexDirectory, vectorIndexDirectory, vectorDimension, textIndex, vectorIndex,
-                    embeddingProvider, chatCompletionProvider);
+                Path communityVectorIndexDirectory = vectorIndexDirectory.resolve("communities");
+                LuceneVectorIndex communityVectorIndex = new LuceneVectorIndex(FSDirectory.open(communityVectorIndexDirectory),
+                    vectorDimension, VectorSimilarityFunction.EUCLIDEAN);
+                return new GraphRAGIndex(true, textIndexDirectory, vectorIndexDirectory, communityVectorIndexDirectory,
+                    vectorDimension, textIndex, vectorIndex, communityVectorIndex, embeddingProvider, chatCompletionProvider);
         } catch (IOException e) {
             throw new UncheckedIOException("Unable to open GraphRAG indexes", e);
         }
@@ -96,6 +104,12 @@ public final class GraphRAGIndex implements AutoCloseable {
         return vectorIndexDirectory;
     }
 
+    /** Filesystem directory for the dedicated community-report vector index. */
+    public Path communityVectorIndexDirectory() {
+        ensureEnabled();
+        return communityVectorIndexDirectory;
+    }
+
     public int vectorDimension() {
         ensureEnabled();
         return vectorDimension;
@@ -109,6 +123,12 @@ public final class GraphRAGIndex implements AutoCloseable {
     public LuceneVectorIndex vectorIndex() {
         ensureEnabled();
         return vectorIndex;
+    }
+
+    /** Vector index keyed by {@code mg:Community} URI and populated from report content. */
+    public LuceneVectorIndex communityVectorIndex() {
+        ensureEnabled();
+        return communityVectorIndex;
     }
 
     public EmbeddingProvider embeddingProvider() {
@@ -127,6 +147,7 @@ public final class GraphRAGIndex implements AutoCloseable {
             return;
         textIndex.close();
         vectorIndex.close();
+        communityVectorIndex.close();
     }
 
     private void ensureEnabled() {

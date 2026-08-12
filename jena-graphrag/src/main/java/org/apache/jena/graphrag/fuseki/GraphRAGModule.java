@@ -44,13 +44,16 @@ import org.apache.jena.atlas.json.JsonValue;
 import org.apache.jena.fuseki.main.FusekiServer;
 import org.apache.jena.fuseki.main.sys.FusekiModule;
 import org.apache.jena.graphrag.index.ChunkVectorIndexer;
+import org.apache.jena.graphrag.index.CommunityReportVectorIndexer;
 import org.apache.jena.graphrag.index.GraphRAGAssembler;
 import org.apache.jena.graphrag.index.GraphRAGAssemblerVocab;
 import org.apache.jena.graphrag.index.GraphRAGIndex;
 import org.apache.jena.graphrag.ingestion.ChunkVectorizationService;
+import org.apache.jena.graphrag.ingestion.CommunityReportVectorizationService;
 import org.apache.jena.graphrag.provider.MockChatCompletionProvider;
 import org.apache.jena.graphrag.provider.ProviderException;
 import org.apache.jena.graphrag.retrieval.GraphRAGContextService;
+import org.apache.jena.graphrag.retrieval.CommunityReportVectorSearchService;
 import org.apache.jena.graphrag.retrieval.GraphRAGSearchService;
 import org.apache.jena.fuseki.servlets.ActionREST;
 import org.apache.jena.fuseki.servlets.HttpAction;
@@ -182,8 +185,10 @@ public final class GraphRAGModule implements FusekiModule {
         GraphRAGSearchService searchService = new GraphRAGSearchService(index.textIndex(), index.vectorIndex(),
             index.embeddingProvider(), index.vectorDimension());
         DatasetGraph searchDatasetGraph = searchService.attachTextIndex(datasetGraph);
+        CommunityReportVectorSearchService communitySearchService = new CommunityReportVectorSearchService(
+            index.communityVectorIndex(), index.embeddingProvider(), index.vectorDimension());
         return new GraphRAGAnswerAction(searchDatasetGraph, configuration, searchService, index.chatCompletionProvider(),
-            new GraphRAGContextService(searchService));
+            new GraphRAGContextService(searchService, communitySearchService));
     }
 
     private synchronized GraphRAGContextAction contextAction(DatasetGraph datasetGraph, GraphRAGConfiguration configuration) {
@@ -193,7 +198,10 @@ public final class GraphRAGModule implements FusekiModule {
         GraphRAGSearchService searchService = new GraphRAGSearchService(index.textIndex(), index.vectorIndex(),
                 index.embeddingProvider(), index.vectorDimension());
         DatasetGraph searchDatasetGraph = searchService.attachTextIndex(datasetGraph);
-        return new GraphRAGContextAction(searchDatasetGraph, configuration, new GraphRAGContextService(searchService));
+        CommunityReportVectorSearchService communitySearchService = new CommunityReportVectorSearchService(
+            index.communityVectorIndex(), index.embeddingProvider(), index.vectorDimension());
+        return new GraphRAGContextAction(searchDatasetGraph, configuration,
+            new GraphRAGContextService(searchService, communitySearchService));
     }
 
     private synchronized GraphRAGSearchAction searchAction(DatasetGraph datasetGraph, GraphRAGConfiguration configuration) {
@@ -542,6 +550,9 @@ final class GraphRAGIndexingService {
         ChunkVectorIndexer vectorIndexer = new ChunkVectorIndexer(graphRAGIndex.vectorIndex(),
                 graphRAGIndex.embeddingProvider(), graphRAGIndex.vectorDimension());
         new ChunkVectorizationService(vectorIndexer).vectorize(dataset);
+        CommunityReportVectorIndexer communityVectorIndexer = new CommunityReportVectorIndexer(
+                graphRAGIndex.communityVectorIndex(), graphRAGIndex.embeddingProvider(), graphRAGIndex.vectorDimension());
+        new CommunityReportVectorizationService(communityVectorIndexer).vectorize(dataset);
     }
 }
 
