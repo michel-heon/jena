@@ -43,6 +43,7 @@ import org.junit.jupiter.api.Test;
 public class TestGraphRAGContextService {
 
     private static final String SOURCE = "/org/apache/jena/graphrag/graphrag-sample-source.ttl";
+    private static final String REFERENCE_CORPUS = "/org/apache/jena/graphrag/graphrag-retrieval-reference.ttl";
 
     private static Dataset dataset() {
         Model source = ModelFactory.createDefaultModel();
@@ -65,12 +66,13 @@ public class TestGraphRAGContextService {
                     .retrieve(dataset.asDatasetGraph(), "scrooge", 5);
 
             assertEquals("local", context.mode());
-            assertEquals(1, context.results().size());
+            assertEquals(3, context.results().size());
             GraphRAGContext.Result result = context.results().getFirst();
             assertEquals("MARLEY", result.neighborName());
             assertTrue(result.sourceText().contains("partner"));
             assertTrue(result.uri().contains("related_to_0001"));
             assertEquals(223.0, result.weight());
+            assertEquals("chunk", context.results().get(2).type());
         } finally {
             dataset.end();
         }
@@ -85,8 +87,9 @@ public class TestGraphRAGContextService {
                     .retrieve(dataset.asDatasetGraph(), "What is Scrooge?", 5);
 
             assertEquals("local", context.mode());
-            assertEquals(1, context.results().size());
+            assertEquals(3, context.results().size());
             assertEquals("MARLEY", context.results().getFirst().neighborName());
+            assertEquals("chunk", context.results().get(2).type());
         } finally {
             dataset.end();
         }
@@ -160,7 +163,7 @@ public class TestGraphRAGContextService {
                     .retrieve(dataset.asDatasetGraph(), "local", "ledger", 5);
 
             assertEquals("local", context.mode());
-            assertEquals(1, context.results().size());
+                assertEquals(3, context.results().size());
             GraphRAGContext.Result result = context.results().getFirst();
             assertEquals("relationship", result.type());
             assertEquals("SCROOGE", result.entityName());
@@ -243,6 +246,128 @@ public class TestGraphRAGContextService {
     }
 
     @Test
+    public void retrieveGlobal_referenceCorpusDiversifiesCommunityLevelsBeforeFillingBudget() {
+        Dataset dataset = referenceDataset();
+        dataset.begin(ReadWrite.READ);
+        try {
+            GraphRAGContext context = new GraphRAGContextService()
+                    .retrieve(dataset.asDatasetGraph(), "global", "GraphRAG", 3);
+
+            assertEquals(3, context.results().size());
+            assertEquals("urn:graphrag:reference:community-governance", context.results().get(0).uri());
+            assertEquals("urn:graphrag:reference:community-platform", context.results().get(1).uri());
+            assertEquals("urn:graphrag:reference:community-retrieval", context.results().get(2).uri());
+        } finally {
+            dataset.end();
+        }
+    }
+
+    @Test
+    public void referenceCorpus_contractsRetrievalModesAndCitations() {
+        Dataset dataset = referenceDataset();
+        dataset.begin(ReadWrite.READ);
+        try {
+            GraphRAGContextService service = new GraphRAGContextService();
+
+            GraphRAGContext basic = service.retrieve(dataset.asDatasetGraph(), "basic", "semantic retrieval", 1);
+            assertEquals(1, basic.results().size());
+            assertEquals("chunk", basic.results().getFirst().type());
+            assertEquals("urn:graphrag:reference:chunk-retrieval", basic.results().getFirst().uri());
+            assertEquals(basic.results().getFirst().uri(), basic.results().getFirst().chunkUri());
+
+            GraphRAGContext local = service.retrieve(dataset.asDatasetGraph(), "local", "GraphRAG", 1);
+            assertEquals(1, local.results().size());
+            assertEquals("relationship", local.results().getFirst().type());
+            assertEquals("urn:graphrag:reference:relationship-graphrag-jena", local.results().getFirst().uri());
+            assertEquals("GraphRAG", local.results().getFirst().entityName());
+            assertEquals("Jena", local.results().getFirst().neighborName());
+
+            GraphRAGContext global = service.retrieve(dataset.asDatasetGraph(), "global", "platform overview", 1);
+            assertEquals(1, global.results().size());
+            assertEquals("community", global.results().getFirst().type());
+            assertEquals("urn:graphrag:reference:community-platform", global.results().getFirst().uri());
+            assertEquals("Platform overview", global.results().getFirst().communityTitle());
+        } finally {
+            dataset.end();
+        }
+    }
+
+    @Test
+    public void basicAndGlobal_retrieveFromNaturalLanguageQuestion() {
+        Dataset dataset = referenceDataset();
+        dataset.begin(ReadWrite.READ);
+        try {
+            GraphRAGContextService service = new GraphRAGContextService();
+
+            GraphRAGContext basic = service.retrieve(dataset.asDatasetGraph(), "basic", "What is GraphRAG?", 1);
+            assertEquals(1, basic.results().size());
+            assertEquals("chunk", basic.results().getFirst().type());
+
+            GraphRAGContext global = service.retrieve(dataset.asDatasetGraph(), "global", "What is GraphRAG?", 1);
+            assertEquals(1, global.results().size());
+            assertEquals("community", global.results().getFirst().type());
+        } finally {
+            dataset.end();
+        }
+    }
+
+    @Test
+    public void retrieveLocal_referenceCorpusReturnsMixedRelevantContext() {
+        Dataset dataset = referenceDataset();
+        dataset.begin(ReadWrite.READ);
+        try {
+            GraphRAGContext context = new GraphRAGContextService()
+                    .retrieve(dataset.asDatasetGraph(), "local", "GraphRAG", 4);
+
+            assertEquals(4, context.results().size());
+            assertEquals("relationship", context.results().get(0).type());
+            assertEquals("urn:graphrag:reference:relationship-graphrag-jena", context.results().get(0).uri());
+            assertEquals("entity", context.results().get(1).type());
+            assertEquals("urn:graphrag:reference:entity-graphrag", context.results().get(1).uri());
+            assertEquals("chunk", context.results().get(2).type());
+            assertEquals("urn:graphrag:reference:chunk-retrieval", context.results().get(2).uri());
+            assertEquals("community", context.results().get(3).type());
+            assertEquals("urn:graphrag:reference:community-retrieval", context.results().get(3).uri());
+        } finally {
+            dataset.end();
+        }
+    }
+
+    @Test
+    public void retrieveLocal_fallbackIncludesLinkedChunkAndCommunity() {
+        Dataset dataset = DatasetFactory.createTxnMem();
+        dataset.begin(ReadWrite.WRITE);
+        try {
+            Resource graphrag = addEntity(dataset, "urn:entity:graphrag", "GraphRAG");
+            Resource jena = addEntity(dataset, "urn:entity:jena", "Jena");
+            Resource chunk = addChunk(dataset, "urn:chunk:graphrag", "GraphRAG provides retrieval context.");
+            chunk.addProperty(GRAG.hasEntity, graphrag);
+            addRelationship(dataset, "urn:rel:graphrag-jena", graphrag, jena,
+                    "GraphRAG uses Jena.", 1.0, 1);
+            addCommunity(dataset, "urn:community:graphrag", "GraphRAG", "GraphRAG context", "GraphRAG report");
+            graphrag.addProperty(GRAG.inCommunity, dataset.getDefaultModel().getResource("urn:community:graphrag"));
+            dataset.commit();
+        } finally {
+            dataset.end();
+        }
+
+        dataset.begin(ReadWrite.READ);
+        try {
+            GraphRAGContext context = new GraphRAGContextService()
+                    .retrieve(dataset.asDatasetGraph(), "local", "What is GraphRAG?", 4);
+
+            assertEquals(4, context.results().size());
+            assertEquals("relationship", context.results().get(0).type());
+            assertEquals("entity", context.results().get(1).type());
+            assertEquals("chunk", context.results().get(2).type());
+            assertEquals("urn:chunk:graphrag", context.results().get(2).uri());
+            assertEquals("community", context.results().get(3).type());
+        } finally {
+            dataset.end();
+        }
+    }
+
+    @Test
     public void retrieve_validatesParameters() {
         Dataset dataset = DatasetFactory.createTxnMem();
         assertThrows(IllegalArgumentException.class,
@@ -265,6 +390,21 @@ public class TestGraphRAGContextService {
             addCommunity(dataset, "urn:community:finance", "Finance controls",
                     "Budget governance", "Financial oversight");
             dataset.commit();
+        } finally {
+            dataset.end();
+        }
+        return dataset;
+    }
+
+    private static Dataset referenceDataset() {
+        Dataset dataset = GraphRAGTextDatasetFactory.createRetrievalTextDataset(
+                DatasetFactory.createTxnMem(), new ByteBuffersDirectory());
+        dataset.begin(ReadWrite.WRITE);
+        try (InputStream in = TestGraphRAGContextService.class.getResourceAsStream(REFERENCE_CORPUS)) {
+            dataset.getDefaultModel().read(in, null, "TURTLE");
+            dataset.commit();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         } finally {
             dataset.end();
         }

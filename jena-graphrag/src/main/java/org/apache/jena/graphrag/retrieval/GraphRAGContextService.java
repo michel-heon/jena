@@ -83,10 +83,11 @@ public final class GraphRAGContextService {
     private static final String GLOBAL_FALLBACK_QUERY = """
                         PREFIX mg: <http://ormynet.com/ns/msft-graphrag#>
 
-                        SELECT ?community (SAMPLE(?literal) AS ?literal) (SAMPLE(?title) AS ?title)
+                        SELECT ?community (SAMPLE(?literal) AS ?literal) (SAMPLE(?title) AS ?title) (MIN(?level) AS ?level)
                         WHERE {
                             ?community a mg:Community .
                             OPTIONAL { ?community mg:title ?title }
+                            OPTIONAL { ?community mg:level ?level }
                             {
                                 ?community mg:summary ?literal .
                             } UNION {
@@ -95,7 +96,7 @@ public final class GraphRAGContextService {
                             FILTER(CONTAINS(LCASE(STR(?literal)), LCASE(?query)))
                         }
                         GROUP BY ?community
-                        ORDER BY STR(?community)
+                        ORDER BY ASC(?level) STR(?community)
                         """;
 
     private static final String LOCAL_TEXT_QUERY = """
@@ -145,11 +146,44 @@ public final class GraphRAGContextService {
             ORDER BY DESC(?weight) ?neighborName
             """;
 
+        private static final String LOCAL_COMMUNITY_QUERY = """
+                        PREFIX mg: <http://ormynet.com/ns/msft-graphrag#>
+                        SELECT ?community (SAMPLE(?literal) AS ?literal) (SAMPLE(?title) AS ?title) (MIN(?level) AS ?level)
+                        WHERE {
+                            ?entity mg:inCommunity ?community .
+                            ?community a mg:Community .
+                            OPTIONAL { ?community mg:title ?title }
+                            OPTIONAL { ?community mg:level ?level }
+                            {
+                                ?community mg:summary ?literal .
+                            } UNION {
+                                ?community mg:fullContent ?literal .
+                            }
+                        }
+                        GROUP BY ?community
+                        ORDER BY ASC(?level) STR(?community)
+                        """;
+
+    private static final String LOCAL_CHUNK_QUERY = """
+                        PREFIX mg: <http://ormynet.com/ns/msft-graphrag#>
+                        SELECT ?chunk ?literal ?document
+                        WHERE {
+                            ?chunk a mg:Chunk ; mg:text ?literal .
+                            OPTIONAL { ?chunk mg:partOf ?document }
+                            {
+                                ?chunk mg:hasEntity ?entity .
+                            } UNION {
+                                ?entity mg:hasEntity ?chunk .
+                            }
+                        }
+                        ORDER BY STR(?chunk)
+                        """;
+
     private static final String GLOBAL_QUERY = """
                         PREFIX text: <http://jena.apache.org/text#>
                         PREFIX mg:   <http://ormynet.com/ns/msft-graphrag#>
 
-                        SELECT ?community (MAX(?rawScore) AS ?score) (SAMPLE(?literal) AS ?literal) (SAMPLE(?title) AS ?title)
+                        SELECT ?community (MAX(?rawScore) AS ?score) (SAMPLE(?literal) AS ?literal) (SAMPLE(?title) AS ?title) (MIN(?level) AS ?level)
                         WHERE {
                             {
                                 (?community ?rawScore ?literal) text:query (mg:summary ?query %d) .
@@ -158,14 +192,17 @@ public final class GraphRAGContextService {
                             }
                             ?community a mg:Community .
                             OPTIONAL { ?community mg:title ?title }
+                            OPTIONAL { ?community mg:level ?level }
                         }
                         GROUP BY ?community
-                        ORDER BY DESC(?score) STR(?community)
+                        ORDER BY ASC(?level) DESC(?score) STR(?community)
                         """;
 
     /**
-     * Retrieves relationship-backed local context for entities whose
-     * {@code mg:name} or linked chunks match the query text.
+    * Retrieves local context for entities whose {@code mg:name} or linked
+    * chunks match the query text. The result combines relevant relationships
+    * with their entity, chunk and community-report provenance while respecting
+    * the requested result limit.
      * <p>
      * The caller must open the appropriate dataset transaction. The service uses
      * only RDF and local indexes already attached to the dataset.
@@ -210,11 +247,12 @@ public final class GraphRAGContextService {
     }
 
     private static GraphRAGContext retrieveBasic(DatasetGraph datasetGraph, String query, int topK) {
+        String searchTerm = searchTerm(query);
         List<Result> results = new ArrayList<>();
         if ( hasTextIndex(datasetGraph) )
-            appendDistinct(results, retrieveBasicWithTextIndex(datasetGraph, query, topK), topK);
+            appendDistinct(results, retrieveBasicWithTextIndex(datasetGraph, searchTerm, topK), topK);
         if ( results.size() < topK )
-            appendDistinct(results, retrieveBasicFallback(datasetGraph, query, topK), topK);
+            appendDistinct(results, retrieveBasicFallback(datasetGraph, searchTerm, topK), topK);
         return new GraphRAGContext(query, BASIC_MODE, List.copyOf(results));
     }
 
@@ -256,12 +294,88 @@ public final class GraphRAGContextService {
     }
 
     private static GraphRAGContext retrieveLocal(DatasetGraph datasetGraph, String query, int topK) {
+        int relationshipLimit = topK <= 3 ? topK : topK - 3;
+        List<Result> relationships = new ArrayList<>();
+        if ( hasTextIndex(datasetGraph) ) {
+            List<Result> textCandidates = retrieveLocalWithTextIndex(datasetGraph, query, relationshipLimit);
+            List<Result> namedEntityCandidates = textCandidates.stream()
+                    .filter(relationship -> entityNameMatchesQuery(relationship.entityName(), query))
+                    .toList();
+            appendDistinct(relationships, namedEntityCandidates.isEmpty() ? textCandidates : namedEntityCandidates, relationshipLimit);
+        }
+        if ( relationships.size() < relationshipLimit )
+            appendDistinct(relationships, retrieveLocalFallback(datasetGraph, query, relationshipLimit), relationshipLimit);
+        List<Result> namedEntityRelationships = relationships.stream()
+                .filter(relationship -> entityNameMatchesQuery(relationship.entityName(), query))
+                .toList();
+        if ( !namedEntityRelationships.isEmpty() )
+            relationships = namedEntityRelationships;
+
         List<Result> results = new ArrayList<>();
-        if ( hasTextIndex(datasetGraph) )
-            appendDistinct(results, retrieveLocalWithTextIndex(datasetGraph, query, topK), topK);
-        if ( results.size() < topK )
-            appendDistinct(results, retrieveLocalFallback(datasetGraph, query, topK), topK);
+        appendDistinct(results, relationships, topK);
+        for ( Result relationship : relationships ) {
+            if ( results.size() >= topK )
+                break;
+            appendDistinct(results, List.of(Result.entity(relationship.entityUri(), relationship.score(),
+                    relationship.entityName())), topK);
+        }
+        List<Result> communities = new ArrayList<>();
+        Set<String> communityEntities = new HashSet<>();
+        for ( Result relationship : relationships ) {
+            if ( communityEntities.add(relationship.entityUri()) )
+                appendDistinct(communities, retrieveLocalCommunities(datasetGraph, relationship.entityUri()), topK);
+        }
+        int chunkLimit = topK - Math.min(communities.size(), 1);
+        for ( Result relationship : relationships ) {
+            if ( results.size() >= chunkLimit )
+                break;
+            if ( relationship.chunkUri() != null )
+                appendDistinct(results, List.of(Result.chunk(relationship.chunkUri(), relationship.score(),
+                        relationship.chunkText(), relationship.documentUri())), chunkLimit);
+        }
+        Set<String> chunkEntities = new HashSet<>();
+        for ( Result relationship : relationships ) {
+            if ( results.size() >= chunkLimit )
+                break;
+            if ( chunkEntities.add(relationship.entityUri()) )
+                appendDistinct(results, retrieveLocalChunks(datasetGraph, relationship.entityUri()), chunkLimit);
+        }
+        appendDistinct(results, communities, topK);
         return new GraphRAGContext(query, LOCAL_MODE, List.copyOf(results));
+    }
+
+    private static boolean entityNameMatchesQuery(String entityName, String query) {
+        return query.toLowerCase(java.util.Locale.ROOT).contains(entityName.toLowerCase(java.util.Locale.ROOT));
+    }
+
+    private static List<Result> retrieveLocalCommunities(DatasetGraph datasetGraph, String entityUri) {
+        Model bindings = ModelFactory.createDefaultModel();
+        Query contextQuery = QueryFactory.create(LOCAL_COMMUNITY_QUERY);
+        List<Result> results = new ArrayList<>();
+        try (QueryExecution qexec = QueryExecution.dataset(DatasetFactory.wrap(datasetGraph))
+                .query(contextQuery)
+                .substitution("entity", bindings.createResource(entityUri))
+                .build()) {
+            ResultSet resultSet = qexec.execSelect();
+            while ( resultSet.hasNext() )
+                results.add(toGlobalResult(resultSet.next()));
+        }
+        return results;
+    }
+
+    private static List<Result> retrieveLocalChunks(DatasetGraph datasetGraph, String entityUri) {
+        Model bindings = ModelFactory.createDefaultModel();
+        Query contextQuery = QueryFactory.create(LOCAL_CHUNK_QUERY);
+        List<Result> results = new ArrayList<>();
+        try (QueryExecution qexec = QueryExecution.dataset(DatasetFactory.wrap(datasetGraph))
+                .query(contextQuery)
+                .substitution("entity", bindings.createResource(entityUri))
+                .build()) {
+            ResultSet resultSet = qexec.execSelect();
+            while ( resultSet.hasNext() )
+                results.add(toChunkResult(resultSet.next(), false));
+        }
+        return results;
     }
 
     private static List<Result> retrieveLocalWithTextIndex(DatasetGraph datasetGraph, String query, int topK) {
@@ -309,45 +423,93 @@ public final class GraphRAGContextService {
     }
 
     private static GraphRAGContext retrieveGlobal(DatasetGraph datasetGraph, String query, int topK) {
-        List<Result> results = new ArrayList<>();
+        String searchTerm = searchTerm(query);
+        int candidateLimit = Math.min(100, topK * TEXT_EXPANSION_FACTOR);
+        List<GlobalCandidate> candidates = new ArrayList<>();
         if ( hasTextIndex(datasetGraph) )
-            appendDistinct(results, retrieveGlobalWithTextIndex(datasetGraph, query, topK), topK);
-        if ( results.size() < topK )
-            appendDistinct(results, retrieveGlobalFallback(datasetGraph, query, topK), topK);
-        return new GraphRAGContext(query, GLOBAL_MODE, List.copyOf(results));
+            appendGlobalCandidates(candidates, retrieveGlobalWithTextIndex(datasetGraph, searchTerm, candidateLimit), candidateLimit);
+        if ( candidates.size() < candidateLimit )
+            appendGlobalCandidates(candidates, retrieveGlobalFallback(datasetGraph, searchTerm, candidateLimit), candidateLimit);
+        return new GraphRAGContext(query, GLOBAL_MODE, selectGlobalReports(candidates, topK));
     }
 
-    private static List<Result> retrieveGlobalWithTextIndex(DatasetGraph datasetGraph, String query, int topK) {
+    private static String searchTerm(String query) {
+        String[] terms = query.split("[^A-Za-z0-9]+");
+        String selected = query;
+        for ( String term : terms ) {
+            if ( term.length() > selected.length() || selected.equals(query) && term.length() >= 3 )
+                selected = term;
+        }
+        return selected;
+    }
+
+    private static List<GlobalCandidate> retrieveGlobalWithTextIndex(DatasetGraph datasetGraph, String query, int candidateLimit) {
         Model bindings = ModelFactory.createDefaultModel();
-        Query contextQuery = QueryFactory.create(GLOBAL_QUERY.formatted(topK, topK));
-        contextQuery.setLimit(topK);
-        List<Result> results = new ArrayList<>();
+        Query contextQuery = QueryFactory.create(GLOBAL_QUERY.formatted(candidateLimit, candidateLimit));
+        contextQuery.setLimit(candidateLimit);
+        List<GlobalCandidate> results = new ArrayList<>();
         try (QueryExecution qexec = QueryExecution.dataset(DatasetFactory.wrap(datasetGraph))
                 .query(contextQuery)
                 .substitution("query", bindings.createLiteral(query))
                 .build()) {
             ResultSet resultSet = qexec.execSelect();
             while ( resultSet.hasNext() )
-                results.add(toGlobalResult(resultSet.next()));
+                results.add(toGlobalCandidate(resultSet.next()));
         }
         return results;
     }
 
-    private static List<Result> retrieveGlobalFallback(DatasetGraph datasetGraph, String query, int topK) {
+    private static List<GlobalCandidate> retrieveGlobalFallback(DatasetGraph datasetGraph, String query, int candidateLimit) {
         Model bindings = ModelFactory.createDefaultModel();
         Query contextQuery = QueryFactory.create(GLOBAL_FALLBACK_QUERY);
-        contextQuery.setLimit(topK);
-        List<Result> results = new ArrayList<>();
+        contextQuery.setLimit(candidateLimit);
+        List<GlobalCandidate> results = new ArrayList<>();
         try (QueryExecution qexec = QueryExecution.dataset(DatasetFactory.wrap(datasetGraph))
                 .query(contextQuery)
                 .substitution("query", bindings.createLiteral(query))
                 .build()) {
             ResultSet resultSet = qexec.execSelect();
             while ( resultSet.hasNext() )
-                results.add(toGlobalResult(resultSet.next()));
+                results.add(toGlobalCandidate(resultSet.next()));
         }
         return results;
     }
+
+    private static void appendGlobalCandidates(List<GlobalCandidate> candidates, List<GlobalCandidate> additions, int limit) {
+        Set<String> knownUris = new HashSet<>();
+        candidates.forEach(candidate -> knownUris.add(candidate.result().uri()));
+        for ( GlobalCandidate candidate : additions ) {
+            if ( candidates.size() >= limit )
+                return;
+            if ( knownUris.add(candidate.result().uri()) )
+                candidates.add(candidate);
+        }
+    }
+
+    private static List<Result> selectGlobalReports(List<GlobalCandidate> candidates, int topK) {
+        List<Result> results = new ArrayList<>();
+        Set<Integer> levels = new HashSet<>();
+        for ( GlobalCandidate candidate : candidates ) {
+            if ( results.size() >= topK )
+                return List.copyOf(results);
+            if ( levels.add(candidate.level()) )
+                results.add(candidate.result());
+        }
+        for ( GlobalCandidate candidate : candidates ) {
+            if ( results.size() >= topK )
+                break;
+            if ( !results.contains(candidate.result()) )
+                results.add(candidate.result());
+        }
+        return List.copyOf(results);
+    }
+
+    private static GlobalCandidate toGlobalCandidate(QuerySolution solution) {
+        int level = solution.contains("level") ? solution.getLiteral("level").getInt() : Integer.MAX_VALUE;
+        return new GlobalCandidate(toGlobalResult(solution), level);
+    }
+
+    private record GlobalCandidate(Result result, int level) {}
 
     private static Result toLocalResult(QuerySolution solution) {
         String sourceText = solution.contains("description")

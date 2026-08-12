@@ -40,13 +40,14 @@ LOG_FILE := $(WORK_DIR)/fuseki.log
 MATERIALIZER_SOURCE := $(MODULE_DIR)/src/test/java/org/apache/jena/graphrag/integration/PdfCorpusMaterializer.java
 ARQ_CLASS := $(ROOT_DIR)/jena-cmds/target/classes/arq/arq.class
 DATASET := $(GRAPHRAG_TUTORIAL_DATASET)
+CHAT_MODE_QUESTION ?= What is GraphRAG?
 SYSTEM_PROMPT := Answer only from the ingested GraphRAG research PDF corpus. Cite retrieved sources and say when the corpus lacks the answer.
 FUSEKI_URL = http://127.0.0.1:$$(cat "$(PORT_FILE)")
 WINDOWS_FUSEKI_URL = http://$$(hostname -I | awk '{print $$1}'):$$(cat "$(PORT_FILE)")
 
 .PHONY: help providers-bootstrap pdfs-check project-prepare corpus-materialize \
-	corpus-semantic-extract fuseki-start fuseki-ping fuseki-open graphrag-config indexing-start indexing-status \
-	indexing-wait corpus-verify-pdfs corpus-statistic graph-cat ttt-cat entities-list relationships-list communities-list findings-list chat-ask-questions chat-question context-question fuseki-stop tutorial-clean tutorial-run
+	corpus-semantic-extract fuseki-start fuseki-ping fuseki-status fuseki-open graphrag-config indexing-start indexing-status \
+	indexing-wait corpus-verify-pdfs corpus-statistic graph-cat ttt-cat entities-list relationships-list communities-list findings-list chat-ask-questions chat-ask-modes chat-question context-question fuseki-stop tutorial-clean tutorial-run
 
 help: ## Display tutorial steps
 	@printf '%s\n' \
@@ -71,6 +72,7 @@ help: ## Display tutorial steps
 		'Fuseki and indexing' \
 		'  fuseki-start              Start Fuseki with the enriched corpus.' \
 		'  fuseki-ping               Confirm that Fuseki is reachable.' \
+		'  fuseki-status             Report Fuseki process and HTTP status.' \
 		'  fuseki-open               Open the Fuseki UI.' \
 		'  graphrag-config           Show the public GraphRAG configuration.' \
 		'  indexing-start            Start vector indexing.' \
@@ -84,6 +86,7 @@ help: ## Display tutorial steps
 		'  communities-list          List extracted communities.' \
 		'  findings-list             List extracted findings from the local Turtle corpus.' \
 		'  chat-ask-questions        Run the five tutorial questions.' \
+		'  chat-ask-modes            Qualify basic, local, and global with real providers.' \
 		'  chat-question             Ask one question: make chat-question QUESTION="..." MODE=local' \
 		'  context-question          Inspect context: make context-question QUESTION="..." MODE=local' \
 		'' \
@@ -153,6 +156,31 @@ fuseki-start: $(SEMANTIC_MARKER) $(PORT_FILE) ## Start production Fuseki with th
 fuseki-ping: ## Confirm Fuseki is reachable
 	@curl --fail --silent --show-error "$(FUSEKI_URL)/\$$/ping" >/dev/null
 	@echo "Fuseki responds to ping."
+
+fuseki-status: ## Report Fuseki process, ping, and dataset status
+	@port=unknown; [[ -s "$(PORT_FILE)" ]] && port=$$(cat "$(PORT_FILE)"); \
+	pid=unknown; [[ -s "$(PID_FILE)" ]] && pid=$$(cat "$(PID_FILE)"); \
+	echo "Fuseki status"; \
+	echo "PID: $$pid"; \
+	echo "URL: http://127.0.0.1:$$port"; \
+	echo "Dataset: $(DATASET)"; \
+	if [[ "$$pid" != unknown ]] && kill -0 "$$pid" 2>/dev/null; then echo "Process: running"; else echo "Process: not running"; fi; \
+	if [[ "$$port" != unknown ]] && curl --fail --silent --show-error "http://127.0.0.1:$$port/\$$/ping" >/dev/null 2>&1; then \
+		echo "Ping: reachable"; \
+		base="http://127.0.0.1:$$port/$(DATASET)/graphrag"; \
+		if curl --fail --silent --show-error "$$base/config" >/dev/null 2>&1; then echo "API config: available"; else echo "API config: unavailable"; fi; \
+		if curl --fail --silent --show-error -G "$$base/context" --data-urlencode 'q=fuseki-status' --data-urlencode 'mode=local' --data-urlencode 'topK=1' >/dev/null 2>&1; then echo "API context: available"; else echo "API context: unavailable"; fi; \
+		if [[ -s "$(TASK_FILE)" ]]; then \
+			task_id=$$(cat "$(TASK_FILE)"); \
+			if curl --fail --silent --show-error "$$base/status?taskId=$$task_id" >/dev/null 2>&1; then echo "API status: available (task $$task_id)"; else echo "API status: unavailable (task $$task_id)"; fi; \
+		else \
+			echo "API status: not checked (no indexing task)"; \
+		fi; \
+		echo "API answer: not probed (would call the chat provider)"; \
+		echo "API index: not probed (would start indexing)"; \
+	else \
+		echo "Ping: unreachable"; \
+	fi
 
 fuseki-open: fuseki-ping ## Open the Fuseki UI in the Windows default browser from WSL
 	@url="$(WINDOWS_FUSEKI_URL)"; \
@@ -243,6 +271,17 @@ chat-ask-questions: ## Ask five questions and verify cited PDF answers
 		echo "Question: $$question"; \
 		curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/graphrag/answer" --data-urlencode "q=$$question" --data-urlencode 'topK=5' | \
 			node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk).on("end", () => { const response = JSON.parse(input); const citations = response.citations ?? []; const pdfCitations = citations.filter(citation => /^http:\/\/ormynet\.com\/ns\/data#chunk-/.test(citation.uri)); if (!response.answer || !response.answer.trim() || pdfCitations.length === 0) process.exit(1); console.log("Answer:\n" + response.answer.trim()); console.log("PDF citations:"); for (const citation of pdfCitations) console.log("  " + citation.uri); });'; \
+		echo; \
+	done
+
+chat-ask-modes: ## Qualify basic, local, and global answers against their retrieved citations
+	@set -e; for mode in basic local global; do \
+		question='$(CHAT_MODE_QUESTION)'; \
+		echo "Mode: $$mode"; \
+		echo "Question: $$question"; \
+		context=$$(curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/graphrag/context" --data-urlencode "q=$$question" --data-urlencode "mode=$$mode" --data-urlencode 'topK=5'); \
+		response=$$(curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/graphrag/answer" --data-urlencode "q=$$question" --data-urlencode "mode=$$mode" --data-urlencode 'topK=5'); \
+		CONTEXT="$$context" RESPONSE="$$response" MODE="$$mode" node -e 'const context = JSON.parse(process.env.CONTEXT); const response = JSON.parse(process.env.RESPONSE); const expected = context.results.map(result => [result.uri, result.sourceText]); const citations = (response.citations ?? []).map(citation => [citation.uri, citation.text]); const abstention = "Aucun contexte GraphRAG correspondant a la question."; const allowedTypes = {basic: ["chunk"], local: ["relationship", "entity", "chunk", "community"], global: ["community"]}; if (!response.answer || !response.answer.trim()) process.exit(1); if (response.answer === abstention) { if (expected.length !== 0 || citations.length !== 0) process.exit(1); console.log("Status: abstention (no matching mode context)."); } else { const types = [...new Set(context.results.map(result => result.type))]; if (expected.length === 0 || JSON.stringify(citations) !== JSON.stringify(expected) || types.some(type => !allowedTypes[process.env.MODE].includes(type))) process.exit(1); console.log("Status: cited answer."); console.log("Context types: " + types.join(", ")); if (process.env.MODE === "local" && types.length < 2) console.log("Qualification limit: local context is not mixed for this corpus and question."); if (process.env.MODE === "global" && context.results.length < 2) console.log("Qualification limit: global context has fewer than two community reports."); console.log("Answer:\n" + response.answer.trim()); console.log("Mode citations:"); for (const citation of citations) console.log("  " + citation[0]); }'; \
 		echo; \
 	done
 

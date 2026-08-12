@@ -23,6 +23,7 @@ package org.apache.jena.graphrag.fuseki;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 import org.apache.jena.atlas.json.JsonBuilder;
@@ -102,8 +103,9 @@ public final class GraphRAGAnswerAction extends ActionREST {
                 writeAnswer(action, question, NO_CONTEXT_ANSWER, citations);
                 return;
             }
-            List<String> contextPassages = boundedContextPassages(question, citations);
-            String answer = chatProvider.complete(question, contextPassages, configuration.systemPrompt());
+            String answer = GraphRAGContextService.GLOBAL_MODE.equals(mode)
+                    ? globalAnswer(question, citations)
+                    : chatProvider.complete(question, boundedContextPassages(question, citations), configuration.systemPrompt());
             writeAnswer(action, question, answer, citations);
         } catch (ProviderException ex) {
             switch ( ex.category() ) {
@@ -117,6 +119,40 @@ public final class GraphRAGAnswerAction extends ActionREST {
         } finally {
             datasetGraph.end();
         }
+    }
+
+    private String globalAnswer(String question, List<Citation> citations) {
+        List<String> intermediateAnswers = new ArrayList<>();
+        for ( Citation citation : citations ) {
+            for ( String reportSegment : splitReport(citation.text()) ) {
+                List<String> report = boundedPassages(question, List.of(reportSegment));
+                if ( !report.isEmpty() )
+                    intermediateAnswers.add(chatProvider.complete(question, report, configuration.systemPrompt()));
+            }
+        }
+        return chatProvider.complete(question, boundedPassages(question, selectRatedPoints(question, intermediateAnswers)),
+                configuration.systemPrompt());
+    }
+
+    private static List<String> splitReport(String report) {
+        if ( report.isBlank() )
+            return List.of();
+        return List.of(report.split("(?<=[.!?])\\s+"));
+    }
+
+    private static List<String> selectRatedPoints(String question, List<String> points) {
+        List<String> terms = List.of(question.toLowerCase(Locale.ROOT).split("[^a-z0-9]+"));
+        List<String> ratedPoints = new ArrayList<>();
+        for ( String point : points ) {
+            String normalizedPoint = point.toLowerCase(Locale.ROOT);
+            for ( String term : terms ) {
+                if ( term.length() >= 3 && normalizedPoint.contains(term) ) {
+                    ratedPoints.add(point);
+                    break;
+                }
+            }
+        }
+        return ratedPoints.isEmpty() ? points : ratedPoints;
     }
 
     private int parseTopK(HttpAction action) {
@@ -150,12 +186,16 @@ public final class GraphRAGAnswerAction extends ActionREST {
     }
 
     private List<String> boundedContextPassages(String question, List<Citation> citations) {
+        return boundedPassages(question, citations.stream().map(Citation::text).toList());
+    }
+
+    private List<String> boundedPassages(String question, List<String> candidates) {
         int remainingBudget = Math.max(1, 4096 - estimateTokens(question) - PROMPT_OVERHEAD_TOKENS);
         List<String> passages = new ArrayList<>();
-        for ( Citation citation : citations ) {
+        for ( String candidate : candidates ) {
             if ( remainingBudget <= 0 )
                 break;
-            String boundedText = truncateToBudget(citation.text(), remainingBudget);
+            String boundedText = truncateToBudget(candidate, remainingBudget);
             int used = estimateTokens(boundedText);
             if ( used <= 0 )
                 continue;

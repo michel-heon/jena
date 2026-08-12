@@ -29,6 +29,9 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.jena.atlas.json.JSON;
 import org.apache.jena.atlas.json.JsonObject;
@@ -52,6 +55,7 @@ import org.junit.jupiter.api.Test;
 
 public class TestGraphRAGAnswerEndpoint {
     private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
+    private static final String REFERENCE_CORPUS = "/org/apache/jena/graphrag/graphrag-retrieval-reference.ttl";
 
     @Test
     public void enabledModule_returnsDeterministicMockAnswer() throws Exception {
@@ -173,6 +177,84 @@ public class TestGraphRAGAnswerEndpoint {
     }
 
     @Test
+    public void referenceCorpus_explicitModesPassOnlyCitedContextToProvider() throws Exception {
+        Dataset dataset = DatasetFactory.createTxnMem();
+        dataset.begin(ReadWrite.WRITE);
+        try (InputStream in = TestGraphRAGAnswerEndpoint.class.getResourceAsStream(REFERENCE_CORPUS)) {
+            dataset.getDefaultModel().read(in, null, "TURTLE");
+            dataset.commit();
+        } finally {
+            dataset.end();
+        }
+        GraphRAGModule module = new GraphRAGModule(GraphRAGSearchAction::new,
+                (datasetGraph, configuration) -> new GraphRAGAnswerAction(datasetGraph, configuration,
+                        GraphRAGSearchAction.defaultSearchService(), (question, passages) -> String.join("|", passages)));
+        FusekiServer server = server(dataset, true, module);
+        try {
+            assertModeAnswer(server, "basic", "Semantic", "urn:graphrag:reference:chunk-retrieval",
+                    "Semantic retrieval ranks relevant GraphRAG chunks for a question.");
+            assertModeAnswer(server, "local", "GraphRAG", "urn:graphrag:reference:relationship-graphrag-jena",
+                    "GraphRAG uses Jena RDF resources to keep retrieval citations traceable.");
+            assertModeAnswer(server, "global", "platform", "urn:graphrag:reference:community-platform",
+                    "The platform overview joins retrieval and governance for GraphRAG.");
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    public void globalMode_mapsEachCommunityReportBeforeReducingAnswer() throws Exception {
+        Dataset dataset = referenceDataset();
+        List<List<String>> providerCalls = new ArrayList<>();
+        GraphRAGModule module = new GraphRAGModule(GraphRAGSearchAction::new,
+                (datasetGraph, configuration) -> new GraphRAGAnswerAction(datasetGraph, configuration,
+                        GraphRAGSearchAction.defaultSearchService(), (question, passages) -> {
+                            providerCalls.add(List.copyOf(passages));
+                            return "intermediate-" + providerCalls.size();
+                        }));
+        FusekiServer server = server(dataset, true, module);
+        try {
+            JsonObject body = JSON.parse(get(server, "?q=GraphRAG&mode=global&topK=3").body());
+
+            assertEquals("intermediate-4", body.get("answer").getAsString().value());
+            assertEquals(List.of(
+                    List.of("Jena governance keeps GraphRAG citations traceable."),
+                    List.of("The platform overview joins retrieval and governance for GraphRAG."),
+                    List.of("Semantic retrieval makes GraphRAG chunks relevant to a question."),
+                    List.of("intermediate-1", "intermediate-2", "intermediate-3")), providerCalls);
+            assertEquals(3, body.get("citations").getAsArray().size());
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    public void globalMode_reducesOnlyQuestionRatedIntermediatePoints() throws Exception {
+        Dataset dataset = referenceDataset();
+        List<List<String>> providerCalls = new ArrayList<>();
+        GraphRAGModule module = new GraphRAGModule(GraphRAGSearchAction::new,
+                (datasetGraph, configuration) -> new GraphRAGAnswerAction(datasetGraph, configuration,
+                        GraphRAGSearchAction.defaultSearchService(), (question, passages) -> {
+                            providerCalls.add(List.copyOf(passages));
+                            if ( providerCalls.size() <= 3 )
+                                return passages.getFirst().contains("Semantic retrieval makes")
+                                        ? "GraphRAG retrieval point"
+                                        : "unrelated point";
+                            return String.join("|", passages);
+                        }));
+        FusekiServer server = server(dataset, true, module);
+        try {
+            JsonObject body = JSON.parse(get(server, "?q=GraphRAG&mode=global&topK=3").body());
+
+            assertEquals("GraphRAG retrieval point", body.get("answer").getAsString().value());
+            assertEquals(4, providerCalls.size());
+            assertEquals(List.of("GraphRAG retrieval point"), providerCalls.get(3));
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
     public void missingQuery_returnsStructuredBadRequest() throws Exception {
         FusekiServer server = server(true);
         try {
@@ -226,6 +308,20 @@ public class TestGraphRAGAnswerEndpoint {
 
     private static FusekiServer server(boolean enabled) {
         return server(DatasetFactory.createTxnMem(), enabled, new GraphRAGModule());
+    }
+
+    private static Dataset referenceDataset() {
+        Dataset dataset = DatasetFactory.createTxnMem();
+        dataset.begin(ReadWrite.WRITE);
+        try (InputStream in = TestGraphRAGAnswerEndpoint.class.getResourceAsStream(REFERENCE_CORPUS)) {
+            dataset.getDefaultModel().read(in, null, "TURTLE");
+            dataset.commit();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            dataset.end();
+        }
+        return dataset;
     }
 
     private static FusekiServer server(Dataset dataset, boolean enabled, GraphRAGModule module) {

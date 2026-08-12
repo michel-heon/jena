@@ -81,10 +81,13 @@ Cette étape appelle les extracteurs HTTP de production pour créer les entités
 ```bash
 make fuseki-start
 make fuseki-ping
+make fuseki-status
 make fuseki-open
 ```
 
 `make fuseki-start` charge les valeurs des fournisseurs uniquement dans le processus Fuseki, fixe l'instruction système du corpus et démarre le serveur en arrière-plan. La cible affiche l'URL locale et le fichier journal. `make fuseki-ping` doit retourner avec le code `0`.
+
+`make fuseki-status` affiche le PID et l'URL configurés, puis l'état du processus, du ping HTTP et des API GraphRAG sûres à sonder: `config`, `context` et `status` lorsqu'une tâche d'indexation est connue. Les routes `answer` et `index` sont explicitement indiquées comme non sondées, car elles appelleraient un fournisseur de chat ou déclencheraient une indexation. La commande reste purement diagnostique.
 
 `make fuseki-open` lance l'adresse IP de WSL dans le navigateur par défaut de Windows. Cela fonctionne lorsque le relais Windows vers `127.0.0.1` est désactivé. Ne copiez pas les variables de fournisseur depuis l'environnement du processus.
 
@@ -166,6 +169,16 @@ make chat-question QUESTION="What is GraphRAG?" MODE=local
 ```
 
 Le mode est transmis à l'endpoint de production `/graphrag/answer`; le fournisseur de chat répond à partir du contexte sélectionné et les citations correspondent aux ressources récupérées (chunks pour `basic`, relations pour `local`, communautés pour `global`). Lorsqu'aucun contexte ne correspond, l'endpoint retourne une abstention déterministe sans appeler le fournisseur; `chat-question` l'affiche sans erreur. Sans `MODE`, la recherche hybride et le contrôle des citations PDF sont préservés.
+
+Pour qualifier les trois modes avec les fournisseurs réels configurés, exécuter:
+
+```bash
+make chat-ask-modes
+```
+
+La commande pose la même question aux trois modes, `What is GraphRAG?` par défaut, afin de comparer directement leurs contextes et réponses. Elle est configurable avec `make chat-ask-modes CHAT_MODE_QUESTION="..."`. Elle compare les citations de `/graphrag/answer` aux ressources et passages de `/graphrag/context`. Lorsqu'un contexte existe, elle vérifie aussi les types attendus : chunks pour `basic`, ressources mixtes GraphRAG pour `local`, et communautés pour `global`. Elle affiche une réponse citée lorsque le contexte existe, ou une abstention conforme lorsque le mode ne trouve aucune ressource. Elle signale qu'un contexte `local` n'est pas mixte ou qu'un contexte `global` contient moins de deux rapports : ce sont des limites du corpus et de la récupération observés, pas un succès de qualification sémantique.
+
+Cette qualification ne démontre pas que `basic` est une recherche vectorielle top-k, ni que tous les contextes `global` disposent de plusieurs rapports. Le corpus de développement est volontairement limité à deux PDF sur une intégration RDF de GraphRAG et contient des passages sur GraphDB, Elasticsearch, LM Studio et LangChain. La qualification vérifie donc la traçabilité et le type de contexte, sans rejeter une réponse qui reprend ces composants lorsque les citations les étayent. Cette commande effectue des appels réels au fournisseur de chat et consomme donc du quota.
 
 `context-question` reste une commande de diagnostic: elle interroge `/graphrag/context`, affiche le contexte RDF brut et n'appelle aucun fournisseur ni LLM. Pour inspecter directement ce contexte avec un mode donné, utiliser l'une des valeurs `basic`, `local` ou `global`:
 
