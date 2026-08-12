@@ -25,6 +25,7 @@ port=$(node -e 'const server = require("net").createServer(); server.listen(0, "
 fuseki_pid=''
 playwright_script='test:smoke'
 server_arguments=()
+runtime_properties=()
 enable_graphrag=true
 
 cleanup() {
@@ -68,6 +69,12 @@ if [[ "${GRAPHRAG_SMOKE_REAL_PROVIDERS:-false}" == 'true' ]]; then
     # The generated file exports provider values; this script never prints them.
     source "$provider_environment"
     export GRAPHRAG_SYSTEM_PROMPT="${GRAPHRAG_SYSTEM_PROMPT:-Answer from the supplied GraphRAG context and cite it.}"
+    runtime_properties=(
+        "-Djena.graphrag.drift.communityTopK=$GRAPHRAG_DRIFT_COMMUNITY_TOP_K"
+        "-Djena.graphrag.drift.maxFollowUps=$GRAPHRAG_DRIFT_MAX_FOLLOW_UPS"
+        "-Djena.graphrag.drift.contextTokenBudget=$GRAPHRAG_DRIFT_CONTEXT_TOKEN_BUDGET"
+        "-Djena.graphrag.drift.localTopK=$GRAPHRAG_DRIFT_LOCAL_TOP_K"
+    )
     server_arguments+=("$runtime_dir/real-provider-index")
     playwright_script='test:real-providers-smoke'
 fi
@@ -84,7 +91,7 @@ if [[ "${GRAPHRAG_SMOKE_ULTIMATE:-false}" == 'true' ]]; then
     playwright_script='test:ultimate-smoke'
 fi
 
-java -cp "$classpath" org.apache.jena.graphrag.fuseki.GraphRAGFusekiUIServer \
+java "${runtime_properties[@]}" -cp "$classpath" org.apache.jena.graphrag.fuseki.GraphRAGFusekiUIServer \
     "${server_arguments[@]}" >"$log_file" 2>&1 &
 fuseki_pid=$!
 

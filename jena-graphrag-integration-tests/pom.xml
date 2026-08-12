@@ -102,6 +102,10 @@
                 <GRAPHRAG_DEFAULT_MODE>${jena.graphrag.defaultMode}</GRAPHRAG_DEFAULT_MODE>
                 <GRAPHRAG_DEFAULT_TOP_K>${jena.graphrag.defaultTopK}</GRAPHRAG_DEFAULT_TOP_K>
                 <GRAPHRAG_MAX_TOP_K>${jena.graphrag.maxTopK}</GRAPHRAG_MAX_TOP_K>
+                <GRAPHRAG_DRIFT_COMMUNITY_TOP_K>${jena.graphrag.drift.communityTopK}</GRAPHRAG_DRIFT_COMMUNITY_TOP_K>
+                <GRAPHRAG_DRIFT_MAX_FOLLOW_UPS>${jena.graphrag.drift.maxFollowUps}</GRAPHRAG_DRIFT_MAX_FOLLOW_UPS>
+                <GRAPHRAG_DRIFT_CONTEXT_TOKEN_BUDGET>${jena.graphrag.drift.contextTokenBudget}</GRAPHRAG_DRIFT_CONTEXT_TOKEN_BUDGET>
+                <GRAPHRAG_DRIFT_LOCAL_TOP_K>${jena.graphrag.drift.localTopK}</GRAPHRAG_DRIFT_LOCAL_TOP_K>
                 <GRAPHRAG_INDEX_MAX_CONTENT_LENGTH>${jena.graphrag.index.maxContentLength}</GRAPHRAG_INDEX_MAX_CONTENT_LENGTH>
                 <GRAPHRAG_INGESTION_BASE_URI>${jena.graphrag.ingestion.baseUri}</GRAPHRAG_INGESTION_BASE_URI>
                 <GRAPHRAG_INGESTION_CHUNK_SIZE>${jena.graphrag.ingestion.chunkSize}</GRAPHRAG_INGESTION_CHUNK_SIZE>
@@ -113,6 +117,10 @@
                 <jena.graphrag.defaultMode>${jena.graphrag.defaultMode}</jena.graphrag.defaultMode>
                 <jena.graphrag.defaultTopK>${jena.graphrag.defaultTopK}</jena.graphrag.defaultTopK>
                 <jena.graphrag.maxTopK>${jena.graphrag.maxTopK}</jena.graphrag.maxTopK>
+                <jena.graphrag.drift.communityTopK>${jena.graphrag.drift.communityTopK}</jena.graphrag.drift.communityTopK>
+                <jena.graphrag.drift.maxFollowUps>${jena.graphrag.drift.maxFollowUps}</jena.graphrag.drift.maxFollowUps>
+                <jena.graphrag.drift.contextTokenBudget>${jena.graphrag.drift.contextTokenBudget}</jena.graphrag.drift.contextTokenBudget>
+                <jena.graphrag.drift.localTopK>${jena.graphrag.drift.localTopK}</jena.graphrag.drift.localTopK>
                 <jena.graphrag.index.maxContentLength>${jena.graphrag.index.maxContentLength}</jena.graphrag.index.maxContentLength>
                 <jena.graphrag.ingestion.baseUri>${jena.graphrag.ingestion.baseUri}</jena.graphrag.ingestion.baseUri>
                 <jena.graphrag.ingestion.chunkSize>${jena.graphrag.ingestion.chunkSize}</jena.graphrag.ingestion.chunkSize>

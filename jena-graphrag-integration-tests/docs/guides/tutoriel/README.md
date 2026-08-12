@@ -162,15 +162,15 @@ Pour poser une question libre avec la recherche hybride par défaut et les même
 make chat-question QUESTION="What is the role of embeddings in GraphRAG?"
 ```
 
-`chat-question` peut aussi sélectionner le contexte fourni au chat avec `MODE=basic`, `MODE=local` ou `MODE=global`:
+`chat-question` peut aussi sélectionner le contexte fourni au chat avec `MODE=basic`, `MODE=local`, `MODE=global` ou `MODE=drift`:
 
 ```bash
 make chat-question QUESTION="What is GraphRAG?" MODE=local
 ```
 
-Le mode est transmis à l'endpoint de production `/graphrag/answer`; le fournisseur de chat répond à partir du contexte sélectionné et les citations correspondent aux ressources récupérées (chunks pour `basic`, relations pour `local`, communautés pour `global`). Lorsqu'aucun contexte ne correspond, l'endpoint retourne une abstention déterministe sans appeler le fournisseur; `chat-question` l'affiche sans erreur. Sans `MODE`, la recherche hybride et le contrôle des citations PDF sont préservés.
+Le mode est transmis à l'endpoint de production `/graphrag/answer`; le fournisseur de chat répond à partir du contexte sélectionné. Les citations correspondent aux ressources récupérées (chunks pour `basic`, relations pour `local`, communautés pour `global`). En `drift`, les citations commencent par les communautés du contexte, puis peuvent inclure les ressources locales découvertes durant les itérations bornées. Lorsqu'aucun contexte ne correspond, l'endpoint retourne une abstention déterministe sans appeler le fournisseur de chat; `chat-question` l'affiche sans erreur. Sans `MODE`, la recherche hybride et le contrôle des citations PDF sont préservés.
 
-Pour qualifier les trois modes avec les fournisseurs réels configurés, exécuter:
+Pour qualifier les quatre modes avec les fournisseurs réels configurés, exécuter:
 
 ```bash
 make chat-ask-modes
@@ -182,19 +182,27 @@ Pour qualifier un contexte et sa réponse dans le tutoriel, après `indexing-wai
 make chat-qualify-mode QUESTION="What is GraphRAG?" MODE=basic TOP_K=1
 ```
 
-`QUESTION`, `MODE=basic|local|global` et `TOP_K=1..100` sont des options. Sans argument, la cible utilise `What is GraphRAG?`, `basic` et `1`. Elle compare systématiquement les citations de `/graphrag/answer` aux ressources et passages de `/graphrag/context`, vérifie le type de ressource propre au mode et le plafond `TOP_K`, ou accepte uniquement l'abstention déterministe sans contexte ni citation. Avec `MODE=basic` et un serveur tutoriel indexé, le contexte provient de la recherche vectorielle. `make chat-qualify-basic-vector` reste un alias compatible de la qualification `basic` par défaut.
+`QUESTION`, `MODE=basic|local|global|drift` et `TOP_K=1..100` sont des options. Sans argument, la cible utilise `What is GraphRAG?`, `basic` et `1`. Elle vérifie le type de ressource propre au mode, le plafond `TOP_K` et les citations: exactes pour les modes à passage unique, ou préfixées par le contexte communautaire pour `drift`. En DRIFT, elle vérifie aussi `reasonStop` et `followUpCount`. Elle accepte uniquement l'abstention déterministe sans contexte ni citation. Avec `MODE=basic` et un serveur tutoriel indexé, le contexte provient de la recherche vectorielle. `make chat-qualify-basic-vector` reste un alias compatible de la qualification `basic` par défaut.
+
+Pour la qualification dédiée DRIFT:
+
+```bash
+make chat-qualify-drift QUESTION="What is GraphRAG?" TOP_K=1
+```
+
+Cette commande exige que les communautés aient été extraites à l'étape 5 et vectorisées à l'étape 8. `/graphrag/context?mode=drift` n'appelle jamais le fournisseur de chat ni un LLM de génération; il effectue toutefois la recherche vectorielle communautaire avec le fournisseur d'embeddings configuré. Les quatre bornes publiques `driftLimits` de `/graphrag/config` contrôlent le nombre de communautés, d'itérations, de jetons de contexte et de ressources locales par itération.
 
 La commande pose la même question aux trois modes, `What is GraphRAG?` par défaut, afin de comparer directement leurs contextes et réponses. Elle est configurable avec `make chat-ask-modes CHAT_MODE_QUESTION="..."`. Elle compare les citations de `/graphrag/answer` aux ressources et passages de `/graphrag/context`. Lorsqu'un contexte existe, elle vérifie aussi les types attendus : chunks pour `basic`, ressources mixtes GraphRAG pour `local`, et communautés pour `global`. Elle rejette une réponse qui présente GraphDB, Elasticsearch, LM Studio ou LangChain comme des composants génériques de Microsoft GraphRAG, ou qui ne les rattache pas au corpus ou à l'intégration RDF décrite. Elle affiche une réponse citée lorsque le contexte existe, ou une abstention conforme lorsque le mode ne trouve aucune ressource.
 
 Le corpus de développement est volontairement limité à trois PDF, dont deux sur une intégration RDF de GraphRAG et une référence GraphRAG local-to-global. Avec un index GraphRAG configuré, `basic` interroge les chunks top-k du vecteur; sans index configuré, il conserve le repli texte/littéral pour l'inspection RDF. Pour traiter l'absence de contexte local mixte ou de plusieurs rapports `global` comme des échecs, lancer `make chat-ask-modes CHAT_MODE_REQUIRE_MIXED_LOCAL=true CHAT_MODE_REQUIRE_MULTIPLE_GLOBAL=true`. La qualification vérifie ainsi la traçabilité et les types sans rejeter une réponse qui reprend les composants RDF lorsque les citations les étayent. Cette commande effectue des appels réels au fournisseur de chat et consomme donc du quota.
 
-`context-question` reste une commande de diagnostic: elle interroge `/graphrag/context`, affiche le contexte RDF brut et n'appelle aucun fournisseur ni LLM. Pour inspecter directement ce contexte avec un mode donné, utiliser l'une des valeurs `basic`, `local` ou `global`:
+`context-question` reste une commande de diagnostic: elle interroge `/graphrag/context`, affiche le contexte RDF brut et n'appelle aucun fournisseur de chat ni LLM de génération. Les modes vectoriels, dont `drift`, appellent le fournisseur d'embeddings configuré. Pour inspecter directement ce contexte avec un mode donné, utiliser l'une des valeurs `basic`, `local`, `global` ou `drift`:
 
 ```bash
 make context-question QUESTION="What is GraphRAG?" MODE=local
 ```
 
-L'extraction sémantique de l'étape 5 crée les entités, relations et communautés nécessaires aux modes `local` et `global`. Lorsqu'il n'y a aucun résultat, la cible affiche les compteurs correspondants et la précondition du mode. Avec l'index GraphRAG configuré, `basic` exige des chunks vectoriels; sinon, la cible utilise l'index texte ou une correspondance littérale.
+L'extraction sémantique de l'étape 5 crée les entités, relations et communautés nécessaires aux modes `local`, `global` et `drift`. Lorsqu'il n'y a aucun résultat, la cible affiche les compteurs correspondants et la précondition du mode. Avec l'index GraphRAG configuré, `basic` exige des chunks vectoriels; `global` et `drift` exigent un index vectoriel de communautés; sinon, `basic` utilise l'index texte ou une correspondance littérale.
 
 Pour inspecter les communautés disponibles pour le mode `global`:
 

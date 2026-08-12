@@ -37,6 +37,10 @@ ENVIRONMENT_VARIABLES=(
     GRAPHRAG_DEFAULT_MODE
     GRAPHRAG_DEFAULT_TOP_K
     GRAPHRAG_MAX_TOP_K
+    GRAPHRAG_DRIFT_COMMUNITY_TOP_K
+    GRAPHRAG_DRIFT_MAX_FOLLOW_UPS
+    GRAPHRAG_DRIFT_CONTEXT_TOKEN_BUDGET
+    GRAPHRAG_DRIFT_LOCAL_TOP_K
     GRAPHRAG_INDEX_MAX_CONTENT_LENGTH
     GRAPHRAG_TUTORIAL_PDF_PATH
     GRAPHRAG_TUTORIAL_CORPUS_PATH
@@ -172,6 +176,10 @@ property_name() {
         GRAPHRAG_DEFAULT_MODE) printf 'jena.graphrag.defaultMode' ;;
         GRAPHRAG_DEFAULT_TOP_K) printf 'jena.graphrag.defaultTopK' ;;
         GRAPHRAG_MAX_TOP_K) printf 'jena.graphrag.maxTopK' ;;
+        GRAPHRAG_DRIFT_COMMUNITY_TOP_K) printf 'jena.graphrag.drift.communityTopK' ;;
+        GRAPHRAG_DRIFT_MAX_FOLLOW_UPS) printf 'jena.graphrag.drift.maxFollowUps' ;;
+        GRAPHRAG_DRIFT_CONTEXT_TOKEN_BUDGET) printf 'jena.graphrag.drift.contextTokenBudget' ;;
+        GRAPHRAG_DRIFT_LOCAL_TOP_K) printf 'jena.graphrag.drift.localTopK' ;;
         GRAPHRAG_INDEX_MAX_CONTENT_LENGTH) printf 'jena.graphrag.index.maxContentLength' ;;
         GRAPHRAG_INGESTION_BASE_URI) printf 'jena.graphrag.ingestion.baseUri' ;;
         GRAPHRAG_INGESTION_CHUNK_SIZE) printf 'jena.graphrag.ingestion.chunkSize' ;;

@@ -44,9 +44,10 @@ import org.apache.jena.web.HttpSC;
  * {@link GraphRAGModule} when {@code grag:enableGraphRAG true} is present.
  * <p>
  * The action accepts {@code GET} and {@code POST} with query parameter
- * {@code q}, optional {@code mode=basic|local|global}, and optional
+ * {@code q}, optional {@code mode=basic|local|global|drift}, and optional
  * {@code topK}. It opens a read transaction around RDF retrieval, emits JSON,
- * and performs no LLM call or external network request.
+ * and never calls a chat/LLM provider. A DRIFT request performs the configured
+ * embedding lookup required by its typed community vector search.
  */
 public final class GraphRAGContextAction extends ActionREST {
 
@@ -114,7 +115,11 @@ public final class GraphRAGContextAction extends ActionREST {
 
         datasetGraph.begin(ReadWrite.READ);
         try {
-            GraphRAGContext context = contextService.retrieve(datasetGraph, mode, query, topK);
+            int effectiveTopK = GraphRAGContextService.DRIFT_MODE.equals(mode)
+                    ? Math.min(topK, configuration.driftCommunityTopK()) : topK;
+            GraphRAGContext context = contextService.retrieve(datasetGraph, mode, query, effectiveTopK);
+            if ( GraphRAGContextService.DRIFT_MODE.equals(mode) )
+                context = GraphRAGContextService.boundDriftContext(context, configuration.driftContextTokenBudget());
             writeJson(action, context);
         } catch (IllegalArgumentException ex) {
             writeError(action, ex.getMessage());

@@ -46,6 +46,7 @@ import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.vocabulary.GRAG;
 import org.apache.jena.vocabulary.RDF;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -106,6 +107,26 @@ public class RealProviderGraphRAGIT {
             assertTrue(answer.get("citations").getAsArray().size() >= 1);
             assertTrue(answer.get("citations").getAsArray().getFirst().getAsObject().get("uri").getAsString().value()
                     .startsWith("urn:graphrag:real-provider#chunk-"));
+
+            String driftQuery = "Which GraphRAG community publishes citations?";
+            HttpResponse<String> driftContextResponse = get(server,
+                    "context?q=" + queryParameter(driftQuery) + "&mode=drift&topK=1");
+            assertEquals(200, driftContextResponse.statusCode());
+            JsonObject driftContext = JSON.parse(driftContextResponse.body());
+            assertEquals("drift", driftContext.get("mode").getAsString().value());
+            assertEquals(1, driftContext.get("results").getAsArray().size());
+            assertEquals("urn:graphrag:real-provider:community", driftContext.get("results").getAsArray().getFirst()
+                    .getAsObject().get("communityUri").getAsString().value());
+
+            HttpResponse<String> driftAnswerResponse = get(server,
+                    "answer?q=" + queryParameter(driftQuery) + "&mode=drift&topK=1");
+            assertEquals(200, driftAnswerResponse.statusCode());
+            JsonObject driftAnswer = JSON.parse(driftAnswerResponse.body());
+            assertFalse(driftAnswer.get("answer").getAsString().value().isBlank());
+            assertTrue(driftAnswer.hasKey("reasonStop"));
+            assertTrue(driftAnswer.hasKey("followUpCount"));
+            assertEquals("urn:graphrag:real-provider:community", driftAnswer.get("citations").getAsArray().getFirst()
+                    .getAsObject().get("uri").getAsString().value());
         } finally {
             server.stop();
         }
@@ -127,7 +148,19 @@ public class RealProviderGraphRAGIT {
         configuration.createResource("urn:graphrag:real:service")
                 .addLiteral(GraphRAGAssemblerVocab.enableGraphRAG, true)
                 .addProperty(GraphRAGAssemblerVocab.graphragIndex, index);
-        return FusekiServer.create().port(0).add("/" + DATASET, DatasetFactory.createTxnMem())
+        org.apache.jena.query.Dataset dataset = DatasetFactory.createTxnMem();
+        dataset.begin(org.apache.jena.query.ReadWrite.WRITE);
+        try {
+            dataset.getDefaultModel().createResource("urn:graphrag:real-provider:community")
+                    .addProperty(RDF.type, GRAG.Community)
+                    .addProperty(GRAG.title, "Real-provider citation community")
+                    .addProperty(GRAG.summary, "The GraphRAG citation community publishes cited knowledge.")
+                    .addProperty(GRAG.fullContent, "The GraphRAG citation community publishes cited knowledge.");
+            dataset.commit();
+        } finally {
+            dataset.end();
+        }
+        return FusekiServer.create().port(0).add("/" + DATASET, dataset)
                 .parseConfig(configuration).fusekiModules(FusekiModules.create(new GraphRAGModule())).build().start();
     }
 
@@ -175,6 +208,10 @@ public class RealProviderGraphRAGIT {
         assertProjected(environment, "GRAPHRAG_DEFAULT_MODE", "jena.graphrag.defaultMode");
         assertProjected(environment, "GRAPHRAG_DEFAULT_TOP_K", "jena.graphrag.defaultTopK");
         assertProjected(environment, "GRAPHRAG_MAX_TOP_K", "jena.graphrag.maxTopK");
+        assertProjected(environment, "GRAPHRAG_DRIFT_COMMUNITY_TOP_K", "jena.graphrag.drift.communityTopK");
+        assertProjected(environment, "GRAPHRAG_DRIFT_MAX_FOLLOW_UPS", "jena.graphrag.drift.maxFollowUps");
+        assertProjected(environment, "GRAPHRAG_DRIFT_CONTEXT_TOKEN_BUDGET", "jena.graphrag.drift.contextTokenBudget");
+        assertProjected(environment, "GRAPHRAG_DRIFT_LOCAL_TOP_K", "jena.graphrag.drift.localTopK");
         assertProjected(environment, "GRAPHRAG_INDEX_MAX_CONTENT_LENGTH", "jena.graphrag.index.maxContentLength");
         assertProjected(environment, "GRAPHRAG_INGESTION_BASE_URI", "jena.graphrag.ingestion.baseUri");
         assertProjected(environment, "GRAPHRAG_INGESTION_CHUNK_SIZE", "jena.graphrag.ingestion.chunkSize");

@@ -54,11 +54,16 @@ import org.apache.jena.rdf.model.StmtIterator;
  * @param maxIndexContentLength maximum accepted {@code /graphrag/index} content length
  * @param maxActiveTasks maximum number of concurrently active GraphRAG tasks
  * @param maxRetainedCompletedTasks maximum number of completed task records retained in memory
+ * @param driftCommunityTopK hard upper bound of community reports used by a DRIFT primer
+ * @param driftMaxFollowUps hard upper bound of local DRIFT follow-ups
+ * @param driftContextTokenBudget maximum approximate token budget passed to DRIFT chat calls
+ * @param driftLocalTopK maximum local context results resolved for each DRIFT follow-up
  * @param systemPrompt optional system prompt resolved from the configured environment variable
  */
 record GraphRAGConfiguration(String defaultMode, int defaultTopK, int maxTopK, double hybridAlpha,
                              int maxIndexContentLength, int maxActiveTasks, int maxRetainedCompletedTasks,
-                             String systemPrompt) {
+                             int driftCommunityTopK, int driftMaxFollowUps, int driftContextTokenBudget,
+                             int driftLocalTopK, String systemPrompt) {
 
     /** System property overriding the default retrieval mode. */
     static final String DEFAULT_MODE_PROPERTY = "jena.graphrag.defaultMode";
@@ -74,6 +79,14 @@ record GraphRAGConfiguration(String defaultMode, int defaultTopK, int maxTopK, d
     static final String MAX_ACTIVE_TASKS_PROPERTY = "jena.graphrag.tasks.maxActive";
     /** System property overriding completed GraphRAG task retention. */
     static final String MAX_RETAINED_COMPLETED_TASKS_PROPERTY = "jena.graphrag.tasks.maxRetainedCompleted";
+    /** System property overriding the maximum DRIFT community reports in a primer. */
+    static final String DRIFT_COMMUNITY_TOP_K_PROPERTY = "jena.graphrag.drift.communityTopK";
+    /** System property overriding the maximum DRIFT local follow-ups. */
+    static final String DRIFT_MAX_FOLLOW_UPS_PROPERTY = "jena.graphrag.drift.maxFollowUps";
+    /** System property overriding the DRIFT chat-context token budget. */
+    static final String DRIFT_CONTEXT_TOKEN_BUDGET_PROPERTY = "jena.graphrag.drift.contextTokenBudget";
+    /** System property overriding the local result limit for each DRIFT follow-up. */
+    static final String DRIFT_LOCAL_TOP_K_PROPERTY = "jena.graphrag.drift.localTopK";
 
     private static final String FALLBACK_MODE = GraphRAGContextService.LOCAL_MODE;
     private static final int FALLBACK_DEFAULT_TOP_K = 5;
@@ -82,11 +95,16 @@ record GraphRAGConfiguration(String defaultMode, int defaultTopK, int maxTopK, d
     private static final int FALLBACK_MAX_INDEX_CONTENT_LENGTH = 1_000_000;
     private static final int FALLBACK_MAX_ACTIVE_TASKS = 2;
     private static final int FALLBACK_MAX_RETAINED_COMPLETED_TASKS = 100;
+    private static final int FALLBACK_DRIFT_COMMUNITY_TOP_K = 5;
+    private static final int FALLBACK_DRIFT_MAX_FOLLOW_UPS = 3;
+    private static final int FALLBACK_DRIFT_CONTEXT_TOKEN_BUDGET = 4096;
+    private static final int FALLBACK_DRIFT_LOCAL_TOP_K = 1;
 
     GraphRAGConfiguration(String defaultMode, int defaultTopK, int maxTopK, double hybridAlpha,
                           int maxIndexContentLength, int maxActiveTasks, int maxRetainedCompletedTasks) {
         this(defaultMode, defaultTopK, maxTopK, hybridAlpha, maxIndexContentLength, maxActiveTasks,
-                maxRetainedCompletedTasks, "");
+                maxRetainedCompletedTasks, FALLBACK_DRIFT_COMMUNITY_TOP_K, FALLBACK_DRIFT_MAX_FOLLOW_UPS,
+                FALLBACK_DRIFT_CONTEXT_TOKEN_BUDGET, FALLBACK_DRIFT_LOCAL_TOP_K, "");
     }
 
     GraphRAGConfiguration(String defaultMode, int defaultTopK, int maxTopK, double hybridAlpha) {
@@ -109,6 +127,14 @@ record GraphRAGConfiguration(String defaultMode, int defaultTopK, int maxTopK, d
             throw new IllegalArgumentException("maxActiveTasks doit etre positif");
         if ( maxRetainedCompletedTasks < 1 )
             throw new IllegalArgumentException("maxRetainedCompletedTasks doit etre positif");
+        if ( driftCommunityTopK < 1 || driftCommunityTopK > maxTopK )
+            throw new IllegalArgumentException("driftCommunityTopK doit etre compris entre 1 et maxTopK");
+        if ( driftMaxFollowUps < 1 )
+            throw new IllegalArgumentException("driftMaxFollowUps doit etre positif");
+        if ( driftContextTokenBudget < 1 )
+            throw new IllegalArgumentException("driftContextTokenBudget doit etre positif");
+        if ( driftLocalTopK < 1 || driftLocalTopK > maxTopK )
+            throw new IllegalArgumentException("driftLocalTopK doit etre compris entre 1 et maxTopK");
         Objects.requireNonNull(systemPrompt, "systemPrompt");
     }
 
@@ -129,8 +155,14 @@ record GraphRAGConfiguration(String defaultMode, int defaultTopK, int maxTopK, d
         int maxActiveTasks = Integer.getInteger(MAX_ACTIVE_TASKS_PROPERTY, FALLBACK_MAX_ACTIVE_TASKS);
         int maxRetainedCompletedTasks = Integer.getInteger(MAX_RETAINED_COMPLETED_TASKS_PROPERTY,
             FALLBACK_MAX_RETAINED_COMPLETED_TASKS);
+        int driftCommunityTopK = Integer.getInteger(DRIFT_COMMUNITY_TOP_K_PROPERTY, FALLBACK_DRIFT_COMMUNITY_TOP_K);
+        int driftMaxFollowUps = Integer.getInteger(DRIFT_MAX_FOLLOW_UPS_PROPERTY, FALLBACK_DRIFT_MAX_FOLLOW_UPS);
+        int driftContextTokenBudget = Integer.getInteger(DRIFT_CONTEXT_TOKEN_BUDGET_PROPERTY,
+            FALLBACK_DRIFT_CONTEXT_TOKEN_BUDGET);
+        int driftLocalTopK = Integer.getInteger(DRIFT_LOCAL_TOP_K_PROPERTY, FALLBACK_DRIFT_LOCAL_TOP_K);
         return new GraphRAGConfiguration(defaultMode, defaultTopK, maxTopK, hybridAlpha,
-            maxIndexContentLength, maxActiveTasks, maxRetainedCompletedTasks);
+            maxIndexContentLength, maxActiveTasks, maxRetainedCompletedTasks, driftCommunityTopK,
+            driftMaxFollowUps, driftContextTokenBudget, driftLocalTopK, "");
     }
 
     /**
@@ -164,7 +196,8 @@ record GraphRAGConfiguration(String defaultMode, int defaultTopK, int maxTopK, d
         }
         return new GraphRAGConfiguration(fallback.defaultMode(), fallback.defaultTopK(), fallback.maxTopK(),
                 configuredHybridAlpha, fallback.maxIndexContentLength(), fallback.maxActiveTasks(),
-                fallback.maxRetainedCompletedTasks(), systemPrompt(configModel, environment));
+                fallback.maxRetainedCompletedTasks(), fallback.driftCommunityTopK(), fallback.driftMaxFollowUps(),
+                fallback.driftContextTokenBudget(), fallback.driftLocalTopK(), systemPrompt(configModel, environment));
     }
 
     private static String systemPrompt(Model configModel, Map<String, String> environment) {
