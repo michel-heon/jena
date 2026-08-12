@@ -111,7 +111,7 @@ public class RealProviderGraphRAGIT {
             String driftQuery = "Which GraphRAG community publishes citations?";
             HttpResponse<String> driftContextResponse = get(server,
                     "context?q=" + queryParameter(driftQuery) + "&mode=drift&topK=1");
-            assertEquals(200, driftContextResponse.statusCode());
+            assertEquals(200, driftContextResponse.statusCode(), driftContextResponse.body());
             JsonObject driftContext = JSON.parse(driftContextResponse.body());
             assertEquals("drift", driftContext.get("mode").getAsString().value());
             assertEquals(1, driftContext.get("results").getAsArray().size());
