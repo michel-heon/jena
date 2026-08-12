@@ -68,14 +68,13 @@ Le statut `accepted` signifie que la décision importée et adaptée est retenue
 | Structure Maven et intégration au profil `graphrag` | Aucun ADR dédié | À décider |
 | Contrats détaillés des endpoints Fuseki | Aucun ADR dédié | À décider |
 | Sécurité des services réels, secrets et artefacts | ADR-002, ADR-101, ADR-602 | Partielle |
-| Stratégie globale des suites, prérequis et politiques d'échec | Aucun ADR TEST dédié | À décider |
+| Stratégie globale des suites, prérequis et politiques d'échec | ADR-700 | Partielle : classification proposée ; politiques globales de prérequis et d'échec à compléter |
 
 L'ensemble actuel est cohérent mais incomplet pour lancer l'implémentation sans décisions supplémentaires. Les prochains ADR structurants attendus sont :
 
 - un ADR `INFRA` pour le module Maven, son ordre dans le profil et le cycle Maven des tests d'intégration ;
 - un ADR `SEC` pour le réseau, les secrets, l'expurgation des traces et les fournisseurs externes ;
-- un ADR `API` pour la matrice exacte des routes, méthodes, statuts et schémas observables ;
-- un ADR `TEST` pour les suites JUnit/Playwright, les prérequis, les catégories et la politique d'échec.
+- un ADR `API` pour la matrice exacte des routes, méthodes, statuts et schémas observables.
 
 ## Documents du système ADR
 
@@ -144,6 +143,12 @@ Le répertoire source consulté le 2026-08-08 ne contient aucun ADR-001. Aucun d
 | [602](./602-DEVOPS-makefile-orchestrateur.md) | Makefile racine comme orchestrateur des tests d'intégration GraphRAG | Accepté | 2026-08-08 | DevOps |
 | [608](./608-DEVOPS-non-duplication-fonctionnelle-transversale.md) | Non-duplication fonctionnelle dans la qualification GraphRAG | Accepté | 2026-08-08 | DevOps |
 
+### TEST - Stratégie et qualification (700-799)
+
+| ADR | Titre | Statut | Date | Domaine |
+|-----|-------|--------|------|---------|
+| [700](./700-TEST-classification-types-tests-api.md) | Classification et couverture des types de tests d'API GraphRAG | Proposé | 2026-08-12 | Tests |
+
 ### DOC - Documentation Java (900-999)
 
 | ADR | Titre | Statut | Date | Domaine |
@@ -154,12 +159,12 @@ Le répertoire source consulté le 2026-08-08 ne contient aucun ADR-001. Aucun d
 
 | Indicateur | Valeur |
 |------------|--------|
-| **Total** | 14 |
+| **Total** | 15 |
 | **Acceptés** | 14 |
-| **Proposés** | 0 |
+| **Proposés** | 1 |
 | **Brouillons** | 0 |
 | **Dépréciés ou supersédés** | 0 |
-| **Par domaine** | META : 3, ARCH : 1, DATA : 4, API : 1, DEVOPS : 4, DOC : 1 |
+| **Par domaine** | META : 3, ARCH : 1, DATA : 4, API : 1, DEVOPS : 4, TEST : 1, DOC : 1 |
 
 ## Numérotation
 
@@ -172,7 +177,7 @@ Le répertoire source consulté le 2026-08-08 ne contient aucun ADR-001. Aucun d
 | `DATA` | 400-499 | Corpus, fixtures et index | 404 |
 | `API` | 500-599 | Contrats HTTP, Fuseki et SPARQL | 501 |
 | `DEVOPS` | 600-699 | CI et automatisation | 603 |
-| `TEST` | 700-799 | Stratégie et qualification | 700 |
+| `TEST` | 700-799 | Stratégie et qualification | 701 |
 | `BIZ` | 800-899 | Critères produit et livraison | 800 |
 | `DOC` | 900-999 | Documentation | 901 |
 
@@ -198,4 +203,4 @@ Le répertoire source consulté le 2026-08-08 ne contient aucun ADR-001. Aucun d
 - [Documentation Apache Jena](https://jena.apache.org/documentation/)
 - [Architecture Decision Records](https://adr.github.io/)
 
-_Dernière mise à jour : 2026-08-11_
+_Dernière mise à jour : 2026-08-12_
