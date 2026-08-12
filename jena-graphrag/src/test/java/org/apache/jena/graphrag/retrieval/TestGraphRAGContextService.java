@@ -29,6 +29,7 @@ import java.io.InputStream;
 
 import org.apache.jena.graphrag.GraphRAGImporter;
 import org.apache.jena.graphrag.index.GraphRAGTextDatasetFactory;
+import org.apache.jena.graphrag.index.LuceneVectorIndex;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.query.ReadWrite;
@@ -37,6 +38,7 @@ import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.vocabulary.GRAG;
 import org.apache.jena.vocabulary.RDF;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.junit.jupiter.api.Test;
 
@@ -136,6 +138,35 @@ public class TestGraphRAGContextService {
             assertTrue(result.score() > 0.0);
         } finally {
             dataset.end();
+        }
+    }
+
+    @Test
+    public void retrieveBasic_usesOnlyNearestVectorChunksWhenVectorSearchIsConfigured() {
+        Dataset dataset = DatasetFactory.createTxnMem();
+        dataset.begin(ReadWrite.WRITE);
+        try {
+            addChunk(dataset, "urn:chunk:lexical", "The lexical query term appears here.");
+            addChunk(dataset, "urn:chunk:vector", "A semantically related passage.");
+            dataset.commit();
+        } finally {
+            dataset.end();
+        }
+        try (LuceneVectorIndex vectorIndex = new LuceneVectorIndex(new ByteBuffersDirectory(), 2,
+                VectorSimilarityFunction.EUCLIDEAN)) {
+            vectorIndex.index("urn:chunk:lexical", new float[] { 0.0f, 1.0f });
+            vectorIndex.index("urn:chunk:vector", new float[] { 1.0f, 0.0f });
+            GraphRAGContextService service = new GraphRAGContextService(
+                    new GraphRAGSearchService(vectorIndex, (text, dimension) -> new float[] { 1.0f, 0.0f }, 2));
+
+            dataset.begin(ReadWrite.READ);
+            try {
+                GraphRAGContext context = service.retrieve(dataset.asDatasetGraph(), "basic", "lexical", 1);
+                assertEquals(1, context.results().size());
+                assertEquals("urn:chunk:vector", context.results().getFirst().uri());
+            } finally {
+                dataset.end();
+            }
         }
     }
 
@@ -257,6 +288,20 @@ public class TestGraphRAGContextService {
             assertEquals("urn:graphrag:reference:community-governance", context.results().get(0).uri());
             assertEquals("urn:graphrag:reference:community-platform", context.results().get(1).uri());
             assertEquals("urn:graphrag:reference:community-retrieval", context.results().get(2).uri());
+        } finally {
+            dataset.end();
+        }
+    }
+
+    @Test
+    public void retrieve_respectsTopKForEveryMode() {
+        Dataset dataset = referenceDataset();
+        dataset.begin(ReadWrite.READ);
+        try {
+            GraphRAGContextService service = new GraphRAGContextService();
+            assertEquals(1, service.retrieve(dataset.asDatasetGraph(), "basic", "semantic retrieval", 1).results().size());
+            assertEquals(1, service.retrieve(dataset.asDatasetGraph(), "local", "GraphRAG", 1).results().size());
+            assertEquals(1, service.retrieve(dataset.asDatasetGraph(), "global", "GraphRAG", 1).results().size());
         } finally {
             dataset.end();
         }

@@ -43,13 +43,15 @@ DATASET := $(GRAPHRAG_TUTORIAL_DATASET)
 CHAT_MODE_QUESTION ?= What is GraphRAG?
 CHAT_MODE_REQUIRE_MIXED_LOCAL ?= false
 CHAT_MODE_REQUIRE_MULTIPLE_GLOBAL ?= false
+TOP_K ?= 1
+export QUESTION MODE TOP_K
 SYSTEM_PROMPT := Answer only from the ingested GraphRAG research PDF corpus. Cite retrieved sources and say when the corpus lacks the answer. When the sources mention GraphDB, Elasticsearch, LM Studio, or LangChain, identify them as components of the described RDF integration or corpus, not requirements of generic Microsoft GraphRAG.
 FUSEKI_URL = http://127.0.0.1:$$(cat "$(PORT_FILE)")
 WINDOWS_FUSEKI_URL = http://$$(hostname -I | awk '{print $$1}'):$$(cat "$(PORT_FILE)")
 
 .PHONY: help providers-bootstrap pdfs-check project-prepare corpus-materialize \
 	corpus-semantic-extract fuseki-start fuseki-ping fuseki-status fuseki-open graphrag-config indexing-start indexing-status \
-	indexing-wait corpus-verify-pdfs corpus-statistic graph-cat ttt-cat entities-list relationships-list communities-list findings-list chat-ask-questions chat-ask-modes chat-question context-question fuseki-stop tutorial-clean tutorial-run
+	indexing-wait corpus-verify-pdfs corpus-statistic graph-cat ttt-cat entities-list relationships-list communities-list findings-list chat-ask-questions chat-ask-modes chat-qualify-mode chat-qualify-basic-vector chat-question context-question fuseki-stop tutorial-clean tutorial-run
 
 help: ## Display tutorial steps
 	@printf '%s\n' \
@@ -89,6 +91,7 @@ help: ## Display tutorial steps
 		'  findings-list             List extracted findings from the local Turtle corpus.' \
 		'  chat-ask-questions        Run the five tutorial questions.' \
 		'  chat-ask-modes            Qualify basic, local, and global with real providers.' \
+		'  chat-qualify-mode         Qualify context and citations: QUESTION="..." MODE=basic TOP_K=1.' \
 		'  chat-question             Ask one question: make chat-question QUESTION="..." MODE=local' \
 		'  context-question          Inspect context: make context-question QUESTION="..." MODE=local' \
 		'' \
@@ -287,6 +290,22 @@ chat-ask-modes: ## Qualify basic, local, and global answers against their retrie
 		echo; \
 	done
 
+chat-qualify-mode: ## Qualify a mode context and answer with QUESTION, MODE and TOP_K options
+	@set -e; \
+	question="$${QUESTION:-What is GraphRAG?}"; \
+	mode="$${MODE:-basic}"; \
+	top_k="$${TOP_K:-1}"; \
+	[[ "$$mode" == basic || "$$mode" == local || "$$mode" == global ]] || { echo 'MODE must be basic, local, or global.' >&2; exit 1; }; \
+	[[ "$$top_k" =~ ^[1-9][0-9]*$$ && "$$top_k" -le 100 ]] || { echo 'TOP_K must be an integer from 1 to 100.' >&2; exit 1; }; \
+	echo "Question: $$question"; \
+	echo "Mode: $$mode"; \
+	echo "Top K: $$top_k"; \
+	context=$$(curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/graphrag/context" --data-urlencode "q=$$question" --data-urlencode "mode=$$mode" --data-urlencode "topK=$$top_k"); \
+	response=$$(curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/graphrag/answer" --data-urlencode "q=$$question" --data-urlencode "mode=$$mode" --data-urlencode "topK=$$top_k"); \
+	CONTEXT="$$context" RESPONSE="$$response" MODE="$$mode" TOP_K="$$top_k" node -e 'const context = JSON.parse(process.env.CONTEXT); const response = JSON.parse(process.env.RESPONSE); const mode = process.env.MODE; const topK = Number(process.env.TOP_K); const abstention = "Aucun contexte GraphRAG correspondant a la question."; const allowedTypes = {basic: ["chunk"], local: ["relationship", "entity", "chunk", "community"], global: ["community"]}; const results = context.results ?? []; const citations = response.citations ?? []; const expected = results.map(result => [result.uri, result.sourceText]); const actual = citations.map(citation => [citation.uri, citation.text]); if (context.mode !== mode || results.length > topK || results.some(result => !allowedTypes[mode].includes(result.type)) || !response.answer?.trim()) process.exit(1); if (response.answer === abstention) { if (results.length !== 0 || citations.length !== 0) process.exit(1); console.log("Qualification passed: abstention without context."); process.exit(0); } if (results.length === 0 || JSON.stringify(actual) !== JSON.stringify(expected)) process.exit(1); console.log("Mode qualification passed."); console.log("Context resources: " + results.length); console.log("Answer: " + response.answer.trim());';
+
+chat-qualify-basic-vector: chat-qualify-mode ## Backward-compatible alias for basic vector qualification
+
 chat-question: ## Ask QUESTION and display citations, optionally using MODE=basic, local, or global
 	@[[ -n "$(QUESTION)" ]] || { echo 'Usage: make chat-question QUESTION="Your question" [MODE=local]' >&2; exit 1; }
 	@[[ -z "$(MODE)" || "$(MODE)" == basic || "$(MODE)" == local || "$(MODE)" == global ]] || { echo 'MODE must be basic, local, or global.' >&2; exit 1; }
@@ -303,7 +322,7 @@ context-question: ## Retrieve context for QUESTION with MODE=basic, local, or gl
 	metrics=$$(curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/sparql" \
 		--data-urlencode 'query=PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> SELECT (COUNT(DISTINCT ?entity) AS ?entities) (COUNT(DISTINCT ?relationship) AS ?relationships) (COUNT(DISTINCT ?community) AS ?communities) WHERE { OPTIONAL { ?entity a grag:Entity . } OPTIONAL { ?relationship a grag:Relationship . } OPTIONAL { ?community a grag:Community . } }' \
 		--data-urlencode 'format=application/sparql-results+json'); \
-	CONTEXT="$$context" METRICS="$$metrics" MODE="$(MODE)" node -e 'const context = JSON.parse(process.env.CONTEXT); const metrics = JSON.parse(process.env.METRICS).results.bindings[0]; const count = name => metrics[name]?.value ?? "0"; console.log(JSON.stringify(context, null, 2)); if (context.results.length !== 0) process.exit(0); console.log("No context result."); console.log("Graph entities: " + count("entities") + ", relationships: " + count("relationships") + ", communities: " + count("communities") + "."); if (process.env.MODE === "basic") console.log("basic uses the configured text index, or a literal fallback match when no text index is available."); if (process.env.MODE === "local") console.log("local requires GraphRAG entities and relationships; PDF ingestion alone creates documents and chunks only."); if (process.env.MODE === "global") console.log("global requires indexed GraphRAG communities with summary or fullContent values.");'
+	CONTEXT="$$context" METRICS="$$metrics" MODE="$(MODE)" node -e 'const context = JSON.parse(process.env.CONTEXT); const metrics = JSON.parse(process.env.METRICS).results.bindings[0]; const count = name => metrics[name]?.value ?? "0"; console.log(JSON.stringify(context, null, 2)); if (context.results.length !== 0) process.exit(0); console.log("No context result."); console.log("Graph entities: " + count("entities") + ", relationships: " + count("relationships") + ", communities: " + count("communities") + "."); if (process.env.MODE === "basic") console.log("basic requires vector-indexed chunks when a GraphRAG index is configured; otherwise it uses the text or literal fallback."); if (process.env.MODE === "local") console.log("local requires GraphRAG entities and relationships; PDF ingestion alone creates documents and chunks only."); if (process.env.MODE === "global") console.log("global requires indexed GraphRAG communities with summary or fullContent values.");'
 
 fuseki-stop: ## Stop the tutorial Fuseki process
 	@if [[ -f "$(PID_FILE)" ]]; then \
@@ -319,5 +338,5 @@ tutorial-clean: fuseki-stop ## Remove all temporary tutorial state
 	@rm -rf "$(WORK_DIR)"
 	@echo "Tutorial state removed."
 
-tutorial-run: providers-bootstrap pdfs-check project-prepare corpus-materialize fuseki-start fuseki-ping graphrag-config indexing-start indexing-wait corpus-verify-pdfs chat-ask-questions ## Run every tutorial step in sequence
+tutorial-run: providers-bootstrap pdfs-check project-prepare corpus-materialize fuseki-start fuseki-ping graphrag-config indexing-start indexing-wait corpus-verify-pdfs chat-ask-questions chat-qualify-mode ## Run every tutorial step in sequence
 	@echo "Tranche 7 tutorial completed successfully. Run make fuseki-stop when you are finished with Fuseki."

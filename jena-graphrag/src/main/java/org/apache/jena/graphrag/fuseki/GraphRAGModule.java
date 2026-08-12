@@ -50,6 +50,7 @@ import org.apache.jena.graphrag.index.GraphRAGIndex;
 import org.apache.jena.graphrag.ingestion.ChunkVectorizationService;
 import org.apache.jena.graphrag.provider.MockChatCompletionProvider;
 import org.apache.jena.graphrag.provider.ProviderException;
+import org.apache.jena.graphrag.retrieval.GraphRAGContextService;
 import org.apache.jena.graphrag.retrieval.GraphRAGSearchService;
 import org.apache.jena.fuseki.servlets.ActionREST;
 import org.apache.jena.fuseki.servlets.HttpAction;
@@ -122,7 +123,7 @@ public final class GraphRAGModule implements FusekiModule {
                     configuration.maxRetainedCompletedTasks());
             GraphRAGIndexingService indexingService = new GraphRAGIndexingService(indexingDataset(datasetGraph), taskService,
                 configuration, configuredIndex());
-            builder.addProcessor(name + "/graphrag/context", new GraphRAGContextAction(datasetGraph, configuration));
+            builder.addProcessor(name + "/graphrag/context", contextAction(datasetGraph, configuration));
             builder.addProcessor(name + "/graphrag/search", searchAction(datasetGraph, configuration));
             builder.addProcessor(name + "/graphrag/answer", answerActionFactory == null
                     ? answerAction(datasetGraph, configuration)
@@ -181,7 +182,18 @@ public final class GraphRAGModule implements FusekiModule {
         GraphRAGSearchService searchService = new GraphRAGSearchService(index.textIndex(), index.vectorIndex(),
             index.embeddingProvider(), index.vectorDimension());
         DatasetGraph searchDatasetGraph = searchService.attachTextIndex(datasetGraph);
-        return new GraphRAGAnswerAction(searchDatasetGraph, configuration, searchService, index.chatCompletionProvider());
+        return new GraphRAGAnswerAction(searchDatasetGraph, configuration, searchService, index.chatCompletionProvider(),
+            new GraphRAGContextService(searchService));
+    }
+
+    private synchronized GraphRAGContextAction contextAction(DatasetGraph datasetGraph, GraphRAGConfiguration configuration) {
+        if ( configuredIndexes.isEmpty() )
+            return new GraphRAGContextAction(datasetGraph, configuration);
+        GraphRAGIndex index = configuredIndexes.getFirst();
+        GraphRAGSearchService searchService = new GraphRAGSearchService(index.textIndex(), index.vectorIndex(),
+                index.embeddingProvider(), index.vectorDimension());
+        DatasetGraph searchDatasetGraph = searchService.attachTextIndex(datasetGraph);
+        return new GraphRAGContextAction(searchDatasetGraph, configuration, new GraphRAGContextService(searchService));
     }
 
     private synchronized GraphRAGSearchAction searchAction(DatasetGraph datasetGraph, GraphRAGConfiguration configuration) {

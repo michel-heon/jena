@@ -69,6 +69,10 @@ final class ExtractionJson {
         return new ProviderException("Provider returned invalid extraction JSON", cause);
     }
 
+    static boolean isInvalid(ProviderException exception) {
+        return "Provider returned invalid extraction JSON".equals(exception.getMessage());
+    }
+
     private static String unfence(String response) {
         String value = response.strip();
         if ( !value.startsWith("```") )

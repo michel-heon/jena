@@ -79,6 +79,26 @@ public class RealProviderGraphRAGIT {
                 assertTrue(search.get("results").getAsArray().getFirst().getAsObject().get("uri").getAsString().value()
                     .startsWith("urn:graphrag:real-provider#chunk-"));
 
+                HttpResponse<String> basicContextResponse = get(server,
+                    "context?q=" + queryParameter(QUERY) + "&mode=basic&topK=1");
+                assertEquals(200, basicContextResponse.statusCode());
+                JsonObject basicContext = JSON.parse(basicContextResponse.body());
+                assertEquals(1, basicContext.get("results").getAsArray().size());
+                assertEquals("chunk", basicContext.get("results").getAsArray().getFirst().getAsObject()
+                    .get("type").getAsString().value());
+                assertTrue(basicContext.get("results").getAsArray().getFirst().getAsObject()
+                    .get("uri").getAsString().value().startsWith("urn:graphrag:real-provider#chunk-"));
+
+                HttpResponse<String> basicAnswerResponse = get(server,
+                    "answer?q=" + queryParameter(QUERY) + "&mode=basic&topK=1");
+                assertEquals(200, basicAnswerResponse.statusCode());
+                JsonObject basicAnswer = JSON.parse(basicAnswerResponse.body());
+                assertFalse(basicAnswer.get("answer").getAsString().value().isBlank());
+                assertEquals(1, basicAnswer.get("citations").getAsArray().size());
+                assertEquals(basicContext.get("results").getAsArray().getFirst().getAsObject()
+                    .get("uri").getAsString().value(), basicAnswer.get("citations").getAsArray().getFirst()
+                    .getAsObject().get("uri").getAsString().value());
+
                 HttpResponse<String> answerResponse = get(server, "answer?q=" + queryParameter(QUERY));
                 assertEquals(200, answerResponse.statusCode());
                 JsonObject answer = JSON.parse(answerResponse.body());

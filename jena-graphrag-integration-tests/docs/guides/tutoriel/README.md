@@ -50,7 +50,7 @@ La cible crée la projection ignorée `env/generated/real-providers.env.sh`. Si 
 make pdfs-check
 ```
 
-Résultat attendu: le nombre de PDF configuré dans `GRAPHRAG_TUTORIAL_EXPECTED_PDF_COUNT`. Le profil local de développement utilise deux PDF dans `pdf-development`; le modèle d'environnement conserve le corpus complet de douze PDF.
+Résultat attendu: le nombre de PDF configuré dans `GRAPHRAG_TUTORIAL_EXPECTED_PDF_COUNT`. Le profil local de développement utilise trois PDF dans `pdf-development`, dont la référence GraphRAG local-to-global; le modèle d'environnement conserve le corpus complet de douze PDF.
 
 ## Étape 3: compiler et construire le classpath
 
@@ -176,9 +176,17 @@ Pour qualifier les trois modes avec les fournisseurs réels configurés, exécut
 make chat-ask-modes
 ```
 
+Pour qualifier un contexte et sa réponse dans le tutoriel, après `indexing-wait`, exécuter:
+
+```bash
+make chat-qualify-mode QUESTION="What is GraphRAG?" MODE=basic TOP_K=1
+```
+
+`QUESTION`, `MODE=basic|local|global` et `TOP_K=1..100` sont des options. Sans argument, la cible utilise `What is GraphRAG?`, `basic` et `1`. Elle compare systématiquement les citations de `/graphrag/answer` aux ressources et passages de `/graphrag/context`, vérifie le type de ressource propre au mode et le plafond `TOP_K`, ou accepte uniquement l'abstention déterministe sans contexte ni citation. Avec `MODE=basic` et un serveur tutoriel indexé, le contexte provient de la recherche vectorielle. `make chat-qualify-basic-vector` reste un alias compatible de la qualification `basic` par défaut.
+
 La commande pose la même question aux trois modes, `What is GraphRAG?` par défaut, afin de comparer directement leurs contextes et réponses. Elle est configurable avec `make chat-ask-modes CHAT_MODE_QUESTION="..."`. Elle compare les citations de `/graphrag/answer` aux ressources et passages de `/graphrag/context`. Lorsqu'un contexte existe, elle vérifie aussi les types attendus : chunks pour `basic`, ressources mixtes GraphRAG pour `local`, et communautés pour `global`. Elle rejette une réponse qui présente GraphDB, Elasticsearch, LM Studio ou LangChain comme des composants génériques de Microsoft GraphRAG, ou qui ne les rattache pas au corpus ou à l'intégration RDF décrite. Elle affiche une réponse citée lorsque le contexte existe, ou une abstention conforme lorsque le mode ne trouve aucune ressource.
 
-Le corpus de développement est volontairement limité à deux PDF sur une intégration RDF de GraphRAG. Il ne démontre pas que `basic` est une recherche vectorielle top-k et peut ne fournir qu'un rapport `global`. Dans ce cas, la commande affiche une limite de qualification. Pour les traiter comme des échecs avec un corpus qui les permet, lancer `make chat-ask-modes CHAT_MODE_REQUIRE_MIXED_LOCAL=true CHAT_MODE_REQUIRE_MULTIPLE_GLOBAL=true`. La qualification vérifie ainsi la traçabilité et les types sans rejeter une réponse qui reprend les composants RDF lorsque les citations les étayent. Cette commande effectue des appels réels au fournisseur de chat et consomme donc du quota.
+Le corpus de développement est volontairement limité à trois PDF, dont deux sur une intégration RDF de GraphRAG et une référence GraphRAG local-to-global. Avec un index GraphRAG configuré, `basic` interroge les chunks top-k du vecteur; sans index configuré, il conserve le repli texte/littéral pour l'inspection RDF. Pour traiter l'absence de contexte local mixte ou de plusieurs rapports `global` comme des échecs, lancer `make chat-ask-modes CHAT_MODE_REQUIRE_MIXED_LOCAL=true CHAT_MODE_REQUIRE_MULTIPLE_GLOBAL=true`. La qualification vérifie ainsi la traçabilité et les types sans rejeter une réponse qui reprend les composants RDF lorsque les citations les étayent. Cette commande effectue des appels réels au fournisseur de chat et consomme donc du quota.
 
 `context-question` reste une commande de diagnostic: elle interroge `/graphrag/context`, affiche le contexte RDF brut et n'appelle aucun fournisseur ni LLM. Pour inspecter directement ce contexte avec un mode donné, utiliser l'une des valeurs `basic`, `local` ou `global`:
 
@@ -186,7 +194,7 @@ Le corpus de développement est volontairement limité à deux PDF sur une inté
 make context-question QUESTION="What is GraphRAG?" MODE=local
 ```
 
-L'extraction sémantique de l'étape 5 crée les entités, relations et communautés nécessaires aux modes `local` et `global`. Lorsqu'il n'y a aucun résultat, la cible affiche les compteurs correspondants et la précondition du mode. Le mode `basic` nécessite un index texte ou une correspondance littérale avec le texte des chunks.
+L'extraction sémantique de l'étape 5 crée les entités, relations et communautés nécessaires aux modes `local` et `global`. Lorsqu'il n'y a aucun résultat, la cible affiche les compteurs correspondants et la précondition du mode. Avec l'index GraphRAG configuré, `basic` exige des chunks vectoriels; sinon, la cible utilise l'index texte ou une correspondance littérale.
 
 Pour inspecter les communautés disponibles pour le mode `global`:
 

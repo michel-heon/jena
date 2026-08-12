@@ -106,7 +106,7 @@ public final class PdfCorpusMaterializer {
         String endpoint = System.getenv(CHAT_ENDPOINT);
         String apiKey = System.getenv(CHAT_API_KEY);
         String model = System.getenv(CHAT_MODEL);
-        ProviderConfiguration providerConfiguration = new ProviderConfiguration(true, Duration.ofSeconds(30), 4096);
+        ProviderConfiguration providerConfiguration = new ProviderConfiguration(true, Duration.ofSeconds(30), 16_384);
         return new ChunkExtractionService(config.baseUri(),
                 new HttpEntityExtractor(providerConfiguration, URI.create(endpoint), model, apiKey),
                 new HttpRelationshipExtractor(providerConfiguration, URI.create(endpoint), model, apiKey),

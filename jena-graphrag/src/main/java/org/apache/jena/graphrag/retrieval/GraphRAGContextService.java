@@ -37,7 +37,11 @@ import org.apache.jena.query.text.DatasetGraphText;
 import org.apache.jena.query.text.TextQuery;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
+import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.rdf.model.Statement;
 import org.apache.jena.sparql.core.DatasetGraph;
+import org.apache.jena.vocabulary.GRAG;
+import org.apache.jena.vocabulary.RDF;
 
 /**
  * Retrieves context directly from a normalized GraphRAG RDF graph.
@@ -54,6 +58,17 @@ public final class GraphRAGContextService {
     public static final String GLOBAL_MODE = "global";
 
     private static final int TEXT_EXPANSION_FACTOR = 5;
+
+    private final GraphRAGSearchService searchService;
+
+    public GraphRAGContextService() {
+        this(null);
+    }
+
+    /** Creates a context service that uses the supplied vector search for basic mode. */
+    public GraphRAGContextService(GraphRAGSearchService searchService) {
+        this.searchService = searchService;
+    }
 
     private static final String BASIC_QUERY = """
                         PREFIX text: <http://jena.apache.org/text#>
@@ -246,7 +261,9 @@ public final class GraphRAGContextService {
         return BASIC_MODE.equals(mode) || LOCAL_MODE.equals(mode) || GLOBAL_MODE.equals(mode);
     }
 
-    private static GraphRAGContext retrieveBasic(DatasetGraph datasetGraph, String query, int topK) {
+    private GraphRAGContext retrieveBasic(DatasetGraph datasetGraph, String query, int topK) {
+        if ( searchService != null )
+            return new GraphRAGContext(query, BASIC_MODE, retrieveBasicWithVectorIndex(datasetGraph, query, topK));
         String searchTerm = searchTerm(query);
         List<Result> results = new ArrayList<>();
         if ( hasTextIndex(datasetGraph) )
@@ -254,6 +271,21 @@ public final class GraphRAGContextService {
         if ( results.size() < topK )
             appendDistinct(results, retrieveBasicFallback(datasetGraph, searchTerm, topK), topK);
         return new GraphRAGContext(query, BASIC_MODE, List.copyOf(results));
+    }
+
+    private List<Result> retrieveBasicWithVectorIndex(DatasetGraph datasetGraph, String query, int topK) {
+        Model model = DatasetFactory.wrap(datasetGraph).getDefaultModel();
+        List<Result> results = new ArrayList<>();
+        for ( GraphRAGSearch.Result vectorResult : searchService.searchVector(query, topK).results() ) {
+            Resource chunk = model.getResource(vectorResult.uri());
+            Statement text = chunk.getProperty(GRAG.text);
+            if ( !model.contains(chunk, RDF.type, GRAG.Chunk) || text == null )
+                continue;
+            Statement document = chunk.getProperty(GRAG.partOf);
+            results.add(Result.chunk(chunk.getURI(), vectorResult.scoreVector(), text.getString(),
+                    document == null || !document.getObject().isResource() ? null : document.getResource().getURI()));
+        }
+        return List.copyOf(results);
     }
 
     private static List<Result> retrieveBasicWithTextIndex(DatasetGraph datasetGraph, String query, int topK) {

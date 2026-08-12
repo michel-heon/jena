@@ -61,14 +61,21 @@ public final class GraphRAGAnswerAction extends ActionREST {
     private final GraphRAGConfiguration configuration;
     private final GraphRAGSearchService searchService;
     private final ChatCompletionProvider chatProvider;
-    private final GraphRAGContextService contextService = new GraphRAGContextService();
+    private final GraphRAGContextService contextService;
 
     GraphRAGAnswerAction(DatasetGraph datasetGraph, GraphRAGConfiguration configuration,
                          GraphRAGSearchService searchService, ChatCompletionProvider chatProvider) {
+        this(datasetGraph, configuration, searchService, chatProvider, new GraphRAGContextService());
+    }
+
+    GraphRAGAnswerAction(DatasetGraph datasetGraph, GraphRAGConfiguration configuration,
+                         GraphRAGSearchService searchService, ChatCompletionProvider chatProvider,
+                         GraphRAGContextService contextService) {
         this.datasetGraph = Objects.requireNonNull(datasetGraph);
         this.configuration = Objects.requireNonNull(configuration);
         this.searchService = Objects.requireNonNull(searchService);
         this.chatProvider = Objects.requireNonNull(chatProvider);
+        this.contextService = Objects.requireNonNull(contextService);
     }
 
     @Override public void validate(HttpAction action) {}
