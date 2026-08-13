@@ -55,3 +55,4 @@ jena-graphrag-integration-tests/env/generated/
 # Benchmark JSON results
 jena-benchmarks/jena-benchmarks-jmh/*.json
 
+jena-graphrag-integration-tests/docs/images/9-Types-of-API-Testing.gif:Zone.Identifier

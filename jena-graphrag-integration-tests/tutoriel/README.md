@@ -25,6 +25,10 @@ Ce tutoriel exécute la qualification ultime du corpus PDF GraphRAG, action par 
 
 La procédure réutilise `DocumentIngestionService`, `GraphRAGFusekiUIServer` et les routes GraphRAG de production, conformément à ADR-608. Les appels aux fournisseurs d'embeddings et de chat sont réels et consomment des quotas. Le profil local utilise deux petits PDF pour accélérer le développement; le profil complet de qualification utilise les douze PDF configurés dans le modèle d'environnement.
 
+## Démarrage rapide
+
+Le parcours recommandé pour un premier résultat est [Getting started](getting-started.md). Il prépare le corpus local, démarre Fuseki sans enrichissement sémantique, indexe les chunks et produit une réponse citée en mode `basic`.
+
 ## Préparation
 
 Depuis la racine du dépôt, ouvrir un terminal dans ce répertoire:

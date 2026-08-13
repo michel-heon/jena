@@ -45,6 +45,7 @@ CHAT_MODE_REQUIRE_MIXED_LOCAL ?= false
 CHAT_MODE_REQUIRE_MULTIPLE_GLOBAL ?= false
 TOP_K ?= 1
 GRAPHRAG_TUTORIAL_JAVA_OPTIONS ?=
+GETTING_STARTED_QUESTION ?= What is GraphRAG?
 DRIFT_LIMIT_COMMUNITY_TOP_K ?= 1
 DRIFT_LIMIT_MAX_FOLLOW_UPS ?= 1
 DRIFT_LIMIT_CONTEXT_TOKEN_BUDGET ?= 64
@@ -55,12 +56,15 @@ FUSEKI_URL = http://127.0.0.1:$$(cat "$(PORT_FILE)")
 WINDOWS_FUSEKI_URL = http://$$(hostname -I | awk '{print $$1}'):$$(cat "$(PORT_FILE)")
 
 .PHONY: help providers-bootstrap pdfs-check project-prepare corpus-materialize \
-	corpus-semantic-extract fuseki-start fuseki-ping fuseki-status fuseki-open graphrag-config indexing-start indexing-status \
-	indexing-wait corpus-verify-pdfs corpus-statistic graph-cat ttt-cat entities-list relationships-list communities-list findings-list chat-ask-questions chat-ask-modes chat-qualify-mode chat-qualify-basic-vector chat-qualify-drift chat-qualify-drift-limits chat-question context-question fuseki-stop tutorial-clean tutorial-run
+	corpus-semantic-extract fuseki-start fuseki-start-basic fuseki-start-server fuseki-ping fuseki-status fuseki-open graphrag-config indexing-start indexing-status \
+	indexing-wait corpus-verify-pdfs corpus-statistic graph-cat ttt-cat entities-list relationships-list communities-list findings-list chat-ask-questions chat-ask-modes chat-qualify-mode chat-qualify-basic-vector chat-qualify-drift chat-qualify-drift-limits chat-question context-question fuseki-stop tutorial-clean tutorial-run getting-started
 
 help: ## Display tutorial steps
 	@printf '%s\n' \
 		'GraphRAG PDF tutorial' \
+		'' \
+		'Getting started' \
+		'  getting-started           Run the minimal basic-mode workflow with real providers.' \
 		'' \
 		'Recommended sequence:' \
 		'  make providers-bootstrap corpus-materialize corpus-semantic-extract' \
@@ -80,6 +84,7 @@ help: ## Display tutorial steps
 		'' \
 		'Fuseki and indexing' \
 		'  fuseki-start              Start Fuseki with the enriched corpus.' \
+		'  fuseki-start-basic        Start Fuseki with documents and chunks only.' \
 		'  fuseki-ping               Confirm that Fuseki is reachable.' \
 		'  fuseki-status             Report Fuseki process and HTTP status.' \
 		'  fuseki-open               Open the Fuseki UI.' \
@@ -151,6 +156,12 @@ $(PORT_FILE):
 	@node -e 'const server = require("net").createServer(); server.listen(0, "127.0.0.1", () => { console.log(server.address().port); server.close(); });' > "$@"
 
 fuseki-start: $(SEMANTIC_MARKER) $(PORT_FILE) ## Start production Fuseki with the enriched corpus
+	@$(MAKE) fuseki-start-server
+
+fuseki-start-basic: $(CORPUS_FILE) $(PORT_FILE) ## Start Fuseki with documents and chunks only
+	@$(MAKE) fuseki-start-server
+
+fuseki-start-server:
 	@if [[ -f "$(PID_FILE)" ]] && kill -0 "$$(cat "$(PID_FILE)")" 2>/dev/null; then \
 		echo "Fuseki is already running at $(FUSEKI_URL)."; \
 	else \
@@ -379,6 +390,10 @@ fuseki-stop: ## Stop the tutorial Fuseki process
 tutorial-clean: fuseki-stop ## Remove all temporary tutorial state
 	@rm -rf "$(WORK_DIR)"
 	@echo "Tutorial state removed."
+
+getting-started: providers-bootstrap pdfs-check project-prepare corpus-materialize fuseki-start-basic fuseki-ping graphrag-config indexing-start indexing-wait ## Run the minimal indexed basic-mode workflow
+	@$(MAKE) chat-question QUESTION="$(GETTING_STARTED_QUESTION)" MODE=basic
+	@echo "Getting started completed. Run make fuseki-stop when you are finished with Fuseki."
 
 tutorial-run: providers-bootstrap pdfs-check project-prepare corpus-materialize fuseki-start fuseki-ping graphrag-config indexing-start indexing-wait corpus-verify-pdfs chat-ask-questions chat-qualify-mode ## Run every tutorial step in sequence
 	@echo "Tranche 7 tutorial completed successfully. Run make fuseki-stop when you are finished with Fuseki."
