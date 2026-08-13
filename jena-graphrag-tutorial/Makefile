@@ -37,6 +37,7 @@ PORT_FILE := $(WORK_DIR)/port
 PID_FILE := $(WORK_DIR)/fuseki.pid
 TASK_FILE := $(WORK_DIR)/task-id
 LOG_FILE := $(WORK_DIR)/fuseki.log
+INDEX_DIR := $(WORK_DIR)/real-provider-index
 MATERIALIZER_SOURCE := $(ROOT_DIR)/jena-graphrag/src/main/java/org/apache/jena/graphrag/ingestion/PdfCorpusMaterializer.java
 ARQ_CLASS := $(ROOT_DIR)/jena-cmds/target/classes/arq/arq.class
 GRAPHRAG_CLASSES := $(ROOT_DIR)/jena-graphrag/target/classes
@@ -58,7 +59,7 @@ WINDOWS_FUSEKI_URL = http://$$(hostname -I | awk '{print $$1}'):$$(cat "$(PORT_F
 
 .PHONY: help providers-bootstrap pdfs-check project-prepare corpus-materialize \
 	corpus-semantic-extract fuseki-start fuseki-start-basic fuseki-start-server fuseki-ping fuseki-status fuseki-open graphrag-config indexing-start indexing-status \
-	indexing-wait corpus-verify-pdfs corpus-statistic graph-cat ttt-cat entities-list relationships-list communities-list findings-list chat-ask-questions chat-ask-modes chat-qualify-mode chat-qualify-basic-vector chat-qualify-drift chat-qualify-drift-limits chat-question context-question fuseki-stop tutorial-clean tutorial-run getting-started
+	indexing-wait rdf-lifecycle corpus-verify-pdfs corpus-statistic graph-cat ttt-cat entities-list relationships-list communities-list findings-list chat-ask-questions chat-ask-modes chat-qualify-mode chat-qualify-basic-vector chat-qualify-drift chat-qualify-drift-limits chat-question context-question fuseki-stop tutorial-clean tutorial-run getting-started
 
 help: ## Display tutorial steps
 	@printf '%s\n' \
@@ -93,6 +94,7 @@ help: ## Display tutorial steps
 		'  indexing-start            Start vector indexing.' \
 		'  indexing-status           Show vector indexing status.' \
 		'  indexing-wait             Wait for vector indexing to finish.' \
+		'  rdf-lifecycle             Exercise the isolated RDF import/update/delete/rebuild cycle.' \
 		'' \
 		'Validation and questions' \
 		'  corpus-verify-pdfs        Verify the PDFs loaded in Fuseki.' \
@@ -172,7 +174,7 @@ fuseki-start-server:
 		GRAPHRAG_SYSTEM_PROMPT='$(SYSTEM_PROMPT)' \
 		java -cp "$(MODULE_DIR)/target/classes:$(GRAPHRAG_CLASSES):$$(cat "$(CLASSPATH_FILE)")" \
 			$(GRAPHRAG_TUTORIAL_JAVA_OPTIONS) \
-			org.apache.jena.graphrag.fuseki.GraphRAGFusekiUIServer "$(CORPUS_FILE)" "$$(cat "$(PORT_FILE)")" "$(DATASET)" true "$(WORK_DIR)/real-provider-index" \
+			org.apache.jena.graphrag.fuseki.GraphRAGFusekiUIServer "$(CORPUS_FILE)" "$$(cat "$(PORT_FILE)")" "$(DATASET)" true "$(INDEX_DIR)" \
 			> "$(LOG_FILE)" 2>&1 & echo $$! > "$(PID_FILE)"; \
 		echo "Fuseki started at $(FUSEKI_URL)."; \
 		echo "Log: $(LOG_FILE)"; \
@@ -249,6 +251,54 @@ indexing-wait: ## Wait until the indexing task completes
 		[[ "$$status" == failed ]] && { printf '%s\n' "$$response" >&2; exit 1; }; \
 		sleep 5; \
 	done
+
+rdf-lifecycle: fuseki-ping ## Exercise isolated RDF import, read, update, deletion, and index reconstruction
+	@set -e; \
+	base="$(FUSEKI_URL)/$(DATASET)"; \
+	document='urn:graphrag:tutorial:rdf-lifecycle:document'; \
+	chunk='urn:graphrag:tutorial:rdf-lifecycle:document#chunk-0'; \
+	count() { \
+		curl --fail --silent --show-error -G "$$base/sparql" \
+			--data-urlencode "query=$$1" \
+			--data-urlencode 'format=application/sparql-results+json' | \
+			node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk).on("end", () => console.log(JSON.parse(input).results.bindings[0].count.value));'; \
+	}; \
+	update() { \
+		curl --fail --silent --show-error -X POST "$$base/update" --data-urlencode "update=$$1" >/dev/null; \
+	}; \
+	update "PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> INSERT DATA { <$$document> a grag:Document ; grag:id \"rdf-lifecycle-document\" ; grag:title \"RDF lifecycle tutorial document\" . <$$chunk> a grag:Chunk ; grag:id \"rdf-lifecycle-chunk-0\" ; grag:text \"RDF lifecycle original marker: import, read, update, and delete.\" ; grag:partOf <$$document> . }"; \
+	loaded=$$(count "PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> SELECT (COUNT(DISTINCT ?resource) AS ?count) WHERE { VALUES ?resource { <$$document> <$$chunk> } ?resource a ?type }"); \
+	[[ "$$loaded" == 2 ]] || { echo "Expected the tutorial document and chunk after import, found $$loaded resources." >&2; exit 1; }; \
+	echo "RDF import verified: document and chunk are present in the default graph."
+	@$(MAKE) indexing-start indexing-wait
+	@set -e; \
+	base="$(FUSEKI_URL)/$(DATASET)"; \
+	document='urn:graphrag:tutorial:rdf-lifecycle:document'; \
+	chunk='urn:graphrag:tutorial:rdf-lifecycle:document#chunk-0'; \
+	update() { curl --fail --silent --show-error -X POST "$$base/update" --data-urlencode "update=$$1" >/dev/null; }; \
+	count() { curl --fail --silent --show-error -G "$$base/sparql" --data-urlencode "query=$$1" --data-urlencode 'format=application/sparql-results+json' | node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk).on("end", () => console.log(JSON.parse(input).results.bindings[0].count.value));'; }; \
+	update "PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> DELETE { <$$chunk> grag:text \"RDF lifecycle original marker: import, read, update, and delete.\" } INSERT { <$$chunk> grag:text \"RDF lifecycle revised marker: the RDF graph is the source of truth.\" } WHERE { <$$chunk> grag:text \"RDF lifecycle original marker: import, read, update, and delete.\" }"; \
+	revised=$$(count "PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> SELECT (COUNT(*) AS ?count) WHERE { <$$chunk> grag:text \"RDF lifecycle revised marker: the RDF graph is the source of truth.\" }"); \
+	[[ "$$revised" == 1 ]] || { echo "Expected the revised chunk text after update." >&2; exit 1; }; \
+	echo "RDF update verified: the targeted chunk text changed."
+	@$(MAKE) indexing-start indexing-wait
+	@set -e; \
+	base="$(FUSEKI_URL)/$(DATASET)"; \
+	document='urn:graphrag:tutorial:rdf-lifecycle:document'; \
+	chunk='urn:graphrag:tutorial:rdf-lifecycle:document#chunk-0'; \
+	curl --fail --silent --show-error -X POST "$$base/update" --data-urlencode "update=DELETE { <$$document> ?documentPredicate ?documentObject . <$$chunk> ?chunkPredicate ?chunkObject } WHERE { OPTIONAL { <$$document> ?documentPredicate ?documentObject } OPTIONAL { <$$chunk> ?chunkPredicate ?chunkObject } }" >/dev/null; \
+	remaining=$$(curl --fail --silent --show-error -G "$$base/sparql" --data-urlencode "query=PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> SELECT (COUNT(*) AS ?count) WHERE { VALUES ?resource { <$$document> <$$chunk> } ?resource ?predicate ?object }" --data-urlencode 'format=application/sparql-results+json' | node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk).on("end", () => console.log(JSON.parse(input).results.bindings[0].count.value));'); \
+	[[ "$$remaining" == 0 ]] || { echo "Expected no lifecycle RDF triples after deletion, found $$remaining." >&2; exit 1; }; \
+	echo "RDF deletion verified: the targeted document and chunk are absent."
+	@$(MAKE) fuseki-stop
+	@rm -rf "$(INDEX_DIR)"
+	@rm -f "$(TASK_FILE)" "$(WORK_DIR)/index-response.json"
+	@$(MAKE) fuseki-start-basic fuseki-ping indexing-start indexing-wait
+	@set -e; \
+	base="$(FUSEKI_URL)/$(DATASET)"; \
+	remaining=$$(curl --fail --silent --show-error -G "$$base/sparql" --data-urlencode 'query=PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> SELECT (COUNT(*) AS ?count) WHERE { VALUES ?resource { <urn:graphrag:tutorial:rdf-lifecycle:document> <urn:graphrag:tutorial:rdf-lifecycle:document#chunk-0> } ?resource ?predicate ?object }' --data-urlencode 'format=application/sparql-results+json' | node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk).on("end", () => console.log(JSON.parse(input).results.bindings[0].count.value));'); \
+	[[ "$$remaining" == 0 ]] || { echo "The reconstructed tutorial dataset still contains lifecycle RDF." >&2; exit 1; }; \
+	echo "Clean tutorial state restored: the temporary vector index was rebuilt from the original corpus."
 
 corpus-verify-pdfs: ## Assert the configured number of PDF source files are stored
 	@response=$$(curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/sparql" \

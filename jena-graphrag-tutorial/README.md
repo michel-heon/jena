@@ -33,6 +33,7 @@ Les fonctionnalités avancées sont décrites dans des guides indépendants :
 
 - [Ingestion et enrichissement du corpus PDF](docs/pdf-ingestion.md)
 - [Inspection du graphe RDF](docs/rdf-inspection.md)
+- [Cycle de vie RDF dans Fuseki](docs/rdf-fuseki-lifecycle.md)
 - [Indexation vectorielle et configuration](docs/vector-indexing.md)
 - [Modes de récupération et de réponse](docs/retrieval-modes.md)
 - [Qualification avec les services réels et diagnostic](docs/provider-qualification.md)
