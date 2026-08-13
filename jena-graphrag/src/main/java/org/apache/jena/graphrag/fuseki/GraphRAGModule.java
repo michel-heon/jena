@@ -91,21 +91,29 @@ public final class GraphRAGModule implements FusekiModule {
 
     private final BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGSearchAction> searchActionFactory;
     private final BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGAnswerAction> answerActionFactory;
+    private final BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGContextAction> contextActionFactory;
     private final List<GraphRAGIndex> configuredIndexes = new ArrayList<>();
 
     /** Constructor used by Java SPI; configuration remains opt-in. */
     public GraphRAGModule() {
-        this(GraphRAGSearchAction::new, null);
+        this(GraphRAGSearchAction::new, null, null);
     }
 
     GraphRAGModule(BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGSearchAction> searchActionFactory) {
-        this(searchActionFactory, null);
+        this(searchActionFactory, null, null);
     }
 
     GraphRAGModule(BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGSearchAction> searchActionFactory,
                    BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGAnswerAction> answerActionFactory) {
+        this(searchActionFactory, answerActionFactory, null);
+    }
+
+    GraphRAGModule(BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGSearchAction> searchActionFactory,
+                   BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGAnswerAction> answerActionFactory,
+                   BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGContextAction> contextActionFactory) {
         this.searchActionFactory = Objects.requireNonNull(searchActionFactory);
         this.answerActionFactory = answerActionFactory;
+        this.contextActionFactory = contextActionFactory;
     }
 
     @Override
@@ -192,6 +200,8 @@ public final class GraphRAGModule implements FusekiModule {
     }
 
     private synchronized GraphRAGContextAction contextAction(DatasetGraph datasetGraph, GraphRAGConfiguration configuration) {
+        if ( contextActionFactory != null )
+            return contextActionFactory.apply(datasetGraph, configuration);
         if ( configuredIndexes.isEmpty() )
             return new GraphRAGContextAction(datasetGraph, configuration);
         GraphRAGIndex index = configuredIndexes.getFirst();

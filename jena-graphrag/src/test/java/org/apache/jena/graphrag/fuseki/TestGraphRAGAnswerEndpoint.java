@@ -142,6 +142,76 @@ public class TestGraphRAGAnswerEndpoint {
         }
     }
 
+        @Test
+        public void driftMode_appliesConfiguredRuntimeLimits() throws Exception {
+        Dataset dataset = DatasetFactory.createTxnMem();
+        dataset.begin(ReadWrite.WRITE);
+        try {
+            Model model = dataset.getDefaultModel();
+            model.createResource("urn:community:scrooge")
+                .addProperty(RDF.type, GRAG.Community)
+                .addProperty(GRAG.summary, "Scrooge community report provides local facts");
+            model.createResource("urn:community:marley")
+                .addProperty(RDF.type, GRAG.Community)
+                .addProperty(GRAG.summary, "Marley community report adds independent facts");
+            Resource scrooge = model.createResource("urn:entity:scrooge")
+                .addProperty(RDF.type, GRAG.Entity).addProperty(GRAG.name, "Scrooge");
+            Resource marley = model.createResource("urn:entity:marley")
+                .addProperty(RDF.type, GRAG.Entity).addProperty(GRAG.name, "Marley");
+            Resource belle = model.createResource("urn:entity:belle")
+                .addProperty(RDF.type, GRAG.Entity).addProperty(GRAG.name, "Belle");
+            model.createResource("urn:relationship:scrooge-marley")
+                .addProperty(RDF.type, GRAG.Relationship).addProperty(GRAG.source, scrooge)
+                .addProperty(GRAG.target, marley).addProperty(GRAG.description, "Scrooge knew Marley.");
+            model.createResource("urn:relationship:scrooge-belle")
+                .addProperty(RDF.type, GRAG.Relationship).addProperty(GRAG.source, scrooge)
+                .addProperty(GRAG.target, belle).addProperty(GRAG.description, "Scrooge knew Belle.");
+            dataset.commit();
+        } finally {
+            dataset.end();
+        }
+        String communityTopK = setProperty(GraphRAGConfiguration.DRIFT_COMMUNITY_TOP_K_PROPERTY, "2");
+        String maxFollowUps = setProperty(GraphRAGConfiguration.DRIFT_MAX_FOLLOW_UPS_PROPERTY, "1");
+        String contextBudget = setProperty(GraphRAGConfiguration.DRIFT_CONTEXT_TOKEN_BUDGET_PROPERTY, "20");
+        String localTopK = setProperty(GraphRAGConfiguration.DRIFT_LOCAL_TOP_K_PROPERTY, "2");
+        try (LuceneVectorIndex communityIndex = new LuceneVectorIndex(new ByteBuffersDirectory(), 2,
+            VectorSimilarityFunction.EUCLIDEAN)) {
+            communityIndex.index("urn:community:scrooge", new float[] { 1.0f, 0.0f });
+            communityIndex.index("urn:community:marley", new float[] { 1.0f, 0.0f });
+            CommunityReportVectorSearchService communitySearch = new CommunityReportVectorSearchService(
+                communityIndex, (text, dimension) -> new float[] { 1.0f, 0.0f }, 2);
+            GraphRAGContextService contextService = new GraphRAGContextService(null, communitySearch);
+            List<List<String>> providerCalls = new ArrayList<>();
+            GraphRAGModule module = new GraphRAGModule(GraphRAGSearchAction::new,
+                (datasetGraph, configuration) -> new GraphRAGAnswerAction(datasetGraph, configuration,
+                    GraphRAGSearchAction.defaultSearchService(), (question, passages) -> {
+                    providerCalls.add(List.copyOf(passages));
+                    return "answer-" + providerCalls.size();
+                    }, contextService));
+            FusekiServer server = server(dataset, true, module);
+            try {
+            JsonObject body = JSON.parse(get(server, "?q=Scrooge&mode=drift&topK=3").body());
+
+            assertEquals(2, body.get("citations").getAsArray().stream()
+                .filter(citation -> citation.getAsObject().get("uri").getAsString().value()
+                    .startsWith("urn:community:"))
+                .count());
+            assertEquals(4, body.get("citations").getAsArray().size());
+            assertEquals(1, body.get("followUpCount").getAsNumber().value().intValue());
+            assertEquals(2, providerCalls.size());
+            assertEquals(1, providerCalls.getFirst().size());
+            assertEquals(3, providerCalls.getFirst().getFirst().split("\\s+").length);
+            } finally {
+            server.stop();
+            }
+        } finally {
+            restoreProperty(GraphRAGConfiguration.DRIFT_COMMUNITY_TOP_K_PROPERTY, communityTopK);
+            restoreProperty(GraphRAGConfiguration.DRIFT_MAX_FOLLOW_UPS_PROPERTY, maxFollowUps);
+            restoreProperty(GraphRAGConfiguration.DRIFT_CONTEXT_TOKEN_BUDGET_PROPERTY, contextBudget);
+            restoreProperty(GraphRAGConfiguration.DRIFT_LOCAL_TOP_K_PROPERTY, localTopK);
+        }
+        }
+
     @Test
     public void enabledModule_returnsRetrievedCitationToChatProvider() throws Exception {
         Dataset dataset = GraphRAGTextDatasetFactory.createChunkTextDataset(
@@ -375,6 +445,19 @@ public class TestGraphRAGAnswerEndpoint {
         HttpRequest request = HttpRequest.newBuilder(URI.create(
                 "http://localhost:" + server.getPort() + "/ds/graphrag/answer" + query)).GET().build();
         return HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private static String setProperty(String key, String value) {
+        String previous = System.getProperty(key);
+        System.setProperty(key, value);
+        return previous;
+    }
+
+    private static void restoreProperty(String key, String previous) {
+        if ( previous == null )
+            System.clearProperty(key);
+        else
+            System.setProperty(key, previous);
     }
 
     private static void assertModeAnswer(FusekiServer server, String mode, String question,

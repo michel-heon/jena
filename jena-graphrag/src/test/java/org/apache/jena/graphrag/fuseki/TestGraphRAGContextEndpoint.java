@@ -40,6 +40,9 @@ import org.apache.jena.fuseki.main.sys.FusekiModule;
 import org.apache.jena.fuseki.main.sys.FusekiModules;
 import org.apache.jena.graphrag.GraphRAGImporter;
 import org.apache.jena.graphrag.index.GraphRAGTextDatasetFactory;
+import org.apache.jena.graphrag.index.LuceneVectorIndex;
+import org.apache.jena.graphrag.retrieval.CommunityReportVectorSearchService;
+import org.apache.jena.graphrag.retrieval.GraphRAGContextService;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.query.QueryExecution;
@@ -50,6 +53,7 @@ import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.vocabulary.GRAG;
 import org.apache.jena.vocabulary.RDF;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.junit.jupiter.api.Test;
 
@@ -184,6 +188,45 @@ public class TestGraphRAGContextEndpoint {
     }
 
     @Test
+    public void driftMode_appliesConfiguredPrimerAndContextBudgetLimits() throws Exception {
+        Dataset dataset = DatasetFactory.createTxnMem();
+        dataset.begin(ReadWrite.WRITE);
+        try {
+            addCommunity(dataset, "urn:community:one", "One", "one two three four", "report one");
+            addCommunity(dataset, "urn:community:two", "Two", "five six seven eight", "report two");
+            dataset.commit();
+        } finally {
+            dataset.end();
+        }
+        String communityTopK = setProperty(GraphRAGConfiguration.DRIFT_COMMUNITY_TOP_K_PROPERTY, "1");
+        String contextBudget = setProperty(GraphRAGConfiguration.DRIFT_CONTEXT_TOKEN_BUDGET_PROPERTY, "3");
+        try (LuceneVectorIndex communityIndex = new LuceneVectorIndex(new ByteBuffersDirectory(), 2,
+                VectorSimilarityFunction.EUCLIDEAN)) {
+            communityIndex.index("urn:community:one", new float[] { 1.0f, 0.0f });
+            communityIndex.index("urn:community:two", new float[] { 1.0f, 0.0f });
+            CommunityReportVectorSearchService communitySearch = new CommunityReportVectorSearchService(
+                    communityIndex, (text, dimension) -> new float[] { 1.0f, 0.0f }, 2);
+            GraphRAGContextService contextService = new GraphRAGContextService(null, communitySearch);
+            GraphRAGModule module = new GraphRAGModule(GraphRAGSearchAction::new, null,
+                    (datasetGraph, configuration) -> new GraphRAGContextAction(datasetGraph, configuration, contextService));
+            FusekiServer server = server(dataset, true, module);
+            try {
+                JsonObject body = JSON.parse(get(server, "?q=community&mode=drift&topK=3").body());
+                JsonArray results = body.get("results").getAsArray();
+
+                assertEquals(1, results.size());
+                assertEquals(3, results.getFirst().getAsObject().get("sourceText").getAsString().value()
+                        .split("\\s+").length);
+            } finally {
+                server.stop();
+            }
+        } finally {
+            restoreProperty(GraphRAGConfiguration.DRIFT_COMMUNITY_TOP_K_PROPERTY, communityTopK);
+            restoreProperty(GraphRAGConfiguration.DRIFT_CONTEXT_TOKEN_BUDGET_PROPERTY, contextBudget);
+        }
+    }
+
+    @Test
     public void disabledModuleDoesNotExposeEndpoint() throws Exception {
         FusekiServer server = server(dataset(), false);
         try {
@@ -308,6 +351,10 @@ public class TestGraphRAGContextEndpoint {
     }
 
     private static FusekiServer server(Dataset dataset, boolean enabled) {
+        return server(dataset, enabled, new GraphRAGModule());
+    }
+
+    private static FusekiServer server(Dataset dataset, boolean enabled, GraphRAGModule module) {
         Model config = ModelFactory.createDefaultModel();
         if ( enabled ) {
             config.createResource("urn:graphrag:test")
@@ -317,7 +364,7 @@ public class TestGraphRAGContextEndpoint {
                 .port(0)
                 .add("/ds", dataset)
                 .parseConfig(config)
-                .fusekiModules(FusekiModules.create(new GraphRAGModule()))
+                .fusekiModules(FusekiModules.create(module))
                 .build()
                 .start();
     }
@@ -433,6 +480,19 @@ public class TestGraphRAGContextEndpoint {
     private static HttpResponse<String> get(FusekiServer server, String query) throws Exception {
         HttpRequest request = HttpRequest.newBuilder(URI.create(endpoint(server) + query)).GET().build();
         return HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private static String setProperty(String key, String value) {
+        String previous = System.getProperty(key);
+        System.setProperty(key, value);
+        return previous;
+    }
+
+    private static void restoreProperty(String key, String previous) {
+        if ( previous == null )
+            System.clearProperty(key);
+        else
+            System.setProperty(key, previous);
     }
 
     private static HttpResponse<String> getOperation(FusekiServer server, String operation, String query) throws Exception {

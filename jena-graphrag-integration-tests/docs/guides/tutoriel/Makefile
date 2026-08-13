@@ -44,6 +44,11 @@ CHAT_MODE_QUESTION ?= What is GraphRAG?
 CHAT_MODE_REQUIRE_MIXED_LOCAL ?= false
 CHAT_MODE_REQUIRE_MULTIPLE_GLOBAL ?= false
 TOP_K ?= 1
+GRAPHRAG_TUTORIAL_JAVA_OPTIONS ?=
+DRIFT_LIMIT_COMMUNITY_TOP_K ?= 1
+DRIFT_LIMIT_MAX_FOLLOW_UPS ?= 1
+DRIFT_LIMIT_CONTEXT_TOKEN_BUDGET ?= 64
+DRIFT_LIMIT_LOCAL_TOP_K ?= 1
 export QUESTION MODE TOP_K
 SYSTEM_PROMPT := Answer only from the ingested GraphRAG research PDF corpus. Cite retrieved sources and say when the corpus lacks the answer. When the sources mention GraphDB, Elasticsearch, LM Studio, or LangChain, identify them as components of the described RDF integration or corpus, not requirements of generic Microsoft GraphRAG.
 FUSEKI_URL = http://127.0.0.1:$$(cat "$(PORT_FILE)")
@@ -51,7 +56,7 @@ WINDOWS_FUSEKI_URL = http://$$(hostname -I | awk '{print $$1}'):$$(cat "$(PORT_F
 
 .PHONY: help providers-bootstrap pdfs-check project-prepare corpus-materialize \
 	corpus-semantic-extract fuseki-start fuseki-ping fuseki-status fuseki-open graphrag-config indexing-start indexing-status \
-	indexing-wait corpus-verify-pdfs corpus-statistic graph-cat ttt-cat entities-list relationships-list communities-list findings-list chat-ask-questions chat-ask-modes chat-qualify-mode chat-qualify-basic-vector chat-qualify-drift chat-question context-question fuseki-stop tutorial-clean tutorial-run
+	indexing-wait corpus-verify-pdfs corpus-statistic graph-cat ttt-cat entities-list relationships-list communities-list findings-list chat-ask-questions chat-ask-modes chat-qualify-mode chat-qualify-basic-vector chat-qualify-drift chat-qualify-drift-limits chat-question context-question fuseki-stop tutorial-clean tutorial-run
 
 help: ## Display tutorial steps
 	@printf '%s\n' \
@@ -93,6 +98,7 @@ help: ## Display tutorial steps
 		'  chat-ask-modes            Qualify basic, local, and global with real providers.' \
 		'  chat-qualify-mode         Qualify context and citations: QUESTION="..." MODE=basic TOP_K=1.' \
 		'  chat-qualify-drift        Qualify the bounded DRIFT traversal with real providers.' \
+		'  chat-qualify-drift-limits Qualify DRIFT with non-default runtime limits and real providers.' \
 		'  chat-question             Ask one question: make chat-question QUESTION="..." MODE=local' \
 		'  context-question          Inspect context: make context-question QUESTION="..." MODE=local' \
 		'' \
@@ -153,6 +159,7 @@ fuseki-start: $(SEMANTIC_MARKER) $(PORT_FILE) ## Start production Fuseki with th
 		set -a; source "$$env_file"; set +a; \
 		GRAPHRAG_SYSTEM_PROMPT='$(SYSTEM_PROMPT)' \
 		java -cp "$(MODULE_DIR)/target/test-classes:$(MODULE_DIR)/target/classes:$(ROOT_DIR)/jena-graphrag/target/classes:$$(cat "$(CLASSPATH_FILE)")" \
+			$(GRAPHRAG_TUTORIAL_JAVA_OPTIONS) \
 			org.apache.jena.graphrag.fuseki.GraphRAGFusekiUIServer "$(CORPUS_FILE)" "$$(cat "$(PORT_FILE)")" "$(DATASET)" true "$(WORK_DIR)/real-provider-index" \
 			> "$(LOG_FILE)" 2>&1 & echo $$! > "$(PID_FILE)"; \
 		echo "Fuseki started at $(FUSEKI_URL)."; \
@@ -329,6 +336,17 @@ chat-qualify-drift: ## Qualify the DRIFT primer, citations, and traversal metada
 	context=$$(curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/graphrag/context" --data-urlencode "q=$$question" --data-urlencode 'mode=drift' --data-urlencode "topK=$$top_k"); \
 	response=$$(curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/graphrag/answer" --data-urlencode "q=$$question" --data-urlencode 'mode=drift' --data-urlencode "topK=$$top_k"); \
 	CONTEXT="$$context" RESPONSE="$$response" TOP_K="$$top_k" node -e 'const context = JSON.parse(process.env.CONTEXT); const response = JSON.parse(process.env.RESPONSE); const topK = Number(process.env.TOP_K); const abstention = "Aucun contexte GraphRAG correspondant a la question."; const results = context.results ?? []; const citations = response.citations ?? []; const expected = results.map(result => [result.uri, result.sourceText]); const actual = citations.map(citation => [citation.uri, citation.text]); const matchesPrimer = JSON.stringify(actual.slice(0, expected.length)) === JSON.stringify(expected); if (context.mode !== "drift" || results.length > topK || results.some(result => result.type !== "community") || !response.answer?.trim()) process.exit(1); if (response.answer === abstention) { if (results.length !== 0 || citations.length !== 0) process.exit(1); console.log("DRIFT qualification passed: abstention without primer."); console.log("Answer: " + response.answer.trim()); process.exit(0); } if (results.length === 0 || !matchesPrimer || !response.reasonStop || !Number.isInteger(response.followUpCount) || response.followUpCount < 0) process.exit(1); console.log("DRIFT qualification passed."); console.log("Primer communities: " + results.length); console.log("Stop reason: " + response.reasonStop); console.log("Follow-ups: " + response.followUpCount); console.log("Answer:\n" + response.answer.trim());';
+
+chat-qualify-drift-limits: ## Restart Fuseki with non-default DRIFT limits and qualify them with real providers
+	@set -e; \
+	$(MAKE) fuseki-stop; \
+	$(MAKE) fuseki-start GRAPHRAG_TUTORIAL_JAVA_OPTIONS="-Djena.graphrag.drift.communityTopK=$(DRIFT_LIMIT_COMMUNITY_TOP_K) -Djena.graphrag.drift.maxFollowUps=$(DRIFT_LIMIT_MAX_FOLLOW_UPS) -Djena.graphrag.drift.contextTokenBudget=$(DRIFT_LIMIT_CONTEXT_TOKEN_BUDGET) -Djena.graphrag.drift.localTopK=$(DRIFT_LIMIT_LOCAL_TOP_K)"; \
+	$(MAKE) fuseki-ping indexing-start indexing-wait; \
+	question="$${QUESTION:-What is GraphRAG?}"; \
+	config=$$(curl --fail --silent --show-error "$(FUSEKI_URL)/$(DATASET)/graphrag/config"); \
+	context=$$(curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/graphrag/context" --data-urlencode "q=$$question" --data-urlencode 'mode=drift' --data-urlencode 'topK=100'); \
+	response=$$(curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/graphrag/answer" --data-urlencode "q=$$question" --data-urlencode 'mode=drift' --data-urlencode 'topK=100'); \
+	CONFIG="$$config" CONTEXT="$$context" RESPONSE="$$response" EXPECTED_COMMUNITY_TOP_K="$(DRIFT_LIMIT_COMMUNITY_TOP_K)" EXPECTED_MAX_FOLLOW_UPS="$(DRIFT_LIMIT_MAX_FOLLOW_UPS)" EXPECTED_CONTEXT_TOKEN_BUDGET="$(DRIFT_LIMIT_CONTEXT_TOKEN_BUDGET)" EXPECTED_LOCAL_TOP_K="$(DRIFT_LIMIT_LOCAL_TOP_K)" node -e 'const config = JSON.parse(process.env.CONFIG); const context = JSON.parse(process.env.CONTEXT); const response = JSON.parse(process.env.RESPONSE); const limits = config.driftLimits ?? {}; const expected = { communityTopK: Number(process.env.EXPECTED_COMMUNITY_TOP_K), maxFollowUps: Number(process.env.EXPECTED_MAX_FOLLOW_UPS), contextTokenBudget: Number(process.env.EXPECTED_CONTEXT_TOKEN_BUDGET), localTopK: Number(process.env.EXPECTED_LOCAL_TOP_K) }; const results = context.results ?? []; const words = results.reduce((count, result) => count + (result.sourceText?.trim() ? result.sourceText.trim().split(/\s+/).length : 0), 0); const primer = results.map(result => [result.uri, result.sourceText]); const citations = (response.citations ?? []).map(citation => [citation.uri, citation.text]); const abstention = "Aucun contexte GraphRAG correspondant a la question."; if (Object.keys(expected).some(key => limits[key] !== expected[key]) || context.mode !== "drift" || results.length > limits.communityTopK || words > limits.contextTokenBudget || !response.answer?.trim()) process.exit(1); if (response.answer === abstention) { if (results.length !== 0 || citations.length !== 0) process.exit(1); console.log("DRIFT limit qualification passed: abstention without primer."); process.exit(0); } if (results.length === 0 || JSON.stringify(citations.slice(0, primer.length)) !== JSON.stringify(primer) || !Number.isInteger(response.followUpCount) || response.followUpCount < 0 || response.followUpCount > limits.maxFollowUps) process.exit(1); console.log("DRIFT limit qualification passed."); console.log("Limits: " + JSON.stringify(limits)); console.log("Primer communities: " + results.length); console.log("Primer tokens: " + words); console.log("Follow-ups: " + response.followUpCount);';
 
 chat-question: ## Ask QUESTION and display citations, optionally using MODE=basic, local, or global
 	@[[ -n "$(QUESTION)" ]] || { echo 'Usage: make chat-question QUESTION="Your question" [MODE=local]' >&2; exit 1; }

@@ -114,7 +114,12 @@ public final class GraphRAGContextAction extends ActionREST {
 
         datasetGraph.begin(ReadWrite.READ);
         try {
-            GraphRAGContext context = contextService.retrieve(datasetGraph, mode, query, topK);
+                int effectiveTopK = GraphRAGContextService.DRIFT_MODE.equals(mode)
+                        ? Math.min(topK, configuration.driftCommunityTopK()) : topK;
+            GraphRAGContext context = contextService.retrieve(datasetGraph, mode, query, effectiveTopK);
+            if ( GraphRAGContextService.DRIFT_MODE.equals(mode) )
+                context = GraphRAGContextService.boundDriftContext(context,
+                                            configuration.driftContextTokenBudget());
             writeJson(action, context);
         } catch (IllegalArgumentException ex) {
             writeError(action, ex.getMessage());

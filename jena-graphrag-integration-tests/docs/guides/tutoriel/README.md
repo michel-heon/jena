@@ -182,7 +182,7 @@ Pour qualifier un contexte et sa réponse dans le tutoriel, après `indexing-wai
 make chat-qualify-mode QUESTION="What is GraphRAG?" MODE=basic TOP_K=1
 ```
 
-`QUESTION`, `MODE=basic|local|global` et `TOP_K=1..100` sont des options. Sans argument, la cible utilise `What is GraphRAG?`, `basic` et `1`. Elle compare systématiquement les citations de `/graphrag/answer` aux ressources et passages de `/graphrag/context`, vérifie le type de ressource propre au mode et le plafond `TOP_K`, ou accepte uniquement l'abstention déterministe sans contexte ni citation. Avec `MODE=basic` et un serveur tutoriel indexé, le contexte provient de la recherche vectorielle. `make chat-qualify-basic-vector` reste un alias compatible de la qualification `basic` par défaut.
+`QUESTION`, `MODE=basic|local|global|drift` et `TOP_K=1..100` sont des options. Sans argument, la cible utilise `What is GraphRAG?`, `basic` et `1`. Elle compare systématiquement les citations de `/graphrag/answer` aux ressources et passages de `/graphrag/context`, vérifie le type de ressource propre au mode et le plafond `TOP_K`, ou accepte uniquement l'abstention déterministe sans contexte ni citation. Avec `MODE=basic` et un serveur tutoriel indexé, le contexte provient de la recherche vectorielle. `make chat-qualify-basic-vector` reste un alias compatible de la qualification `basic` par défaut.
 
 ### Test spécifique DRIFT
 
@@ -195,6 +195,14 @@ make chat-qualify-drift QUESTION="What is GraphRAG?" TOP_K=1
 Cette qualification vérifie que le primer de `/graphrag/context?mode=drift` ne contient que des rapports de communautés vectorisés, dans l'ordre de leur recherche et dans la limite `TOP_K`. Elle appelle ensuite `/graphrag/answer?mode=drift` et vérifie que les citations commencent par celles du primer, que `reasonStop` est renseigné et que `followUpCount` est un entier positif ou nul. Les preuves locales supplémentaires d'une itération DRIFT peuvent compléter les citations du primer.
 
 Le mode DRIFT exige un index vectoriel de communautés contenant `mg:summary` ou `mg:fullContent`. En son absence, l'endpoint répond explicitement une erreur de configuration : le test ne doit pas être remplacé par les modes `basic`, `local` ou `global`. Le contexte DRIFT n'appelle pas de chat ni de LLM de génération ; il appelle le fournisseur d'embeddings configuré afin de rechercher le primer vectoriel. La commande consomme donc les quotas d'embeddings et de chat.
+
+La qualification des limites runtime redémarre Fuseki avec des valeurs DRIFT non défaut, réindexe le corpus, puis contrôle la configuration publiée et les bornes effectivement observées :
+
+```bash
+make chat-qualify-drift-limits QUESTION="What is GraphRAG?"
+```
+
+Les valeurs par défaut de cette cible sont `communityTopK=1`, `maxFollowUps=1`, `contextTokenBudget=64` et `localTopK=1`. Elles peuvent être ajustées avec les variables `DRIFT_LIMIT_COMMUNITY_TOP_K`, `DRIFT_LIMIT_MAX_FOLLOW_UPS`, `DRIFT_LIMIT_CONTEXT_TOKEN_BUDGET` et `DRIFT_LIMIT_LOCAL_TOP_K`.
 
 La commande pose la même question aux trois modes, `What is GraphRAG?` par défaut, afin de comparer directement leurs contextes et réponses. Elle est configurable avec `make chat-ask-modes CHAT_MODE_QUESTION="..."`. Elle compare les citations de `/graphrag/answer` aux ressources et passages de `/graphrag/context`. Lorsqu'un contexte existe, elle vérifie aussi les types attendus : chunks pour `basic`, ressources mixtes GraphRAG pour `local`, et communautés pour `global`. Elle rejette une réponse qui présente GraphDB, Elasticsearch, LM Studio ou LangChain comme des composants génériques de Microsoft GraphRAG, ou qui ne les rattache pas au corpus ou à l'intégration RDF décrite. Elle affiche une réponse citée lorsque le contexte existe, ou une abstention conforme lorsque le mode ne trouve aucune ressource.
 

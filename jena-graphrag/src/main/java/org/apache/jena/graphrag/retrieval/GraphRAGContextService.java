@@ -272,6 +272,42 @@ public final class GraphRAGContextService {
         return BASIC_MODE.equals(mode) || LOCAL_MODE.equals(mode) || GLOBAL_MODE.equals(mode) || DRIFT_MODE.equals(mode);
     }
 
+    /**
+     * Bounds a DRIFT primer while retaining vector-ranking order and citation URIs.
+     */
+    public static GraphRAGContext boundDriftContext(GraphRAGContext context, int tokenBudget) {
+        if ( !DRIFT_MODE.equals(context.mode()) )
+            return context;
+        if ( tokenBudget < 1 )
+            throw new IllegalArgumentException("driftContextTokenBudget doit etre positif");
+        int remaining = tokenBudget;
+        List<Result> bounded = new ArrayList<>();
+        for ( Result result : context.results() ) {
+            if ( remaining == 0 )
+                break;
+            String text = truncate(result.sourceText(), remaining);
+            if ( text.isEmpty() )
+                continue;
+            bounded.add(Result.community(result.uri(), result.score(), text, result.communityTitle()));
+            remaining -= tokenCount(text);
+        }
+        return new GraphRAGContext(context.query(), context.mode(), List.copyOf(bounded));
+    }
+
+    private static String truncate(String text, int tokenBudget) {
+        String normalized = text == null ? "" : text.strip();
+        if ( normalized.isEmpty() )
+            return "";
+        String[] words = normalized.split("\\s+");
+        if ( words.length <= tokenBudget )
+            return normalized;
+        return String.join(" ", java.util.Arrays.copyOf(words, tokenBudget));
+    }
+
+    private static int tokenCount(String text) {
+        return text == null || text.isBlank() ? 0 : text.strip().split("\\s+").length;
+    }
+
     private GraphRAGContext retrieveDrift(DatasetGraph datasetGraph, String query, int topK) {
         if ( communityReportSearchService == null )
             throw new IllegalArgumentException("mode drift requiert un index vectoriel de communautes configure");
