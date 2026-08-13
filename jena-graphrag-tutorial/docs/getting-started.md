@@ -65,7 +65,7 @@ Cette commande vérifie que le profil local contient le nombre attendu de PDF. A
 make project-prepare
 ```
 
-Cette commande compile les dépendances du tutoriel et écrit un classpath temporaire sous `../target/tranche-7-tutoriel/`. Elle ne démarre pas Fuseki et n'appelle ni le service d'embeddings ni le service de génération de réponses.
+Cette commande compile les dépendances du tutoriel et écrit un classpath temporaire sous `target/tranche-7-tutoriel/`. Elle ne démarre pas Fuseki et n'appelle ni le service d'embeddings ni le service de génération de réponses.
 
 ### 3. Ingérer les PDF
 
@@ -73,7 +73,7 @@ Cette commande compile les dépendances du tutoriel et écrit un classpath tempo
 make corpus-materialize
 ```
 
-Cette commande transforme les PDF locaux en ressources RDF `Document` et `Chunk` au moyen de `DocumentIngestionService`. Le corpus Turtle temporaire est écrit sous `../target/tranche-7-tutoriel/`. Elle n'extrait pas encore les entités, relations ni communautés, et n'appelle ni le service d'embeddings ni le service de génération de réponses.
+Cette commande transforme les PDF locaux en ressources RDF `Document` et `Chunk` au moyen de `DocumentIngestionService`. Le corpus Turtle temporaire est écrit sous `target/tranche-7-tutoriel/`. Elle n'extrait pas encore les entités, relations ni communautés, et n'appelle ni le service d'embeddings ni le service de génération de réponses.
 
 ### 4. Démarrer Fuseki
 
