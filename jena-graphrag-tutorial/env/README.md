@@ -24,7 +24,7 @@
 Run the following command from the repository root to create the local GraphRAG profile:
 
 ```bash
-make -C jena-graphrag-integration-tests bootstrap-real-providers
+make -C jena-graphrag-tutorial providers-bootstrap
 ```
 
 The bootstrap verifies Git, Java and Maven, creates `.env` from `.env.example` and `.env.user` from `.env.user.example` when either is absent, and verifies that both local files are ignored by Git. `.env` supplies GraphRAG runtime settings; `.env.user` overrides it with local provider settings. It projects the merged values into ignored `env/generated/` files for Make, shell scripts and Maven; Surefire exposes the runtime settings to Java as both environment variables and JVM properties. It is idempotent and never prints provider values.
@@ -33,6 +33,6 @@ Set GraphRAG runtime settings and embedding credentials in `.env`; keep chat-spe
 
 ```bash
 set -a
-. jena-graphrag-integration-tests/env/generated/real-providers.env.sh
+. jena-graphrag-tutorial/env/generated/real-providers.env.sh
 set +a
 ```

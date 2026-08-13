@@ -17,7 +17,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package org.apache.jena.graphrag.integration;
+package org.apache.jena.graphrag.ingestion;
 
 import java.io.OutputStream;
 import java.net.URI;
@@ -25,11 +25,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.jena.graphrag.ingestion.ChunkExtractionService;
-import org.apache.jena.graphrag.ingestion.DocumentIngestionConfig;
-import org.apache.jena.graphrag.ingestion.DocumentIngestionService;
 import org.apache.jena.graphrag.provider.HttpCommunitySummarizer;
 import org.apache.jena.graphrag.provider.HttpEntityExtractor;
 import org.apache.jena.graphrag.provider.HttpRelationshipExtractor;
@@ -102,7 +100,7 @@ public final class PdfCorpusMaterializer {
     }
 
     private static ChunkExtractionService extractionService(DocumentIngestionConfig config) {
-        ExternalProviderPrerequisites.requireRealProviderEnvironment(System.getenv());
+        requireRealProviderEnvironment(System.getenv());
         String endpoint = System.getenv(CHAT_ENDPOINT);
         String apiKey = System.getenv(CHAT_API_KEY);
         String model = System.getenv(CHAT_MODEL);
@@ -119,5 +117,17 @@ public final class PdfCorpusMaterializer {
         } catch (java.io.IOException ex) {
             throw new IllegalStateException("Failed to write corpus", ex);
         }
+    }
+
+    private static void requireRealProviderEnvironment(Map<String, String> environment) {
+        List<String> variables = List.of("GRAPHRAG_EMBEDDING_API_URL", "GRAPHRAG_EMBEDDING_API_KEY",
+                "GRAPHRAG_EMBEDDING_MODEL", "GRAPHRAG_EMBEDDING_DIMENSION", "OPENAI_API_URL",
+                "OPENAI_API_KEY", "GRAPHRAG_CHAT_MODEL");
+        List<String> missing = variables.stream()
+                .filter(variable -> environment.get(variable) == null || environment.get(variable).isBlank())
+                .toList();
+        if ( !missing.isEmpty() )
+            throw new IllegalStateException("Required real-provider environment variables are not set: "
+                    + String.join(", ", missing));
     }
 }

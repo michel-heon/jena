@@ -23,7 +23,7 @@ Ce parcours transforme les PDF de développement en documents et chunks RDF, pui
 
 ## Prérequis
 
-Depuis `jena-graphrag-integration-tests/tutoriel/`, Java, Maven, Node.js, `curl` et `make` doivent être disponibles. Exécuter `make providers-bootstrap` avant l'enrichissement : `corpus-materialize` est local, mais `corpus-semantic-extract` appelle les services de génération d'embeddings et de réponses configurés et consomme leurs quotas.
+Depuis `jena-graphrag-tutorial/`, Java, Maven, Node.js, `curl` et `make` doivent être disponibles. Exécuter `make providers-bootstrap` avant l'enrichissement : `corpus-materialize` est local, mais `corpus-semantic-extract` appelle les services de génération d'embeddings et de réponses configurés et consomme leurs quotas.
 
 Pour repartir sans corpus temporaire :
 

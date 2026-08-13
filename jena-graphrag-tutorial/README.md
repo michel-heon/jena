@@ -23,19 +23,19 @@
 
 Ce répertoire documente les parcours GraphRAG exécutables avec le [Makefile](Makefile). Le Makefile reste l'orchestrateur : il conserve l'état temporaire sous `target/tranche-7-tutoriel/` et ne stocke aucune valeur de service externe.
 
-Les parcours utilisent `DocumentIngestionService`, `GraphRAGFusekiUIServer` et les routes GraphRAG de production. Les appels au service de génération d'embeddings et au service de génération de réponses sont réels, consomment des quotas et exigent des paramètres locaux. Ne jamais afficher, committer ou transmettre les valeurs de `../env/.env.user` ou de `../env/generated/`.
+Les parcours utilisent `DocumentIngestionService`, `GraphRAGFusekiUIServer` et les routes GraphRAG de production. Les appels au service de génération d'embeddings et au service de génération de réponses sont réels, consomment des quotas et exigent des paramètres locaux. Ne jamais afficher, committer ou transmettre les valeurs de `env/.env.user` ou de `env/generated/`.
 
 ## Parcours
 
-Commencer par [Getting started](getting-started.md) pour préparer le corpus local, démarrer Fuseki sans enrichissement sémantique, indexer les chunks et obtenir une réponse citée en mode `basic`.
+Commencer par [Getting started](docs/getting-started.md) pour préparer le corpus local, démarrer Fuseki sans enrichissement sémantique, indexer les chunks et obtenir une réponse citée en mode `basic`.
 
 Les fonctionnalités avancées sont décrites dans des guides indépendants :
 
-- [Ingestion et enrichissement du corpus PDF](pdf-ingestion.md)
-- [Inspection du graphe RDF](rdf-inspection.md)
-- [Indexation vectorielle et configuration](vector-indexing.md)
-- [Modes de récupération et de réponse](retrieval-modes.md)
-- [Qualification avec les services réels et diagnostic](provider-qualification.md)
+- [Ingestion et enrichissement du corpus PDF](docs/pdf-ingestion.md)
+- [Inspection du graphe RDF](docs/rdf-inspection.md)
+- [Indexation vectorielle et configuration](docs/vector-indexing.md)
+- [Modes de récupération et de réponse](docs/retrieval-modes.md)
+- [Qualification avec les services réels et diagnostic](docs/provider-qualification.md)
 
 Chaque guide indique ses prérequis, les cibles Makefile, les effets de bord et les appels externes. Utiliser `make help` depuis ce répertoire pour afficher toutes les cibles publiques.
 
@@ -48,7 +48,7 @@ La procédure détaillée historique reste ci-dessous comme référence de quali
 Depuis la racine du dépôt, ouvrir un terminal dans ce répertoire:
 
 ```bash
-cd jena-graphrag-integration-tests/tutoriel
+cd jena-graphrag-tutorial
 make help
 ```
 
@@ -60,7 +60,7 @@ Le prérequis est Java, Maven, Node.js, `curl` et `make`.
 make providers-bootstrap
 ```
 
-La cible crée la projection ignorée `env/generated/real-providers.env.sh`. Si nécessaire, renseigner `jena-graphrag-integration-tests/env/.env.user`, puis relancer `make providers-bootstrap`. Ne jamais afficher, committer ou transmettre les valeurs de ce fichier.
+La cible crée la projection ignorée `env/generated/real-providers.env.sh`. Si nécessaire, renseigner `env/.env.user`, puis relancer `make providers-bootstrap`. Ne jamais afficher, committer ou transmettre les valeurs de ce fichier.
 
 ## Étape 2: vérifier les PDF
 
@@ -76,7 +76,7 @@ Résultat attendu: le nombre de PDF configuré dans `GRAPHRAG_TUTORIAL_EXPECTED_
 make project-prepare
 ```
 
-Cette action compile le module d'intégration et écrit le classpath de test temporaire. Elle ne contacte aucun fournisseur.
+Cette action compile les composants GraphRAG utilisés par le tutoriel et écrit son classpath d'exécution temporaire. Elle ne contacte aucun fournisseur.
 
 ## Étape 4: ingérer les PDF
 

@@ -78,7 +78,7 @@
                 </goals>
                 <configuration>
                   <files>
-                    <file>${project.basedir}/env/generated/real-providers.properties</file>
+                    <file>${project.basedir}/../jena-graphrag-tutorial/env/generated/real-providers.properties</file>
                   </files>
                 </configuration>
               </execution>

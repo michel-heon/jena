@@ -23,7 +23,7 @@ Ce guide inspecte le Turtle produit par le tutoriel. Toutes les commandes exécu
 
 ## Prérequis
 
-Depuis `jena-graphrag-integration-tests/tutoriel/`, matérialiser un corpus :
+Depuis `jena-graphrag-tutorial/`, matérialiser un corpus :
 
 ```bash
 make project-prepare

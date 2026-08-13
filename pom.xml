@@ -248,6 +248,7 @@
            for GraphRAG integration tests; keep Maven focused on building and running JUnit. -->
       <modules>
         <module>jena-graphrag</module>
+        <module>jena-graphrag-tutorial</module>
         <module>jena-graphrag-integration-tests</module>
       </modules>
     </profile>

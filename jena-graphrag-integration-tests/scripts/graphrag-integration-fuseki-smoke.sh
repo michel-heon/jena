@@ -61,7 +61,7 @@ if [[ "${GRAPHRAG_SMOKE_REAL_PROVIDERS:-false}" == 'true' ]]; then
         echo 'Real-provider smoke requires GraphRAG to be enabled.' >&2
         exit 1
     fi
-    provider_environment="$module_dir/env/generated/real-providers.env.sh"
+    provider_environment="$root_dir/jena-graphrag-tutorial/env/generated/real-providers.env.sh"
     if [[ ! -r "$provider_environment" ]]; then
         echo 'Real-provider environment is not prepared; run make bootstrap-real-providers first.' >&2
         exit 1
@@ -84,9 +84,9 @@ if [[ "${GRAPHRAG_SMOKE_ULTIMATE:-false}" == 'true' ]]; then
         exit 1
     fi
     export GRAPHRAG_SYSTEM_PROMPT='Answer only from the ingested GraphRAG research PDF corpus. Cite retrieved sources and say when the corpus lacks the answer.'
-    pdf_corpus="$module_dir/src/test/resources/corpus/ingestion/pdf"
+    pdf_corpus="$root_dir/jena-graphrag-tutorial/src/main/resources/corpus/ingestion/pdf"
     materialized_corpus="$runtime_dir/pdf-corpus.ttl"
-    java -cp "$classpath" org.apache.jena.graphrag.integration.PdfCorpusMaterializer "$pdf_corpus" "$materialized_corpus"
+    java -cp "$classpath" org.apache.jena.graphrag.ingestion.PdfCorpusMaterializer "$pdf_corpus" "$materialized_corpus"
     server_arguments[0]="$materialized_corpus"
     playwright_script='test:ultimate-smoke'
 fi

@@ -61,11 +61,11 @@ for command_name in git java mvn; do
 done
 
 if [[ ! -f "$REPO_ROOT/pom.xml" || ! -f "$MODULE_DIR/pom.xml" ]]; then
-    printf 'Jena repository or GraphRAG integration module is unavailable\n' >&2
+    printf 'Jena repository or GraphRAG tutorial module is unavailable\n' >&2
     exit 1
 fi
 
-for environment_file in "jena-graphrag-integration-tests/env/.env" "jena-graphrag-integration-tests/env/.env.user"; do
+for environment_file in "jena-graphrag-tutorial/env/.env" "jena-graphrag-tutorial/env/.env.user"; do
     if ! git -C "$REPO_ROOT" check-ignore -q "$environment_file"; then
         printf 'Local provider environment file is not ignored by Git\n' >&2
         exit 1
@@ -73,17 +73,27 @@ for environment_file in "jena-graphrag-integration-tests/env/.env" "jena-graphra
 done
 
 if [[ ! -f "$ENV_BASE" ]]; then
-    cp "$ENV_BASE_EXAMPLE" "$ENV_BASE"
+    if [[ -f "$REPO_ROOT/jena-graphrag-integration-tests/env/.env" ]]; then
+        cp "$REPO_ROOT/jena-graphrag-integration-tests/env/.env" "$ENV_BASE"
+        printf 'Migrated local GraphRAG environment file to: jena-graphrag-tutorial/env/.env\n'
+    else
+        cp "$ENV_BASE_EXAMPLE" "$ENV_BASE"
+        printf 'Created local GraphRAG environment file: jena-graphrag-tutorial/env/.env\n'
+    fi
     chmod 0600 "$ENV_BASE"
-    printf 'Created local GraphRAG environment file: jena-graphrag-integration-tests/env/.env\n'
 else
     printf 'Local GraphRAG environment file already exists\n'
 fi
 
 if [[ ! -f "$ENV_USER" ]]; then
-    cp "$ENV_EXAMPLE" "$ENV_USER"
+    if [[ -f "$REPO_ROOT/jena-graphrag-integration-tests/env/.env.user" ]]; then
+        cp "$REPO_ROOT/jena-graphrag-integration-tests/env/.env.user" "$ENV_USER"
+        printf 'Migrated local provider environment file to: jena-graphrag-tutorial/env/.env.user\n'
+    else
+        cp "$ENV_EXAMPLE" "$ENV_USER"
+        printf 'Created local provider environment file: jena-graphrag-tutorial/env/.env.user\n'
+    fi
     chmod 0600 "$ENV_USER"
-    printf 'Created local provider environment file: jena-graphrag-integration-tests/env/.env.user\n'
 else
     printf 'Local provider environment file already exists\n'
 fi
@@ -108,6 +118,12 @@ read_environment_file "$ENV_USER"
 if [[ ! -f "$ENV_BASE" || ! -f "$ENV_USER" ]]; then
     printf 'Local provider environment is unavailable\n' >&2
     exit 1
+fi
+
+if [[ "${provider_values[GRAPHRAG_TUTORIAL_PDF_PATH]:-}" == "src/test/resources/corpus/ingestion/pdf" ]]; then
+    provider_values[GRAPHRAG_TUTORIAL_PDF_PATH]="src/main/resources/corpus/ingestion/pdf"
+elif [[ "${provider_values[GRAPHRAG_TUTORIAL_PDF_PATH]:-}" == "src/test/resources/corpus/ingestion/pdf-development" ]]; then
+    provider_values[GRAPHRAG_TUTORIAL_PDF_PATH]="src/main/resources/corpus/ingestion/pdf-development"
 fi
 
 azure_deployment_name() {

@@ -19,7 +19,7 @@
 
 # Getting started GraphRAG
 
-Ce parcours obtient une première réponse GraphRAG citée à partir du corpus PDF local : préparer l'espace de travail, indexer, puis interroger.
+Ce parcours obtient une première réponse GraphRAG citée à partir du corpus PDF local : préparer l'espace de travail, indexer, puis interroger. Voir aussi le [README du tutoriel](../README.md) pour le parcours complet.
 
 Il utilise les services de production de Jena : `DocumentIngestionService`, `GraphRAGFusekiUIServer` et les routes HTTP GraphRAG. Aucun endpoint réservé au tutoriel n'est créé.
 
@@ -30,7 +30,7 @@ Java, Maven, Node.js, `curl` et `make` doivent être disponibles. Le parcours ap
 Depuis la racine du dépôt :
 
 ```bash
-cd jena-graphrag-integration-tests/tutoriel
+cd jena-graphrag-tutorial
 ```
 
 Cette commande place le terminal dans le répertoire qui contient le `Makefile` du tutoriel.
@@ -39,7 +39,7 @@ Cette commande place le terminal dans le répertoire qui contient le `Makefile` 
 make providers-bootstrap
 ```
 
-Cette commande crée les fichiers locaux de projection des paramètres des services d'embeddings et de génération de réponses sous `../env/generated/`. Renseignez `../env/.env.user` si cette projection ne contient pas ces paramètres, puis relancez la commande. Elle ne lance ni Fuseki ni appel à ces services.
+Cette commande crée les fichiers locaux de projection des paramètres des services d'embeddings et de génération de réponses sous `env/generated/`. Renseignez `env/.env.user` si cette projection ne contient pas ces paramètres, puis relancez la commande. Elle ne lance ni Fuseki ni appel à ces services.
 
 ## Exécuter le premier parcours
 
@@ -131,7 +131,7 @@ make chat-question QUESTION="What is the role of embeddings in GraphRAG?" MODE=b
 
 Cette commande remplace uniquement le texte de la question de l'étape 9. L'indexation doit déjà être terminée.
 
-`mode=basic` est volontairement le seul mode de ce parcours. Les modes `local`, `global` et `drift` nécessitent l'enrichissement sémantique et, pour DRIFT, l'index vectoriel dédié aux rapports de communautés. Ils sont traités dans le [parcours détaillé](README.md).
+`mode=basic` est volontairement le seul mode de ce parcours. Les modes `local`, `global` et `drift` nécessitent l'enrichissement sémantique et, pour DRIFT, l'index vectoriel dédié aux rapports de communautés. Ils sont traités dans le [parcours détaillé](../README.md).
 
 ## Inspecter et arrêter
 

@@ -134,7 +134,7 @@ To execute the tranche-4 real-provider qualification:
 
 ```bash
 set -a
-. jena-graphrag-integration-tests/env/.env.user
+. jena-graphrag-tutorial/env/generated/real-providers.env.sh
 set +a
 mvn -Pgraphrag,graphrag-real-providers -pl jena-graphrag-integration-tests test
 ```

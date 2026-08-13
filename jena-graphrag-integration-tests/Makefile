@@ -17,13 +17,13 @@
 
 PLAYWRIGHT_REPORT_PORT ?= 9323
 
--include env/generated/real-providers.mk
+-include ../jena-graphrag-tutorial/env/generated/real-providers.mk
 
 help: ## Show available module targets
 	@awk 'BEGIN { FS = ":.*##"; printf "Available targets:\n" } /^[a-zA-Z0-9_-]+:.*##/ { printf "  %-24s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 bootstrap-real-providers: ## Prepare the ignored local real-provider environment file
-	@./scripts/graphrag-integration-provider-bootstrap.sh
+	@$(MAKE) -C ../jena-graphrag-tutorial providers-bootstrap
 
 real-providers: bootstrap-real-providers ## Run the real-provider Maven profile with generated environment
 	@mvn -f ../pom.xml -Pgraphrag,graphrag-real-providers -pl jena-graphrag-integration-tests -am test
