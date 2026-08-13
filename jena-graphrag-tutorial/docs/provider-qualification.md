@@ -38,7 +38,7 @@ make indexing-start
 make indexing-wait
 ```
 
-`corpus-semantic-extract`, `indexing-start` et les qualifications de réponse appellent les services externes. Les fichiers `../env/.env.user` et `../env/generated/` peuvent contenir les paramètres nécessaires : ne jamais les afficher ni les ajouter à Git.
+`corpus-semantic-extract`, `indexing-start` et les qualifications de réponse appellent les services externes. Les fichiers `env/.env.user` et `env/generated/` peuvent contenir les paramètres nécessaires : ne jamais les afficher ni les ajouter à Git.
 
 ## Qualifier les réponses et citations
 

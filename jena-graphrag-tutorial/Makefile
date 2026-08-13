@@ -126,7 +126,7 @@ $(CLASSPATH_FILE): $(MATERIALIZER_SOURCE)
 	@cd "$(ROOT_DIR)" && mvn -q -Pgraphrag -pl jena-graphrag-tutorial dependency:build-classpath \
 		-DincludeScope=runtime -Dmdep.outputFile="$(CLASSPATH_FILE)"
 
-project-prepare: $(CLASSPATH_FILE) ## Compile the module and create its test classpath
+project-prepare: $(CLASSPATH_FILE) ## Compile the module and create its runtime classpath
 	@echo "Classpath prepared in $(CLASSPATH_FILE)."
 
 $(ARQ_CLASS):
