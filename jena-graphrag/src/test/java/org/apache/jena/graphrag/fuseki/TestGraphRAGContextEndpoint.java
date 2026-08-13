@@ -294,6 +294,9 @@ public class TestGraphRAGContextEndpoint {
             JsonObject body = JSON.parse(response.body());
             assertEquals("local", body.get("defaultMode").getAsString().value());
             assertTrue(body.get("modes").getAsArray().size() >= 3);
+                assertTrue(body.get("modes").getAsArray().stream()
+                    .anyMatch(value -> "drift".equals(value.getAsString().value())));
+                assertTrue(body.get("driftLimits").getAsObject().get("maxFollowUps").getAsNumber().value().intValue() > 0);
             assertTrue(body.get("limits").getAsObject().get("maxIndexContentLength").getAsNumber().value().intValue() > 0);
             assertEquals("***", body.get("maskedProperties").getAsObject()
                     .get("jena.graphrag.apiKey").getAsString().value());

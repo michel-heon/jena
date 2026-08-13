@@ -90,7 +90,7 @@ help: ## Display tutorial steps
 		'  communities-list          List extracted communities.' \
 		'  findings-list             List extracted findings from the local Turtle corpus.' \
 		'  chat-ask-questions        Run the five tutorial questions.' \
-		'  chat-ask-modes            Qualify basic, local, global, and DRIFT with real providers.' \
+		'  chat-ask-modes            Qualify basic, local, and global with real providers.' \
 		'  chat-qualify-mode         Qualify context and citations: QUESTION="..." MODE=basic TOP_K=1.' \
 		'  chat-qualify-drift        Qualify the bounded DRIFT traversal with real providers.' \
 		'  chat-question             Ask one question: make chat-question QUESTION="..." MODE=local' \
@@ -152,7 +152,7 @@ fuseki-start: $(SEMANTIC_MARKER) $(PORT_FILE) ## Start production Fuseki with th
 		[[ -r "$$env_file" ]] || { echo "Run make bootstrap first." >&2; exit 1; }; \
 		set -a; source "$$env_file"; set +a; \
 		GRAPHRAG_SYSTEM_PROMPT='$(SYSTEM_PROMPT)' \
-		java -Djena.graphrag.drift.communityTopK="$$GRAPHRAG_DRIFT_COMMUNITY_TOP_K" -Djena.graphrag.drift.maxFollowUps="$$GRAPHRAG_DRIFT_MAX_FOLLOW_UPS" -Djena.graphrag.drift.contextTokenBudget="$$GRAPHRAG_DRIFT_CONTEXT_TOKEN_BUDGET" -Djena.graphrag.drift.localTopK="$$GRAPHRAG_DRIFT_LOCAL_TOP_K" -cp "$(MODULE_DIR)/target/test-classes:$(MODULE_DIR)/target/classes:$(ROOT_DIR)/jena-graphrag/target/classes:$$(cat "$(CLASSPATH_FILE)")" \
+		java -cp "$(MODULE_DIR)/target/test-classes:$(MODULE_DIR)/target/classes:$(ROOT_DIR)/jena-graphrag/target/classes:$$(cat "$(CLASSPATH_FILE)")" \
 			org.apache.jena.graphrag.fuseki.GraphRAGFusekiUIServer "$(CORPUS_FILE)" "$$(cat "$(PORT_FILE)")" "$(DATASET)" true "$(WORK_DIR)/real-provider-index" \
 			> "$(LOG_FILE)" 2>&1 & echo $$! > "$(PID_FILE)"; \
 		echo "Fuseki started at $(FUSEKI_URL)."; \
@@ -160,7 +160,14 @@ fuseki-start: $(SEMANTIC_MARKER) $(PORT_FILE) ## Start production Fuseki with th
 	fi
 
 fuseki-ping: ## Confirm Fuseki is reachable
-	@curl --fail --silent --show-error "$(FUSEKI_URL)/\$$/ping" >/dev/null
+	@for attempt in $$(seq 1 30); do \
+		if curl --fail --silent --show-error "$(FUSEKI_URL)/\$$/ping" >/dev/null 2>&1; then exit 0; fi; \
+		if [[ $$attempt -eq 30 ]]; then \
+			echo "Fuseki did not respond to ping at $(FUSEKI_URL)." >&2; \
+			exit 1; \
+		fi; \
+		sleep 1; \
+	done
 	@echo "Fuseki responds to ping."
 
 fuseki-status: ## Report Fuseki process, ping, and dataset status
@@ -280,14 +287,14 @@ chat-ask-questions: ## Ask five questions and verify cited PDF answers
 		echo; \
 	done
 
-chat-ask-modes: ## Qualify basic, local, global, and DRIFT answers against their retrieved citations
-	@set -e; for mode in basic local global drift; do \
+chat-ask-modes: ## Qualify basic, local, and global answers against their retrieved citations
+	@set -e; for mode in basic local global; do \
 		question='$(CHAT_MODE_QUESTION)'; \
 		echo "Mode: $$mode"; \
 		echo "Question: $$question"; \
 		context=$$(curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/graphrag/context" --data-urlencode "q=$$question" --data-urlencode "mode=$$mode" --data-urlencode 'topK=5'); \
 		response=$$(curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/graphrag/answer" --data-urlencode "q=$$question" --data-urlencode "mode=$$mode" --data-urlencode 'topK=5'); \
-		CONTEXT="$$context" RESPONSE="$$response" MODE="$$mode" REQUIRE_MIXED_LOCAL="$(CHAT_MODE_REQUIRE_MIXED_LOCAL)" REQUIRE_MULTIPLE_GLOBAL="$(CHAT_MODE_REQUIRE_MULTIPLE_GLOBAL)" node -e 'const context = JSON.parse(process.env.CONTEXT); const response = JSON.parse(process.env.RESPONSE); const expected = context.results.map(result => [result.uri, result.sourceText]); const citations = (response.citations ?? []).map(citation => [citation.uri, citation.text]); const abstention = "Aucun contexte GraphRAG correspondant a la question."; const allowedTypes = {basic: ["chunk"], local: ["relationship", "entity", "chunk", "community"], global: ["community"], drift: ["community"]}; const integrationComponent = /\b(graphdb|elasticsearch|lm studio|langchain)\b/i; const integrationScope = /\b(corpus|document|article|partie\s+3|demonstration|integration\s+rdf|solution\s+decrite)\b/i; const genericIntegrationClaim = /\bmicrosoft\s+graphrag\b.{0,100}\b(uses|utilizes|integrates|requires|contains|utilise|integre|requiert|contient)\b.{0,120}\b(graphdb|elasticsearch|lm studio|langchain)\b/i; if (!response.answer || !response.answer.trim()) process.exit(1); if (response.answer === abstention) { if (expected.length !== 0 || citations.length !== 0) process.exit(1); console.log("Status: abstention (no matching mode context)."); } else { const types = [...new Set(context.results.map(result => result.type))]; const matchesPrimer = process.env.MODE === "drift" ? JSON.stringify(citations.slice(0, expected.length)) === JSON.stringify(expected) : JSON.stringify(citations) === JSON.stringify(expected); if (expected.length === 0 || !matchesPrimer || types.some(type => !allowedTypes[process.env.MODE].includes(type))) process.exit(1); if (process.env.MODE === "drift" && (!response.reasonStop || !Number.isInteger(response.followUpCount) || response.followUpCount < 0)) process.exit(1); if (genericIntegrationClaim.test(response.answer) || integrationComponent.test(response.answer) && !integrationScope.test(response.answer)) { console.error("Qualification failure: RDF integration components must be scoped to the retrieved corpus or described integration."); process.exit(1); } console.log("Status: cited answer."); console.log("Context types: " + types.join(", ")); if (process.env.MODE === "local" && types.length < 2) { if (process.env.REQUIRE_MIXED_LOCAL === "true") process.exit(1); console.log("Qualification limit: local context is not mixed for this corpus and question."); } if (process.env.MODE === "global" && context.results.length < 2) { if (process.env.REQUIRE_MULTIPLE_GLOBAL === "true") process.exit(1); console.log("Qualification limit: global context has fewer than two community reports."); } console.log("Answer:\n" + response.answer.trim()); console.log("Mode citations:"); for (const citation of citations) console.log("  " + citation[0]); }'; \
+		CONTEXT="$$context" RESPONSE="$$response" MODE="$$mode" REQUIRE_MIXED_LOCAL="$(CHAT_MODE_REQUIRE_MIXED_LOCAL)" REQUIRE_MULTIPLE_GLOBAL="$(CHAT_MODE_REQUIRE_MULTIPLE_GLOBAL)" node -e 'const context = JSON.parse(process.env.CONTEXT); const response = JSON.parse(process.env.RESPONSE); const expected = context.results.map(result => [result.uri, result.sourceText]); const citations = (response.citations ?? []).map(citation => [citation.uri, citation.text]); const abstention = "Aucun contexte GraphRAG correspondant a la question."; const allowedTypes = {basic: ["chunk"], local: ["relationship", "entity", "chunk", "community"], global: ["community"]}; const integrationComponent = /\b(graphdb|elasticsearch|lm studio|langchain)\b/i; const integrationScope = /\b(corpus|document|article|partie\s+3|demonstration|integration\s+rdf|solution\s+decrite)\b/i; const genericIntegrationClaim = /\bmicrosoft\s+graphrag\b.{0,100}\b(uses|utilizes|integrates|requires|contains|utilise|integre|requiert|contient)\b.{0,120}\b(graphdb|elasticsearch|lm studio|langchain)\b/i; if (!response.answer || !response.answer.trim()) process.exit(1); if (response.answer === abstention) { if (expected.length !== 0 || citations.length !== 0) process.exit(1); console.log("Status: abstention (no matching mode context)."); } else { const types = [...new Set(context.results.map(result => result.type))]; if (expected.length === 0 || JSON.stringify(citations) !== JSON.stringify(expected) || types.some(type => !allowedTypes[process.env.MODE].includes(type))) process.exit(1); if (genericIntegrationClaim.test(response.answer) || integrationComponent.test(response.answer) && !integrationScope.test(response.answer)) { console.error("Qualification failure: RDF integration components must be scoped to the retrieved corpus or described integration."); process.exit(1); } console.log("Status: cited answer."); console.log("Context types: " + types.join(", ")); if (process.env.MODE === "local" && types.length < 2) { if (process.env.REQUIRE_MIXED_LOCAL === "true") process.exit(1); console.log("Qualification limit: local context is not mixed for this corpus and question."); } if (process.env.MODE === "global" && context.results.length < 2) { if (process.env.REQUIRE_MULTIPLE_GLOBAL === "true") process.exit(1); console.log("Qualification limit: global context has fewer than two community reports."); } console.log("Answer:\n" + response.answer.trim()); console.log("Mode citations:"); for (const citation of citations) console.log("  " + citation[0]); }'; \
 		echo; \
 	done
 
@@ -296,37 +303,50 @@ chat-qualify-mode: ## Qualify a mode context and answer with QUESTION, MODE and 
 	question="$${QUESTION:-What is GraphRAG?}"; \
 	mode="$${MODE:-basic}"; \
 	top_k="$${TOP_K:-1}"; \
-	[[ "$$mode" == basic || "$$mode" == local || "$$mode" == global || "$$mode" == drift ]] || { echo 'MODE must be basic, local, global, or drift.' >&2; exit 1; }; \
 	[[ "$$top_k" =~ ^[1-9][0-9]*$$ && "$$top_k" -le 100 ]] || { echo 'TOP_K must be an integer from 1 to 100.' >&2; exit 1; }; \
+	if [[ "$$mode" == drift ]]; then \
+		$(MAKE) chat-qualify-drift QUESTION="$$question" TOP_K="$$top_k"; \
+		exit $$?; \
+	fi; \
+	[[ "$$mode" == basic || "$$mode" == local || "$$mode" == global ]] || { echo 'MODE must be basic, local, global, or drift.' >&2; exit 1; }; \
 	echo "Question: $$question"; \
 	echo "Mode: $$mode"; \
 	echo "Top K: $$top_k"; \
 	context=$$(curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/graphrag/context" --data-urlencode "q=$$question" --data-urlencode "mode=$$mode" --data-urlencode "topK=$$top_k"); \
 	response=$$(curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/graphrag/answer" --data-urlencode "q=$$question" --data-urlencode "mode=$$mode" --data-urlencode "topK=$$top_k"); \
-	CONTEXT="$$context" RESPONSE="$$response" MODE="$$mode" TOP_K="$$top_k" node -e 'const context = JSON.parse(process.env.CONTEXT); const response = JSON.parse(process.env.RESPONSE); const mode = process.env.MODE; const topK = Number(process.env.TOP_K); const abstention = "Aucun contexte GraphRAG correspondant a la question."; const allowedTypes = {basic: ["chunk"], local: ["relationship", "entity", "chunk", "community"], global: ["community"], drift: ["community"]}; const results = context.results ?? []; const citations = response.citations ?? []; const expected = results.map(result => [result.uri, result.sourceText]); const actual = citations.map(citation => [citation.uri, citation.text]); const matchesPrimer = mode === "drift" ? JSON.stringify(actual.slice(0, expected.length)) === JSON.stringify(expected) : JSON.stringify(actual) === JSON.stringify(expected); if (context.mode !== mode || results.length > topK || results.some(result => !allowedTypes[mode].includes(result.type)) || !response.answer?.trim()) process.exit(1); if (response.answer === abstention) { if (results.length !== 0 || citations.length !== 0) process.exit(1); console.log("Qualification passed: abstention without context."); process.exit(0); } if (results.length === 0 || !matchesPrimer || mode === "drift" && (!response.reasonStop || !Number.isInteger(response.followUpCount) || response.followUpCount < 0)) process.exit(1); console.log("Mode qualification passed."); console.log("Context resources: " + results.length); console.log("Answer: " + response.answer.trim());';
+	CONTEXT="$$context" RESPONSE="$$response" MODE="$$mode" TOP_K="$$top_k" node -e 'const context = JSON.parse(process.env.CONTEXT); const response = JSON.parse(process.env.RESPONSE); const mode = process.env.MODE; const topK = Number(process.env.TOP_K); const abstention = "Aucun contexte GraphRAG correspondant a la question."; const allowedTypes = {basic: ["chunk"], local: ["relationship", "entity", "chunk", "community"], global: ["community"]}; const results = context.results ?? []; const citations = response.citations ?? []; const expected = results.map(result => [result.uri, result.sourceText]); const actual = citations.map(citation => [citation.uri, citation.text]); if (context.mode !== mode || results.length > topK || results.some(result => !allowedTypes[mode].includes(result.type)) || !response.answer?.trim()) process.exit(1); if (response.answer === abstention) { if (results.length !== 0 || citations.length !== 0) process.exit(1); console.log("Qualification passed: abstention without context."); process.exit(0); } if (results.length === 0 || JSON.stringify(actual) !== JSON.stringify(expected)) process.exit(1); console.log("Mode qualification passed."); console.log("Context resources: " + results.length); console.log("Answer: " + response.answer.trim());';
 
 chat-qualify-basic-vector: chat-qualify-mode ## Backward-compatible alias for basic vector qualification
 
-chat-qualify-drift: ## Qualify DRIFT primer, bounded traversal metadata, and citations
-	@$(MAKE) chat-qualify-mode MODE=drift QUESTION="$(if $(QUESTION),$(QUESTION),What is GraphRAG?)" TOP_K="$(if $(TOP_K),$(TOP_K),1)"
+chat-qualify-drift: ## Qualify the DRIFT primer, citations, and traversal metadata
+	@set -e; \
+	question="$${QUESTION:-What is GraphRAG?}"; \
+	top_k="$${TOP_K:-1}"; \
+	[[ "$$top_k" =~ ^[1-9][0-9]*$$ && "$$top_k" -le 100 ]] || { echo 'TOP_K must be an integer from 1 to 100.' >&2; exit 1; }; \
+	echo "Question: $$question"; \
+	echo "Mode: drift"; \
+	echo "Top K: $$top_k"; \
+	context=$$(curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/graphrag/context" --data-urlencode "q=$$question" --data-urlencode 'mode=drift' --data-urlencode "topK=$$top_k"); \
+	response=$$(curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/graphrag/answer" --data-urlencode "q=$$question" --data-urlencode 'mode=drift' --data-urlencode "topK=$$top_k"); \
+	CONTEXT="$$context" RESPONSE="$$response" TOP_K="$$top_k" node -e 'const context = JSON.parse(process.env.CONTEXT); const response = JSON.parse(process.env.RESPONSE); const topK = Number(process.env.TOP_K); const abstention = "Aucun contexte GraphRAG correspondant a la question."; const results = context.results ?? []; const citations = response.citations ?? []; const expected = results.map(result => [result.uri, result.sourceText]); const actual = citations.map(citation => [citation.uri, citation.text]); const matchesPrimer = JSON.stringify(actual.slice(0, expected.length)) === JSON.stringify(expected); if (context.mode !== "drift" || results.length > topK || results.some(result => result.type !== "community") || !response.answer?.trim()) process.exit(1); if (response.answer === abstention) { if (results.length !== 0 || citations.length !== 0) process.exit(1); console.log("DRIFT qualification passed: abstention without primer."); console.log("Answer: " + response.answer.trim()); process.exit(0); } if (results.length === 0 || !matchesPrimer || !response.reasonStop || !Number.isInteger(response.followUpCount) || response.followUpCount < 0) process.exit(1); console.log("DRIFT qualification passed."); console.log("Primer communities: " + results.length); console.log("Stop reason: " + response.reasonStop); console.log("Follow-ups: " + response.followUpCount); console.log("Answer:\n" + response.answer.trim());';
 
-chat-question: ## Ask QUESTION and display citations, optionally using MODE=basic, local, global, or drift
+chat-question: ## Ask QUESTION and display citations, optionally using MODE=basic, local, or global
 	@[[ -n "$(QUESTION)" ]] || { echo 'Usage: make chat-question QUESTION="Your question" [MODE=local]' >&2; exit 1; }
-	@[[ -z "$(MODE)" || "$(MODE)" == basic || "$(MODE)" == local || "$(MODE)" == global || "$(MODE)" == drift ]] || { echo 'MODE must be basic, local, global, or drift.' >&2; exit 1; }
+	@[[ -z "$(MODE)" || "$(MODE)" == basic || "$(MODE)" == local || "$(MODE)" == global ]] || { echo 'MODE must be basic, local, or global.' >&2; exit 1; }
 	@echo "Question: $(QUESTION)"
 	@curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/graphrag/answer" --data-urlencode "q=$(QUESTION)" --data-urlencode 'topK=5' $(if $(MODE),--data-urlencode "mode=$(MODE)") | \
 		MODE="$(MODE)" node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk).on("end", () => { const response = JSON.parse(input); const citations = response.citations ?? []; const displayedCitations = process.env.MODE ? citations : citations.filter(citation => /^http:\/\/ormynet\.com\/ns\/data#chunk-/.test(citation.uri)); if (!response.answer || !response.answer.trim() || (!process.env.MODE && displayedCitations.length === 0)) process.exit(1); console.log("Answer:\n" + response.answer.trim()); if (displayedCitations.length === 0) { console.log("No matching mode context."); return; } console.log(process.env.MODE ? "Mode citations:" : "PDF citations:"); for (const citation of displayedCitations) console.log("  " + citation.uri); });'
 
-context-question: ## Retrieve context for QUESTION with MODE=basic, local, global, or drift
+context-question: ## Retrieve context for QUESTION with MODE=basic, local, or global
 	@[[ -n "$(QUESTION)" ]] || { echo 'Usage: make context-question QUESTION="Your question" MODE=local' >&2; exit 1; }
-	@[[ "$(MODE)" == basic || "$(MODE)" == local || "$(MODE)" == global || "$(MODE)" == drift ]] || { echo 'MODE must be basic, local, global, or drift.' >&2; exit 1; }
+	@[[ "$(MODE)" == basic || "$(MODE)" == local || "$(MODE)" == global ]] || { echo 'MODE must be basic, local, or global.' >&2; exit 1; }
 	@echo "Question: $(QUESTION)"
 	@echo "Mode: $(MODE)"
 	@context=$$(curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/graphrag/context" --data-urlencode "q=$(QUESTION)" --data-urlencode "mode=$(MODE)" --data-urlencode 'topK=5'); \
 	metrics=$$(curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/sparql" \
 		--data-urlencode 'query=PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> SELECT (COUNT(DISTINCT ?entity) AS ?entities) (COUNT(DISTINCT ?relationship) AS ?relationships) (COUNT(DISTINCT ?community) AS ?communities) WHERE { OPTIONAL { ?entity a grag:Entity . } OPTIONAL { ?relationship a grag:Relationship . } OPTIONAL { ?community a grag:Community . } }' \
 		--data-urlencode 'format=application/sparql-results+json'); \
-	CONTEXT="$$context" METRICS="$$metrics" MODE="$(MODE)" node -e 'const context = JSON.parse(process.env.CONTEXT); const metrics = JSON.parse(process.env.METRICS).results.bindings[0]; const count = name => metrics[name]?.value ?? "0"; console.log(JSON.stringify(context, null, 2)); if (context.results.length !== 0) process.exit(0); console.log("No context result."); console.log("Graph entities: " + count("entities") + ", relationships: " + count("relationships") + ", communities: " + count("communities") + "."); if (process.env.MODE === "basic") console.log("basic requires vector-indexed chunks when a GraphRAG index is configured; otherwise it uses the text or literal fallback."); if (process.env.MODE === "local") console.log("local requires GraphRAG entities and relationships; PDF ingestion alone creates documents and chunks only."); if (process.env.MODE === "global" || process.env.MODE === "drift") console.log(process.env.MODE + " requires vector-indexed GraphRAG communities with summary or fullContent values.");'
+	CONTEXT="$$context" METRICS="$$metrics" MODE="$(MODE)" node -e 'const context = JSON.parse(process.env.CONTEXT); const metrics = JSON.parse(process.env.METRICS).results.bindings[0]; const count = name => metrics[name]?.value ?? "0"; console.log(JSON.stringify(context, null, 2)); if (context.results.length !== 0) process.exit(0); console.log("No context result."); console.log("Graph entities: " + count("entities") + ", relationships: " + count("relationships") + ", communities: " + count("communities") + "."); if (process.env.MODE === "basic") console.log("basic requires vector-indexed chunks when a GraphRAG index is configured; otherwise it uses the text or literal fallback."); if (process.env.MODE === "local") console.log("local requires GraphRAG entities and relationships; PDF ingestion alone creates documents and chunks only."); if (process.env.MODE === "global") console.log("global requires indexed GraphRAG communities with summary or fullContent values.");'
 
 fuseki-stop: ## Stop the tutorial Fuseki process
 	@if [[ -f "$(PID_FILE)" ]]; then \

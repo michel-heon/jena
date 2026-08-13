@@ -48,10 +48,6 @@ public class TestGraphRAGConfiguration {
         assertTrue(configuration.maxIndexContentLength() > 0);
         assertTrue(configuration.maxActiveTasks() > 0);
         assertTrue(configuration.maxRetainedCompletedTasks() > 0);
-        assertTrue(configuration.driftCommunityTopK() > 0);
-        assertTrue(configuration.driftMaxFollowUps() > 0);
-        assertTrue(configuration.driftContextTokenBudget() > 0);
-        assertTrue(configuration.driftLocalTopK() > 0);
     }
 
     @Test
@@ -82,7 +78,7 @@ public class TestGraphRAGConfiguration {
             () -> new GraphRAGConfiguration("local", 10, 5, 0.5));
         }
 
-    @Test
+        @Test
         public void rejectsInvalidHybridAlpha() {
         assertThrows(IllegalArgumentException.class,
             () -> new GraphRAGConfiguration("local", 5, 100, -0.1));
@@ -90,8 +86,8 @@ public class TestGraphRAGConfiguration {
             () -> new GraphRAGConfiguration("local", 5, 100, 1.1));
     }
 
-    @Test
-    public void rejectsInvalidPhase4Limits() {
+        @Test
+        public void rejectsInvalidPhase4Limits() {
         assertThrows(IllegalArgumentException.class,
             () -> new GraphRAGConfiguration("local", 5, 100, 0.5, 0, 1, 1));
         assertThrows(IllegalArgumentException.class,
@@ -100,19 +96,7 @@ public class TestGraphRAGConfiguration {
             () -> new GraphRAGConfiguration("local", 5, 100, 0.5, 1, 1, 0));
     }
 
-    @Test
-    public void rejectsInvalidDriftLimits() {
-        assertThrows(IllegalArgumentException.class,
-            () -> new GraphRAGConfiguration("local", 5, 100, 0.5, 1, 1, 1, 0, 1, 1, 1, ""));
-        assertThrows(IllegalArgumentException.class,
-            () -> new GraphRAGConfiguration("local", 5, 100, 0.5, 1, 1, 1, 1, 0, 1, 1, ""));
-        assertThrows(IllegalArgumentException.class,
-            () -> new GraphRAGConfiguration("local", 5, 100, 0.5, 1, 1, 1, 1, 1, 0, 1, ""));
-        assertThrows(IllegalArgumentException.class,
-            () -> new GraphRAGConfiguration("local", 5, 100, 0.5, 1, 1, 1, 1, 1, 1, 0, ""));
-    }
-
-    @Test
+        @Test
         public void modelOverridesHybridAlpha() {
             Model config = ModelFactory.createDefaultModel();
             config.createResource("urn:graphrag:index")
@@ -123,7 +107,7 @@ public class TestGraphRAGConfiguration {
             assertEquals(0.25, configuration.hybridAlpha());
         }
 
-    @Test
+        @Test
         public void modelResolvesSystemPromptFromNamedEnvironmentVariable() {
             Model config = ModelFactory.createDefaultModel();
             config.createResource("urn:graphrag:service")
@@ -136,7 +120,7 @@ public class TestGraphRAGConfiguration {
             assertEquals("Use cited context only.", configuration.systemPrompt());
         }
 
-    @Test
+        @Test
         public void modelRejectsMissingSystemPromptEnvironmentVariable() {
             Model config = ModelFactory.createDefaultModel();
             config.createResource("urn:graphrag:service")
@@ -147,7 +131,7 @@ public class TestGraphRAGConfiguration {
                     () -> GraphRAGConfiguration.fromModel(config, Map.of()));
         }
 
-    @Test
+            @Test
             public void taskLifecycleTracksPendingRunningDone() {
                 GraphRAGTaskService service = serviceAt("2026-07-19T10:00:00Z", 2, 10);
 
@@ -164,7 +148,7 @@ public class TestGraphRAGConfiguration {
                 assertEquals(done, service.find(created.taskId()).orElseThrow());
             }
 
-    @Test
+            @Test
             public void unknownTaskRaisesExplicitException() {
                 GraphRAGTaskService service = serviceAt("2026-07-19T10:00:00Z", 2, 10);
 
@@ -172,7 +156,7 @@ public class TestGraphRAGConfiguration {
                 assertTrue(service.find("missing").isEmpty());
             }
 
-    @Test
+            @Test
             public void failedTaskKeepsOperatorSafeErrorMessage() {
                 GraphRAGTaskService service = serviceAt("2026-07-19T10:00:00Z", 2, 10);
                 GraphRAGTask task = service.createTask();
@@ -184,7 +168,7 @@ public class TestGraphRAGConfiguration {
                 assertNotNull(failed.completedAt());
             }
 
-    @Test
+            @Test
             public void activeTaskLimitRejectsUnboundedQueue() {
                 GraphRAGTaskService service = serviceAt("2026-07-19T10:00:00Z", 1, 10);
 
@@ -193,7 +177,7 @@ public class TestGraphRAGConfiguration {
                 assertThrows(GraphRAGTaskService.TaskLimitExceededException.class, service::createTask);
             }
 
-    @Test
+            @Test
             public void summaryCountsTodayAndLastSuccess() {
                 GraphRAGTaskService service = serviceAt("2026-07-19T10:00:00Z", 3, 10);
                 GraphRAGTask done = service.createTask();

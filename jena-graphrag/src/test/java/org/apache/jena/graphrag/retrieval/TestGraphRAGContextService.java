@@ -26,7 +26,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.InputStream;
-import java.util.List;
 
 import org.apache.jena.graphrag.GraphRAGImporter;
 import org.apache.jena.graphrag.index.GraphRAGTextDatasetFactory;
@@ -524,19 +523,4 @@ public class TestGraphRAGContextService {
                     .addLiteral(GRAG.rank, rank);
         return relationship;
     }
-
-    @Test
-    public void boundDriftContext_preservesRankingAndCitationWhileRespectingBudget() {
-        GraphRAGContext context = new GraphRAGContext("question", "drift", List.of(
-                GraphRAGContext.Result.community("urn:community:one", 2.0, "one two three", "One"),
-                GraphRAGContext.Result.community("urn:community:two", 1.0, "four five", "Two")));
-
-        GraphRAGContext bounded = GraphRAGContextService.boundDriftContext(context, 2);
-
-        assertEquals("drift", bounded.mode());
-        assertEquals(1, bounded.results().size());
-        assertEquals("urn:community:one", bounded.results().getFirst().communityUri());
-        assertEquals("one two", bounded.results().getFirst().sourceText());
-    }
-
 }

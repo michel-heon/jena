@@ -47,10 +47,9 @@ import org.apache.jena.vocabulary.RDF;
  * Retrieves context directly from a normalized GraphRAG RDF graph.
  * <p>
  * The service is the shared Java implementation behind the Fuseki context
- * endpoint. It reads RDF resources already present in the dataset and never
- * calls a chat/LLM provider. The DRIFT mode additionally asks its configured
- * embedding provider for a query vector before searching local community-report
- * vectors. The caller owns the transaction.
+ * endpoint. It reads RDF resources already present in the dataset, performs no
+ * LLM call or external network request, and leaves transaction ownership to the
+ * caller.
  */
 public final class GraphRAGContextService {
 
@@ -271,45 +270,6 @@ public final class GraphRAGContextService {
 
     public static boolean supportsMode(String mode) {
         return BASIC_MODE.equals(mode) || LOCAL_MODE.equals(mode) || GLOBAL_MODE.equals(mode) || DRIFT_MODE.equals(mode);
-    }
-
-    /**
-     * Bounds a DRIFT primer while retaining the vector-ranking order and the RDF
-     * citation URI of every retained report. The budget is deliberately applied
-     * after retrieval: semantic selection remains exclusively the responsibility
-     * of the typed community vector index.
-     */
-    public static GraphRAGContext boundDriftContext(GraphRAGContext context, int tokenBudget) {
-        if ( !DRIFT_MODE.equals(context.mode()) )
-            return context;
-        if ( tokenBudget < 1 )
-            throw new IllegalArgumentException("driftContextTokenBudget doit etre positif");
-        int remaining = tokenBudget;
-        List<Result> bounded = new ArrayList<>();
-        for ( Result result : context.results() ) {
-            if ( remaining == 0 )
-                break;
-            String text = truncate(result.sourceText(), remaining);
-            if ( text.isEmpty() )
-                continue;
-            bounded.add(Result.community(result.uri(), result.score(), text, result.communityTitle()));
-            remaining -= tokenCount(text);
-        }
-        return new GraphRAGContext(context.query(), context.mode(), List.copyOf(bounded));
-    }
-
-    private static String truncate(String text, int tokenBudget) {
-        String normalized = text == null ? "" : text.strip();
-        if ( normalized.isEmpty() )
-            return "";
-        String[] words = normalized.split("\\s+");
-        if ( words.length <= tokenBudget )
-            return normalized;
-        return String.join(" ", java.util.Arrays.copyOf(words, tokenBudget));
-    }
-
-    private static int tokenCount(String text) {
-        return text == null || text.isBlank() ? 0 : text.strip().split("\\s+").length;
     }
 
     private GraphRAGContext retrieveDrift(DatasetGraph datasetGraph, String query, int topK) {

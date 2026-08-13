@@ -57,6 +57,7 @@ public final class GraphRAGAnswerAction extends ActionREST {
     private static final Property MG_TEXT = DatasetFactory.create().getDefaultModel()
             .createProperty("http://ormynet.com/ns/msft-graphrag#text");
     private static final int PROMPT_OVERHEAD_TOKENS = 16;
+    private static final int MAX_DRIFT_FOLLOW_UPS = 3;
     private static final String NO_CONTEXT_ANSWER = "Aucun contexte GraphRAG correspondant a la question.";
 
     private final DatasetGraph datasetGraph;
@@ -131,28 +132,25 @@ public final class GraphRAGAnswerAction extends ActionREST {
     private void answerDrift(HttpAction action, String question, int topK) {
         datasetGraph.begin(ReadWrite.READ);
         try {
-            GraphRAGContext primer = contextService.retrieve(datasetGraph, GraphRAGContextService.DRIFT_MODE, question,
-                    Math.min(topK, configuration.driftCommunityTopK()));
-            primer = GraphRAGContextService.boundDriftContext(primer, configuration.driftContextTokenBudget());
-            DriftTraversal traversal = new DriftTraversal(citations(primer));
+            DriftTraversal traversal = new DriftTraversal(citations(
+                    contextService.retrieve(datasetGraph, GraphRAGContextService.DRIFT_MODE, question, topK)));
             if ( traversal.citations.isEmpty() ) {
                 traversal.stopReason = "empty_primer";
                 writeDriftAnswer(action, question, NO_CONTEXT_ANSWER, traversal);
                 return;
             }
 
-            String initialAnswer = chatProvider.complete(question, boundedContextPassages(question, traversal.citations,
-                    configuration.driftContextTokenBudget()),
+            String initialAnswer = chatProvider.complete(question, boundedContextPassages(question, traversal.citations),
                     configuration.systemPrompt());
             for ( Citation communityReport : List.copyOf(traversal.citations) ) {
-                if ( traversal.followUpCount() == configuration.driftMaxFollowUps() ) {
+                if ( traversal.followUpCount() == MAX_DRIFT_FOLLOW_UPS ) {
                     traversal.stopReason = "max_follow_ups_reached";
                     break;
                 }
                 String followUp = "community-report:" + communityReport.uri();
                 traversal.pendingFollowUps.add(followUp);
                 GraphRAGContext localContext = contextService.retrieve(datasetGraph, GraphRAGContextService.LOCAL_MODE,
-                        communityReport.text(), configuration.driftLocalTopK());
+                        communityReport.text(), 1);
                 for ( Citation localEvidence : citations(localContext) )
                     traversal.addCitation(localEvidence);
                 traversal.pendingFollowUps.remove(followUp);
@@ -162,10 +160,8 @@ public final class GraphRAGAnswerAction extends ActionREST {
                 traversal.stopReason = "community_primer_exhausted";
             List<String> synthesisEvidence = new ArrayList<>();
             synthesisEvidence.add(initialAnswer);
-            synthesisEvidence.addAll(boundedContextPassages(question, traversal.citations,
-                    configuration.driftContextTokenBudget()));
-            String answer = chatProvider.complete(question, boundedPassages(question, synthesisEvidence,
-                    configuration.driftContextTokenBudget()),
+            synthesisEvidence.addAll(boundedContextPassages(question, traversal.citations));
+            String answer = chatProvider.complete(question, boundedPassages(question, synthesisEvidence),
                     configuration.systemPrompt());
             writeDriftAnswer(action, question, answer, traversal);
         } catch (IllegalArgumentException ex) {
@@ -256,16 +252,8 @@ public final class GraphRAGAnswerAction extends ActionREST {
         return boundedPassages(question, citations.stream().map(Citation::text).toList());
     }
 
-    private List<String> boundedContextPassages(String question, List<Citation> citations, int tokenBudget) {
-        return boundedPassages(question, citations.stream().map(Citation::text).toList(), tokenBudget);
-    }
-
     private List<String> boundedPassages(String question, List<String> candidates) {
-        return boundedPassages(question, candidates, 4096);
-    }
-
-    private List<String> boundedPassages(String question, List<String> candidates, int tokenBudget) {
-        int remainingBudget = Math.max(1, tokenBudget - estimateTokens(question) - PROMPT_OVERHEAD_TOKENS);
+        int remainingBudget = Math.max(1, 4096 - estimateTokens(question) - PROMPT_OVERHEAD_TOKENS);
         List<String> passages = new ArrayList<>();
         for ( String candidate : candidates ) {
             if ( remainingBudget <= 0 )

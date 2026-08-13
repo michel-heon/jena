@@ -419,7 +419,7 @@ final class GraphRAGConfigAction extends ActionREST {
                .value("basic")
                .value("local")
                .value("global")
-               .value("drift")
+               .value(GraphRAGContextService.DRIFT_MODE)
                .finishArray()
                .pair("defaultMode", configuration.defaultMode())
                .pair("defaultTopK", configuration.defaultTopK())
