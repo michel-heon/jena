@@ -104,7 +104,7 @@ The first target runs corpus, provider-prerequisite, ingestion, indexing, and re
 
 The smoke runner stops Fuseki after every result. Playwright traces, screenshots, videos, reports, and the Fuseki log are retained under `target/playwright/` only when the smoke suite fails. `graphrag-integration-exhaustive-smoke` runs the enabled, disabled, real-provider, and ultimate PDF-corpus browser suites sequentially; it stops on the first failure and therefore requires the real-provider configuration. The real-provider browser suite sets a non-sensitive default `GRAPHRAG_SYSTEM_PROMPT` when none is supplied; its value is not returned by `/graphrag/config`, logged, or asserted in the browser report. The aggregate runs all four targets and therefore requires the real-provider configuration.
 
-## Tranche 7: ultimate PDF corpus qualification
+## Ultimate PDF corpus qualification
 
 `make graphrag-integration-ultimate-pdf-corpus-smoke` materializes the 12 PDF fixtures under `corpus/ingestion/pdf/` by invoking the production `DocumentIngestionService`, then starts the existing production Fuseki UI with that temporary RDF corpus. Playwright triggers vectorization through the existing public `POST /{dataset}/graphrag/index` route; the indexer then vectorizes the PDF chunks already present in the dataset. No PDF-specific test endpoint is added.
 

@@ -20,11 +20,11 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
 TUTORIAL_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
-MODULE_DIR := $(TUTORIAL_DIR)
+MODULE_DIR := $(abspath $(TUTORIAL_DIR)/..)
 ROOT_DIR := $(abspath $(MODULE_DIR)/..)
 -include $(MODULE_DIR)/env/generated/real-providers.mk
 WORK_DIR := $(MODULE_DIR)/target/tutorial-state
-GRAPHRAG_TUTORIAL_PDF_PATH ?= src/main/resources/corpus/ingestion/pdf
+GRAPHRAG_TUTORIAL_PDF_PATH ?= src/test/resources/corpus/ingestion/pdf
 GRAPHRAG_TUTORIAL_CORPUS_PATH ?= target/tutorial-state/pdf-corpus.ttl
 GRAPHRAG_TUTORIAL_DATASET ?= graphrag-smoke
 GRAPHRAG_TUTORIAL_EXPECTED_PDF_COUNT ?= 12
@@ -37,10 +37,8 @@ PORT_FILE := $(WORK_DIR)/port
 PID_FILE := $(WORK_DIR)/fuseki.pid
 TASK_FILE := $(WORK_DIR)/task-id
 LOG_FILE := $(WORK_DIR)/fuseki.log
-INDEX_DIR := $(WORK_DIR)/real-provider-index
-MATERIALIZER_SOURCE := $(ROOT_DIR)/jena-graphrag/src/main/java/org/apache/jena/graphrag/ingestion/PdfCorpusMaterializer.java
+MATERIALIZER_SOURCE := $(MODULE_DIR)/src/test/java/org/apache/jena/graphrag/integration/PdfCorpusMaterializer.java
 ARQ_CLASS := $(ROOT_DIR)/jena-cmds/target/classes/arq/arq.class
-GRAPHRAG_CLASSES := $(ROOT_DIR)/jena-graphrag/target/classes
 DATASET := $(GRAPHRAG_TUTORIAL_DATASET)
 CHAT_MODE_QUESTION ?= What is GraphRAG?
 CHAT_MODE_REQUIRE_MIXED_LOCAL ?= false
@@ -59,7 +57,7 @@ WINDOWS_FUSEKI_URL = http://$$(hostname -I | awk '{print $$1}'):$$(cat "$(PORT_F
 
 .PHONY: help providers-bootstrap pdfs-check project-prepare corpus-materialize \
 	corpus-semantic-extract fuseki-start fuseki-start-basic fuseki-start-server fuseki-ping fuseki-status fuseki-open graphrag-config indexing-start indexing-status \
-	indexing-wait rdf-lifecycle corpus-verify-pdfs corpus-statistic graph-cat ttt-cat entities-list relationships-list communities-list findings-list chat-ask-questions chat-ask-modes chat-qualify-mode chat-qualify-basic-vector chat-qualify-drift chat-qualify-drift-limits chat-question context-question fuseki-stop tutorial-clean tutorial-run getting-started
+	indexing-wait corpus-verify-pdfs corpus-statistic graph-cat ttt-cat entities-list relationships-list communities-list findings-list chat-ask-questions chat-ask-modes chat-qualify-mode chat-qualify-basic-vector chat-qualify-drift chat-qualify-drift-limits chat-question context-question fuseki-stop tutorial-clean tutorial-run getting-started
 
 help: ## Display tutorial steps
 	@printf '%s\n' \
@@ -94,7 +92,6 @@ help: ## Display tutorial steps
 		'  indexing-start            Start vector indexing.' \
 		'  indexing-status           Show vector indexing status.' \
 		'  indexing-wait             Wait for vector indexing to finish.' \
-		'  rdf-lifecycle             Exercise the isolated RDF import/update/delete/rebuild cycle.' \
 		'' \
 		'Validation and questions' \
 		'  corpus-verify-pdfs        Verify the PDFs loaded in Fuseki.' \
@@ -115,7 +112,7 @@ help: ## Display tutorial steps
 		'  fuseki-stop               Stop the Fuseki server.'
 
 providers-bootstrap: ## Generate the ignored real-provider environment
-	@$(MODULE_DIR)/scripts/graphrag-tutorial-provider-bootstrap.sh
+	@$(MAKE) -C $(MODULE_DIR) bootstrap-real-providers
 
 pdfs-check: ## Verify the configured PDF fixture count
 	@count=$$(find "$(PDF_DIR)" -maxdepth 1 -type f -iname '*.pdf' | wc -l); \
@@ -124,11 +121,11 @@ pdfs-check: ## Verify the configured PDF fixture count
 
 $(CLASSPATH_FILE): $(MATERIALIZER_SOURCE)
 	@mkdir -p "$(WORK_DIR)"
-	@cd "$(ROOT_DIR)" && mvn -q -Drat.skip=true -Pgraphrag -pl jena-graphrag-tutorial -am package -DskipTests
-	@cd "$(ROOT_DIR)" && mvn -q -Pgraphrag -pl jena-graphrag-tutorial dependency:build-classpath \
-		-DincludeScope=runtime -Dmdep.outputFile="$(CLASSPATH_FILE)"
+	@cd "$(ROOT_DIR)" && mvn -q -Drat.skip=true -Pgraphrag -pl jena-graphrag-integration-tests -am package -DskipTests
+	@cd "$(ROOT_DIR)" && mvn -q -Pgraphrag -pl jena-graphrag-integration-tests dependency:build-classpath \
+		-DincludeScope=test -Dmdep.outputFile="$(CLASSPATH_FILE)"
 
-project-prepare: $(CLASSPATH_FILE) ## Compile the module and create its runtime classpath
+project-prepare: $(CLASSPATH_FILE) ## Compile the module and create its test classpath
 	@echo "Classpath prepared in $(CLASSPATH_FILE)."
 
 $(ARQ_CLASS):
@@ -136,8 +133,8 @@ $(ARQ_CLASS):
 
 $(CORPUS_FILE): $(MODULE_DIR)/env/generated/real-providers.mk $(CLASSPATH_FILE) $(MATERIALIZER_SOURCE)
 	@rm -f "$(SEMANTIC_MARKER)"
-	@java -cp "$(MODULE_DIR)/target/classes:$(GRAPHRAG_CLASSES):$$(cat "$(CLASSPATH_FILE)")" \
-		org.apache.jena.graphrag.ingestion.PdfCorpusMaterializer "$(PDF_DIR)" "$@"
+	@java -cp "$(MODULE_DIR)/target/test-classes:$(MODULE_DIR)/target/classes:$(ROOT_DIR)/jena-graphrag/target/classes:$$(cat "$(CLASSPATH_FILE)")" \
+		org.apache.jena.graphrag.integration.PdfCorpusMaterializer "$(PDF_DIR)" "$@"
 	@test -s "$@"
 
 corpus-materialize: pdfs-check $(CORPUS_FILE) ## Materialize the PDFs through DocumentIngestionService
@@ -147,8 +144,8 @@ $(SEMANTIC_MARKER): $(CORPUS_FILE) $(CLASSPATH_FILE) $(MATERIALIZER_SOURCE)
 	@env_file="$(MODULE_DIR)/env/generated/real-providers.env.sh"; \
 	[[ -r "$$env_file" ]] || { echo "Run make providers-bootstrap first." >&2; exit 1; }; \
 	set -a; source "$$env_file"; set +a; \
-	java -cp "$(MODULE_DIR)/target/classes:$(GRAPHRAG_CLASSES):$$(cat "$(CLASSPATH_FILE)")" \
-		org.apache.jena.graphrag.ingestion.PdfCorpusMaterializer "$(PDF_DIR)" "$(CORPUS_FILE)" --semantic "$(SEMANTIC_CHECKPOINT)" && \
+	java -cp "$(MODULE_DIR)/target/test-classes:$(MODULE_DIR)/target/classes:$(ROOT_DIR)/jena-graphrag/target/classes:$$(cat "$(CLASSPATH_FILE)")" \
+		org.apache.jena.graphrag.integration.PdfCorpusMaterializer "$(PDF_DIR)" "$(CORPUS_FILE)" --semantic "$(SEMANTIC_CHECKPOINT)" && \
 		touch "$@"
 
 corpus-semantic-extract: pdfs-check $(SEMANTIC_MARKER) ## Extract entities, relationships, and communities from the PDF chunks
@@ -172,9 +169,9 @@ fuseki-start-server:
 		[[ -r "$$env_file" ]] || { echo "Run make bootstrap first." >&2; exit 1; }; \
 		set -a; source "$$env_file"; set +a; \
 		GRAPHRAG_SYSTEM_PROMPT='$(SYSTEM_PROMPT)' \
-		java -cp "$(MODULE_DIR)/target/classes:$(GRAPHRAG_CLASSES):$$(cat "$(CLASSPATH_FILE)")" \
+		java -cp "$(MODULE_DIR)/target/test-classes:$(MODULE_DIR)/target/classes:$(ROOT_DIR)/jena-graphrag/target/classes:$$(cat "$(CLASSPATH_FILE)")" \
 			$(GRAPHRAG_TUTORIAL_JAVA_OPTIONS) \
-			org.apache.jena.graphrag.fuseki.GraphRAGFusekiUIServer "$(CORPUS_FILE)" "$$(cat "$(PORT_FILE)")" "$(DATASET)" true "$(INDEX_DIR)" \
+			org.apache.jena.graphrag.fuseki.GraphRAGFusekiUIServer "$(CORPUS_FILE)" "$$(cat "$(PORT_FILE)")" "$(DATASET)" true "$(WORK_DIR)/real-provider-index" \
 			> "$(LOG_FILE)" 2>&1 & echo $$! > "$(PID_FILE)"; \
 		echo "Fuseki started at $(FUSEKI_URL)."; \
 		echo "Log: $(LOG_FILE)"; \
@@ -252,54 +249,6 @@ indexing-wait: ## Wait until the indexing task completes
 		sleep 5; \
 	done
 
-rdf-lifecycle: fuseki-ping ## Exercise isolated RDF import, read, update, deletion, and index reconstruction
-	@set -e; \
-	base="$(FUSEKI_URL)/$(DATASET)"; \
-	document='urn:graphrag:tutorial:rdf-lifecycle:document'; \
-	chunk='urn:graphrag:tutorial:rdf-lifecycle:document#chunk-0'; \
-	count() { \
-		curl --fail --silent --show-error -G "$$base/sparql" \
-			--data-urlencode "query=$$1" \
-			--data-urlencode 'format=application/sparql-results+json' | \
-			node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk).on("end", () => console.log(JSON.parse(input).results.bindings[0].count.value));'; \
-	}; \
-	update() { \
-		curl --fail --silent --show-error -X POST "$$base/update" --data-urlencode "update=$$1" >/dev/null; \
-	}; \
-	update "PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> INSERT DATA { <$$document> a grag:Document ; grag:id \"rdf-lifecycle-document\" ; grag:title \"RDF lifecycle tutorial document\" . <$$chunk> a grag:Chunk ; grag:id \"rdf-lifecycle-chunk-0\" ; grag:text \"RDF lifecycle original marker: import, read, update, and delete.\" ; grag:partOf <$$document> . }"; \
-	loaded=$$(count "PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> SELECT (COUNT(DISTINCT ?resource) AS ?count) WHERE { VALUES ?resource { <$$document> <$$chunk> } ?resource a ?type }"); \
-	[[ "$$loaded" == 2 ]] || { echo "Expected the tutorial document and chunk after import, found $$loaded resources." >&2; exit 1; }; \
-	echo "RDF import verified: document and chunk are present in the default graph."
-	@$(MAKE) indexing-start indexing-wait
-	@set -e; \
-	base="$(FUSEKI_URL)/$(DATASET)"; \
-	document='urn:graphrag:tutorial:rdf-lifecycle:document'; \
-	chunk='urn:graphrag:tutorial:rdf-lifecycle:document#chunk-0'; \
-	update() { curl --fail --silent --show-error -X POST "$$base/update" --data-urlencode "update=$$1" >/dev/null; }; \
-	count() { curl --fail --silent --show-error -G "$$base/sparql" --data-urlencode "query=$$1" --data-urlencode 'format=application/sparql-results+json' | node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk).on("end", () => console.log(JSON.parse(input).results.bindings[0].count.value));'; }; \
-	update "PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> DELETE { <$$chunk> grag:text \"RDF lifecycle original marker: import, read, update, and delete.\" } INSERT { <$$chunk> grag:text \"RDF lifecycle revised marker: the RDF graph is the source of truth.\" } WHERE { <$$chunk> grag:text \"RDF lifecycle original marker: import, read, update, and delete.\" }"; \
-	revised=$$(count "PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> SELECT (COUNT(*) AS ?count) WHERE { <$$chunk> grag:text \"RDF lifecycle revised marker: the RDF graph is the source of truth.\" }"); \
-	[[ "$$revised" == 1 ]] || { echo "Expected the revised chunk text after update." >&2; exit 1; }; \
-	echo "RDF update verified: the targeted chunk text changed."
-	@$(MAKE) indexing-start indexing-wait
-	@set -e; \
-	base="$(FUSEKI_URL)/$(DATASET)"; \
-	document='urn:graphrag:tutorial:rdf-lifecycle:document'; \
-	chunk='urn:graphrag:tutorial:rdf-lifecycle:document#chunk-0'; \
-	curl --fail --silent --show-error -X POST "$$base/update" --data-urlencode "update=DELETE { <$$document> ?documentPredicate ?documentObject . <$$chunk> ?chunkPredicate ?chunkObject } WHERE { OPTIONAL { <$$document> ?documentPredicate ?documentObject } OPTIONAL { <$$chunk> ?chunkPredicate ?chunkObject } }" >/dev/null; \
-	remaining=$$(curl --fail --silent --show-error -G "$$base/sparql" --data-urlencode "query=PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> SELECT (COUNT(*) AS ?count) WHERE { VALUES ?resource { <$$document> <$$chunk> } ?resource ?predicate ?object }" --data-urlencode 'format=application/sparql-results+json' | node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk).on("end", () => console.log(JSON.parse(input).results.bindings[0].count.value));'); \
-	[[ "$$remaining" == 0 ]] || { echo "Expected no lifecycle RDF triples after deletion, found $$remaining." >&2; exit 1; }; \
-	echo "RDF deletion verified: the targeted document and chunk are absent."
-	@$(MAKE) fuseki-stop
-	@rm -rf "$(INDEX_DIR)"
-	@rm -f "$(TASK_FILE)" "$(WORK_DIR)/index-response.json"
-	@$(MAKE) fuseki-start-basic fuseki-ping indexing-start indexing-wait
-	@set -e; \
-	base="$(FUSEKI_URL)/$(DATASET)"; \
-	remaining=$$(curl --fail --silent --show-error -G "$$base/sparql" --data-urlencode 'query=PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> SELECT (COUNT(*) AS ?count) WHERE { VALUES ?resource { <urn:graphrag:tutorial:rdf-lifecycle:document> <urn:graphrag:tutorial:rdf-lifecycle:document#chunk-0> } ?resource ?predicate ?object }' --data-urlencode 'format=application/sparql-results+json' | node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk).on("end", () => console.log(JSON.parse(input).results.bindings[0].count.value));'); \
-	[[ "$$remaining" == 0 ]] || { echo "The reconstructed tutorial dataset still contains lifecycle RDF." >&2; exit 1; }; \
-	echo "Clean tutorial state restored: the temporary vector index was rebuilt from the original corpus."
-
 corpus-verify-pdfs: ## Assert the configured number of PDF source files are stored
 	@response=$$(curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/sparql" \
 		--data-urlencode 'query=PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> SELECT (COUNT(DISTINCT ?sourceFile) AS ?count) WHERE { ?document a grag:Document ; grag:sourceFile ?sourceFile . FILTER(STRENDS(LCASE(STR(?sourceFile)), ".pdf")) }' \
@@ -310,36 +259,36 @@ corpus-verify-pdfs: ## Assert the configured number of PDF source files are stor
 
 corpus-statistic: pdfs-check $(CORPUS_FILE) $(ARQ_CLASS) ## Display GraphRAG resource and structural-link statistics
 	@printf '%s\n' 'PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> SELECT ?triples ?documents ?pdfDocuments ?chunks ?entities ?relationships ?communities ?findings ?partOfLinks ?entityLinks ?relatedToLinks ?communityLinks WHERE { { SELECT (COUNT(*) AS ?triples) WHERE { ?subject ?predicate ?object } } { SELECT (COUNT(DISTINCT ?document) AS ?documents) WHERE { ?document a grag:Document } } { SELECT (COUNT(DISTINCT ?pdfDocument) AS ?pdfDocuments) WHERE { ?pdfDocument a grag:Document ; grag:sourceFile ?sourceFile . FILTER(STRENDS(LCASE(STR(?sourceFile)), ".pdf")) } } { SELECT (COUNT(DISTINCT ?chunk) AS ?chunks) WHERE { ?chunk a grag:Chunk } } { SELECT (COUNT(DISTINCT ?entity) AS ?entities) WHERE { ?entity a grag:Entity } } { SELECT (COUNT(DISTINCT ?relationship) AS ?relationships) WHERE { ?relationship a grag:Relationship } } { SELECT (COUNT(DISTINCT ?community) AS ?communities) WHERE { ?community a grag:Community } } { SELECT (COUNT(DISTINCT ?finding) AS ?findings) WHERE { ?finding a grag:Finding } } { SELECT (COUNT(*) AS ?partOfLinks) WHERE { ?chunk grag:partOf ?document } } { SELECT (COUNT(*) AS ?entityLinks) WHERE { ?chunk grag:hasEntity ?entity } } { SELECT (COUNT(*) AS ?relatedToLinks) WHERE { ?source grag:relatedTo ?target } } { SELECT (COUNT(*) AS ?communityLinks) WHERE { ?entity grag:inCommunity ?community } } }' | \
-		java -cp "$(ARQ_CLASS:%/arq/arq.class=%):$(MODULE_DIR)/target/classes:$(GRAPHRAG_CLASSES):$$(cat "$(CLASSPATH_FILE)")" \
+		java -cp "$(ARQ_CLASS:%/arq/arq.class=%):$(MODULE_DIR)/target/test-classes:$(MODULE_DIR)/target/classes:$(ROOT_DIR)/jena-graphrag/target/classes:$$(cat "$(CLASSPATH_FILE)")" \
 			arq.arq --data "$(CORPUS_FILE)" --query=- --results=JSON | \
 		node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk).on("end", () => { const row = JSON.parse(input).results.bindings[0]; const count = name => Number(row[name]?.value ?? 0).toLocaleString("en-US"); const line = (label, name) => console.log("  " + label.padEnd(36) + count(name)); console.log("GraphRAG corpus statistics"); console.log(""); console.log("Resources"); line("Triples", "triples"); line("Documents", "documents"); line("PDF documents", "pdfDocuments"); line("Chunks", "chunks"); console.log(""); console.log("Semantic enrichment"); line("Entities", "entities"); line("Relationships", "relationships"); line("Communities", "communities"); line("Findings", "findings"); console.log(""); console.log("Structural links"); line("Chunk -> document (partOf)", "partOfLinks"); line("Chunk -> entity (hasEntity)", "entityLinks"); line("Entity -> entity (relatedTo)", "relatedToLinks"); line("Entity -> community (inCommunity)", "communityLinks"); });'
 
 graph-cat: $(CORPUS_FILE) $(CLASSPATH_FILE) $(ARQ_CLASS) ## Display the RDF graph content page by page with the Jena command
 	@echo "Graph content for $(CORPUS_FILE)"
-	@java -cp "$(ARQ_CLASS:%/arq/arq.class=%):$(MODULE_DIR)/target/classes:$(GRAPHRAG_CLASSES):$$(cat "$(CLASSPATH_FILE)")" \
+	@java -cp "$(ARQ_CLASS:%/arq/arq.class=%):$(MODULE_DIR)/target/test-classes:$(MODULE_DIR)/target/classes:$(ROOT_DIR)/jena-graphrag/target/classes:$$(cat "$(CLASSPATH_FILE)")" \
 		jena.riot --output=TURTLE "$(CORPUS_FILE)" | more
 
 entities-list: $(CORPUS_FILE) $(ARQ_CLASS) ## List GraphRAG entities from the local Turtle corpus
 	@printf '%s\n' 'PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> SELECT ?entity ?name WHERE { ?entity a grag:Entity ; grag:name ?name } ORDER BY LCASE(STR(?name))' | \
-		java -cp "$(ARQ_CLASS:%/arq/arq.class=%):$(MODULE_DIR)/target/classes:$(GRAPHRAG_CLASSES):$$(cat "$(CLASSPATH_FILE)")" \
+		java -cp "$(ARQ_CLASS:%/arq/arq.class=%):$(MODULE_DIR)/target/test-classes:$(MODULE_DIR)/target/classes:$(ROOT_DIR)/jena-graphrag/target/classes:$$(cat "$(CLASSPATH_FILE)")" \
 			arq.arq --data "$(CORPUS_FILE)" --query=- --results=JSON | \
 		node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk).on("end", () => { const bindings = JSON.parse(input).results.bindings; if (bindings.length === 0) { console.log("No GraphRAG entities found."); process.exit(0); } for (const entity of bindings) console.log(entity.name.value + "\n  " + entity.entity.value); });'
 
 relationships-list: $(CORPUS_FILE) $(ARQ_CLASS) ## List GraphRAG relationships from the local Turtle corpus
 	@printf '%s\n' 'PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> SELECT ?sourceName ?description ?targetName WHERE { ?relationship a grag:Relationship ; grag:source ?source ; grag:target ?target . ?source grag:name ?sourceName . ?target grag:name ?targetName . OPTIONAL { ?relationship grag:description ?description } } ORDER BY LCASE(STR(?sourceName)) LCASE(STR(?targetName))' | \
-		java -cp "$(ARQ_CLASS:%/arq/arq.class=%):$(MODULE_DIR)/target/classes:$(GRAPHRAG_CLASSES):$$(cat "$(CLASSPATH_FILE)")" \
+		java -cp "$(ARQ_CLASS:%/arq/arq.class=%):$(MODULE_DIR)/target/test-classes:$(MODULE_DIR)/target/classes:$(ROOT_DIR)/jena-graphrag/target/classes:$$(cat "$(CLASSPATH_FILE)")" \
 			arq.arq --data "$(CORPUS_FILE)" --query=- --results=JSON | \
 		node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk).on("end", () => { const bindings = JSON.parse(input).results.bindings; if (bindings.length === 0) { console.log("No GraphRAG relationships found."); process.exit(0); } for (const relationship of bindings) console.log(relationship.sourceName.value + " --" + (relationship.description?.value ?? "related to") + "--> " + relationship.targetName.value); });'
 
 communities-list: $(CORPUS_FILE) $(ARQ_CLASS) ## List GraphRAG communities and their available summaries locally
 	@printf '%s\n' 'PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> SELECT ?community ?title ?summary ?fullContent WHERE { ?community a grag:Community . OPTIONAL { ?community grag:title ?title } OPTIONAL { ?community grag:summary ?summary } OPTIONAL { ?community grag:fullContent ?fullContent } } ORDER BY STR(?community)' | \
-		java -cp "$(ARQ_CLASS:%/arq/arq.class=%):$(MODULE_DIR)/target/classes:$(GRAPHRAG_CLASSES):$$(cat "$(CLASSPATH_FILE)")" \
+		java -cp "$(ARQ_CLASS:%/arq/arq.class=%):$(MODULE_DIR)/target/test-classes:$(MODULE_DIR)/target/classes:$(ROOT_DIR)/jena-graphrag/target/classes:$$(cat "$(CLASSPATH_FILE)")" \
 			arq.arq --data "$(CORPUS_FILE)" --query=- --results=JSON | \
 		node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk).on("end", () => { const bindings = JSON.parse(input).results.bindings; if (bindings.length === 0) { console.log("No GraphRAG communities found."); process.exit(0); } for (const community of bindings) { console.log("Community: " + community.community.value); if (community.title) console.log("Title: " + community.title.value); if (community.summary) console.log("Summary: " + community.summary.value); if (community.fullContent) console.log("Full content: " + community.fullContent.value); console.log(""); } });'
 
 findings-list: $(CORPUS_FILE) $(ARQ_CLASS) ## List GraphRAG findings from the local Turtle corpus
 	@printf '%s\n' 'PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> SELECT ?finding ?summary ?fullContent WHERE { ?finding a grag:Finding . OPTIONAL { ?finding grag:summary ?summary } OPTIONAL { ?finding grag:fullContent ?fullContent } } ORDER BY STR(?finding)' | \
-		java -cp "$(ARQ_CLASS:%/arq/arq.class=%):$(MODULE_DIR)/target/classes:$(GRAPHRAG_CLASSES):$$(cat "$(CLASSPATH_FILE)")" \
+		java -cp "$(ARQ_CLASS:%/arq/arq.class=%):$(MODULE_DIR)/target/test-classes:$(MODULE_DIR)/target/classes:$(ROOT_DIR)/jena-graphrag/target/classes:$$(cat "$(CLASSPATH_FILE)")" \
 			arq.arq --data "$(CORPUS_FILE)" --query=- --results=JSON | \
 		node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk).on("end", () => { const bindings = JSON.parse(input).results.bindings; if (bindings.length === 0) { console.log("No GraphRAG findings found."); process.exit(0); } for (const finding of bindings) { console.log("Finding: " + finding.finding.value); if (finding.summary) console.log("Summary: " + finding.summary.value); if (finding.fullContent) console.log("Full content: " + finding.fullContent.value); console.log(""); } });'
 

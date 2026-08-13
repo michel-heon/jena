@@ -52,8 +52,6 @@ make corpus-statistic
 
 L'extraction envoie les chunks aux extracteurs HTTP de production. Les résultats sont enregistrés progressivement dans le Turtle : une interruption conserve le graphe partiel et une reprise ne contacte que les chunks ou communautés restants. Une rematérialisation conserve ce point de contrôle, qui est invalidé si le contenu d'un chunk change.
 
-Une réponse d'extraction non JSON ou un délai d'un fournisseur arrête la cible sans supprimer ce checkpoint. L'erreur est affichée par `corpus-semantic-extract` dans le terminal ; relancer la même commande reprend au dernier élément validé. Consulter `target/tutorial-state/semantic-extraction.properties` pour l'état de reprise et ne pas supprimer ce fichier avant d'avoir décidé de recommencer l'enrichissement depuis zéro avec `make tutorial-clean`.
-
 `corpus-statistic` lit uniquement le Turtle local et affiche les documents, chunks, entités, relations, communautés, findings et liens structurels. Un nombre non nul de ressources sémantiques confirme que les modes avancés ont leur précondition de données.
 
 ## État et nettoyage

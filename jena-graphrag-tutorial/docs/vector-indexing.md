@@ -52,7 +52,7 @@ make indexing-status
 make indexing-wait
 ```
 
-`indexing-start` appelle `POST /{dataset}/graphrag/index`, enregistre le `taskId` dans l'état temporaire et vectorise les chunks visibles. `indexing-status` affiche l'état de la tâche et les nombres de documents, PDF et chunks. `indexing-wait` s'arrête à l'état `done`; tout autre état terminal est une erreur et les détails sont dans `target/tranche-7-tutoriel/fuseki.log`.
+`indexing-start` appelle `POST /{dataset}/graphrag/index`, enregistre le `taskId` dans l'état temporaire et vectorise les chunks visibles. `indexing-status` affiche l'état de la tâche et les nombres de documents, PDF et chunks. `indexing-wait` s'arrête à l'état `done`; tout autre état terminal est une erreur et les détails sont dans `target/tutorial-state/fuseki.log`.
 
 L'API actuelle ne publie pas de compteur intermédiaire par chunk : l'avancement est explicitement indisponible jusqu'à la fin de la tâche.
 

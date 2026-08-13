@@ -71,4 +71,4 @@ make context-question QUESTION="What is GraphRAG?" MODE=global
 make fuseki-stop
 ```
 
-`fuseki-status` et `context-question` sont des diagnostics : ils ne lancent ni indexation ni génération de réponse. En cas d'échec, consulter `target/tranche-7-tutoriel/fuseki.log`. `make fuseki-stop` conserve l'état ; `make tutorial-clean` le supprime de manière destructive.
+`fuseki-status` et `context-question` sont des diagnostics : ils ne lancent ni indexation ni génération de réponse. En cas d'échec, consulter `target/tutorial-state/fuseki.log`. `make fuseki-stop` conserve l'état ; `make tutorial-clean` le supprime de manière destructive.

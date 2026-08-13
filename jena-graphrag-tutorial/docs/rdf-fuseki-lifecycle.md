@@ -50,7 +50,7 @@ make fuseki-ping
 ```
 
 Le corpus, le PID, les journaux et l'index sont alors contenus sous
-`target/tranche-7-tutoriel/`. Cette préparation ne modifie ni les fixtures PDF
+`target/tutorial-state/`. Cette préparation ne modifie ni les fixtures PDF
 ni les fichiers locaux de paramètres de fournisseurs.
 
 ## Parcours reproductible
@@ -70,7 +70,7 @@ Résultats attendus :
 - `RDF update verified` après le remplacement contrôlé de `grag:text` ;
 - `RDF deletion verified` après la suppression ciblée du document et du chunk ;
 - `Clean tutorial state restored` après redémarrage et reconstruction de
-  `target/tranche-7-tutoriel/real-provider-index`.
+  `target/tutorial-state/real-provider-index`.
 
 La cible utilise les URI stables et exclusivement dédiées au tutoriel
 `urn:graphrag:tutorial:rdf-lifecycle:document` et
@@ -84,7 +84,7 @@ SPARQL sur `/{dataset}/sparql`. Pour exécuter les commandes à la main, récup�
 d'abord l'URL locale produite par le tutoriel :
 
 ```bash
-base="http://127.0.0.1:$(cat target/tranche-7-tutoriel/port)/graphrag-smoke"
+base="http://127.0.0.1:$(cat target/tutorial-state/port)/graphrag-smoke"
 document='urn:graphrag:tutorial:rdf-lifecycle:document'
 chunk='urn:graphrag:tutorial:rdf-lifecycle:document#chunk-0'
 ```
@@ -195,8 +195,8 @@ manuellement :
 
 ```bash
 make fuseki-stop
-rm -rf target/tranche-7-tutoriel/real-provider-index
-rm -f target/tranche-7-tutoriel/task-id target/tranche-7-tutoriel/index-response.json
+rm -rf target/tutorial-state/real-provider-index
+rm -f target/tutorial-state/task-id target/tutorial-state/index-response.json
 make fuseki-start-basic fuseki-ping indexing-start indexing-wait
 ```
 

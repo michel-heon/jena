@@ -19,7 +19,7 @@
 
 # Getting started GraphRAG
 
-Ce parcours obtient une première réponse GraphRAG citée à partir du corpus PDF local : préparer l'espace de travail, indexer, puis interroger. Voir aussi le [README du tutoriel](../README.md) pour le parcours complet.
+Ce parcours obtient une première réponse GraphRAG citée à partir du corpus PDF local : préparer l'espace de travail, indexer, puis interroger.
 
 Il utilise les services de production de Jena : `DocumentIngestionService`, `GraphRAGFusekiUIServer` et les routes HTTP GraphRAG. Aucun endpoint réservé au tutoriel n'est créé.
 
@@ -65,7 +65,7 @@ Cette commande vérifie que le profil local contient le nombre attendu de PDF. A
 make project-prepare
 ```
 
-Cette commande compile les dépendances du tutoriel et écrit un classpath temporaire sous `target/tutorial-state/`. Elle ne démarre pas Fuseki et n'appelle ni le service d'embeddings ni le service de génération de réponses.
+Cette commande compile les dépendances du tutoriel et écrit un classpath temporaire sous `../target/tutorial-state/`. Elle ne démarre pas Fuseki et n'appelle ni le service d'embeddings ni le service de génération de réponses.
 
 ### 3. Ingérer les PDF
 
@@ -73,7 +73,7 @@ Cette commande compile les dépendances du tutoriel et écrit un classpath tempo
 make corpus-materialize
 ```
 
-Cette commande transforme les PDF locaux en ressources RDF `Document` et `Chunk` au moyen de `DocumentIngestionService`. Le corpus Turtle temporaire est écrit sous `target/tutorial-state/`. Elle n'extrait pas encore les entités, relations ni communautés, et n'appelle ni le service d'embeddings ni le service de génération de réponses.
+Cette commande transforme les PDF locaux en ressources RDF `Document` et `Chunk` au moyen de `DocumentIngestionService`. Le corpus Turtle temporaire est écrit sous `../target/tutorial-state/`. Elle n'extrait pas encore les entités, relations ni communautés, et n'appelle ni le service d'embeddings ni le service de génération de réponses.
 
 ### 4. Démarrer Fuseki
 
@@ -131,7 +131,7 @@ make chat-question QUESTION="What is the role of embeddings in GraphRAG?" MODE=b
 
 Cette commande remplace uniquement le texte de la question de l'étape 9. L'indexation doit déjà être terminée.
 
-`mode=basic` est volontairement le seul mode de ce parcours. Les modes `local`, `global` et `drift` nécessitent l'enrichissement sémantique et, pour DRIFT, l'index vectoriel dédié aux rapports de communautés. Ils sont traités dans le [parcours détaillé](../README.md).
+`mode=basic` est volontairement le seul mode de ce parcours. Les modes `local`, `global` et `drift` nécessitent l'enrichissement sémantique et, pour DRIFT, l'index vectoriel dédié aux rapports de communautés. Ils sont traités dans le [parcours détaillé](README.md).
 
 ## Inspecter et arrêter
 
