@@ -19,15 +19,29 @@
    SPDX-License-Identifier: Apache-2.0
 -->
 
-# Tutoriel Tranche 7: corpus PDF GraphRAG
+# Tutoriel GraphRAG
 
-Ce tutoriel exécute la qualification ultime du corpus PDF GraphRAG, action par action. Son [Makefile](Makefile) encapsule les commandes, conserve l'état de travail sous `target/tranche-7-tutoriel/` et ne stocke aucune valeur de fournisseur.
+Ce répertoire documente les parcours GraphRAG exécutables avec le [Makefile](Makefile). Le Makefile reste l'orchestrateur : il conserve l'état temporaire sous `target/tranche-7-tutoriel/` et ne stocke aucune valeur de service externe.
 
-La procédure réutilise `DocumentIngestionService`, `GraphRAGFusekiUIServer` et les routes GraphRAG de production, conformément à ADR-608. Les appels aux fournisseurs d'embeddings et de chat sont réels et consomment des quotas. Le profil local utilise deux petits PDF pour accélérer le développement; le profil complet de qualification utilise les douze PDF configurés dans le modèle d'environnement.
+Les parcours utilisent `DocumentIngestionService`, `GraphRAGFusekiUIServer` et les routes GraphRAG de production. Les appels au service de génération d'embeddings et au service de génération de réponses sont réels, consomment des quotas et exigent des paramètres locaux. Ne jamais afficher, committer ou transmettre les valeurs de `../env/.env.user` ou de `../env/generated/`.
 
-## Démarrage rapide
+## Parcours
 
-Le parcours recommandé pour un premier résultat est [Getting started](getting-started.md). Il prépare le corpus local, démarre Fuseki sans enrichissement sémantique, indexe les chunks et produit une réponse citée en mode `basic`.
+Commencer par [Getting started](getting-started.md) pour préparer le corpus local, démarrer Fuseki sans enrichissement sémantique, indexer les chunks et obtenir une réponse citée en mode `basic`.
+
+Les fonctionnalités avancées sont décrites dans des guides indépendants :
+
+- [Ingestion et enrichissement du corpus PDF](pdf-ingestion.md)
+- [Inspection du graphe RDF](rdf-inspection.md)
+- [Indexation vectorielle et configuration](vector-indexing.md)
+- [Modes de récupération et de réponse](retrieval-modes.md)
+- [Qualification avec les services réels et diagnostic](provider-qualification.md)
+
+Chaque guide indique ses prérequis, les cibles Makefile, les effets de bord et les appels externes. Utiliser `make help` depuis ce répertoire pour afficher toutes les cibles publiques.
+
+## Référence de qualification complète
+
+La procédure détaillée historique reste ci-dessous comme référence de qualification exhaustive. Les nouveaux parcours thématiques ci-dessus sont le point d'entrée recommandé.
 
 ## Préparation
 
