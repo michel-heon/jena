@@ -30,7 +30,7 @@ La procédure réutilise `DocumentIngestionService`, `GraphRAGFusekiUIServer` et
 Depuis la racine du dépôt, ouvrir un terminal dans ce répertoire:
 
 ```bash
-cd jena-graphrag-integration-tests/docs/guides/tutoriel
+cd jena-graphrag-integration-tests/tutoriel
 make help
 ```
 

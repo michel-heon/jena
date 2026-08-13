@@ -20,7 +20,7 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
 TUTORIAL_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
-MODULE_DIR := $(abspath $(TUTORIAL_DIR)/../../..)
+MODULE_DIR := $(abspath $(TUTORIAL_DIR)/..)
 ROOT_DIR := $(abspath $(MODULE_DIR)/..)
 -include $(MODULE_DIR)/env/generated/real-providers.mk
 WORK_DIR := $(MODULE_DIR)/target/tranche-7-tutoriel
