@@ -57,7 +57,7 @@ SYSTEM_PROMPT := Answer only from the ingested GraphRAG research PDF corpus. Cit
 FUSEKI_URL = http://127.0.0.1:$$(cat "$(PORT_FILE)")
 WINDOWS_FUSEKI_URL = http://$$(hostname -I | awk '{print $$1}'):$$(cat "$(PORT_FILE)")
 
-.PHONY: help providers-bootstrap pdfs-check project-prepare corpus-materialize \
+.PHONY: help providers-bootstrap jena-install jena-install-check pdfs-check project-prepare corpus-materialize \
 	corpus-semantic-extract fuseki-start fuseki-start-basic fuseki-start-server fuseki-ping fuseki-status fuseki-open graphrag-config indexing-start indexing-status \
 	indexing-wait rdf-lifecycle corpus-verify-pdfs corpus-statistic graph-cat ttt-cat entities-list relationships-list communities-list findings-list chat-ask-questions chat-ask-modes chat-qualify-mode chat-qualify-basic-vector chat-qualify-drift chat-qualify-drift-limits chat-question context-question fuseki-stop tutorial-clean tutorial-run getting-started
 
@@ -74,6 +74,8 @@ help: ## Display tutorial steps
 		'' \
 		'Preparation' \
 		'  providers-bootstrap       Generate the local provider environment.' \
+		'  jena-install              Build and install the checkout Jena version.' \
+		'  jena-install-check        Verify the installed Jena distributions.' \
 		'  pdfs-check                Verify the configured PDF corpus.' \
 		'  project-prepare           Compile the tutorial dependencies.' \
 		'  tutorial-clean            Remove the temporary tutorial state.' \
@@ -116,6 +118,39 @@ help: ## Display tutorial steps
 
 providers-bootstrap: ## Generate the ignored real-provider environment
 	@$(MODULE_DIR)/scripts/graphrag-tutorial-provider-bootstrap.sh
+
+jena-install: providers-bootstrap ## Build and install the checkout Jena version
+	@set -euo pipefail; \
+	env_file="$(MODULE_DIR)/env/generated/real-providers.env.sh"; \
+	set -a; source "$$env_file"; set +a; \
+	[[ "$$JENA_INSTALL_DIR" == /* ]] || { echo "JENA_INSTALL_DIR must be an absolute path." >&2; exit 1; }; \
+	jena_version="$$(cd "$(ROOT_DIR)" && mvn -q -DforceStdout help:evaluate -Dexpression=project.version)"; \
+	for directory in \
+		"$$JENA_INSTALL_DIR/apache-jena-$$jena_version" \
+		"$$JENA_INSTALL_DIR/apache-jena-fuseki-$$jena_version" \
+		"$$JENA_INSTALL_DIR/graphrag"; do \
+		[[ ! -e "$$directory" ]] || { echo "Installation already exists: $$directory" >&2; exit 1; }; \
+	done; \
+	echo "Installing Jena $$jena_version in $$JENA_INSTALL_DIR"; \
+	mkdir -p "$$JENA_INSTALL_DIR"; \
+	cd "$(ROOT_DIR)" && mvn -Drat.skip=true -Pcomplete,graphrag package -DskipTests; \
+	tar --extract --gzip --file "$(ROOT_DIR)/apache-jena/target/apache-jena-$$jena_version.tar.gz" --directory "$$JENA_INSTALL_DIR"; \
+	tar --extract --gzip --file "$(ROOT_DIR)/jena-fuseki2/apache-jena-fuseki/target/apache-jena-fuseki-$$jena_version.tar.gz" --directory "$$JENA_INSTALL_DIR"; \
+	mkdir "$$JENA_INSTALL_DIR/graphrag"; \
+	cp "$(ROOT_DIR)/jena-graphrag/target/jena-graphrag-$$jena_version.jar" "$$JENA_INSTALL_DIR/graphrag/"
+
+jena-install-check: providers-bootstrap ## Verify the installed Jena distributions
+	@set -euo pipefail; \
+	env_file="$(MODULE_DIR)/env/generated/real-providers.env.sh"; \
+	set -a; source "$$env_file"; set +a; \
+	jena_version="$$(cd "$(ROOT_DIR)" && mvn -q -DforceStdout help:evaluate -Dexpression=project.version)"; \
+	jena_home="$$JENA_INSTALL_DIR/apache-jena-$$jena_version"; \
+	fuseki_home="$$JENA_INSTALL_DIR/apache-jena-fuseki-$$jena_version"; \
+	"$$jena_home/bin/sparql" --version; \
+	"$$jena_home/bin/riot" --version; \
+	"$$fuseki_home/fuseki-server" --help >/dev/null; \
+	test -f "$$JENA_INSTALL_DIR/graphrag/jena-graphrag-$$jena_version.jar"; \
+	echo "Jena $$jena_version is installed in $$JENA_INSTALL_DIR."
 
 pdfs-check: ## Verify the configured PDF fixture count
 	@count=$$(find "$(PDF_DIR)" -maxdepth 1 -type f -iname '*.pdf' | wc -l); \

@@ -17,15 +17,25 @@
    SPDX-License-Identifier: Apache-2.0
 -->
 
-# Getting started GraphRAG
+# Compiler Jena et démarrer avec GraphRAG
 
-Ce parcours obtient une première réponse GraphRAG citée à partir du corpus PDF local : préparer l'espace de travail, indexer, puis interroger. Voir aussi le [README du tutoriel](../README.md) pour le parcours complet.
+Ce parcours commence par compiler ce dépôt Apache Jena, puis installe Jena CLI, Fuseki et l'artefact GraphRAG résultants dans un répertoire choisi dans `env/.env`. Il obtient ensuite une première réponse GraphRAG citée à partir du corpus PDF local : préparer l'espace de travail, indexer, puis interroger. Voir aussi le [README du tutoriel](../README.md) pour le parcours complet.
 
 Il utilise les services de production de Jena : `DocumentIngestionService`, `GraphRAGFusekiUIServer` et les routes HTTP GraphRAG. Aucun endpoint réservé au tutoriel n'est créé.
 
 ## Prérequis
 
-Java, Maven, Node.js, `curl` et `make` doivent être disponibles. Le parcours appelle un service de génération d'embeddings pour l'indexation et un service de génération de réponses pour la question : il requiert leurs paramètres locaux et consomme leurs quotas. Les fichiers `.env` et `.env.user` restent locaux ; ne les affichez ni ne les commitez.
+Jena 6 requiert Java 21 ou une version ultérieure. Java, Maven, Node.js, `curl`, `make` et `tar` doivent être disponibles. Le parcours appelle un service de génération d'embeddings pour l'indexation et un service de génération de réponses pour la question : il requiert leurs paramètres locaux et consomme leurs quotas. Les fichiers `.env` et `.env.user` restent locaux ; ne les affichez ni ne les commitez.
+
+La compilation du dépôt produit et installe :
+
+- `apache-jena` : les API courantes, ARQ/SPARQL, TDB et les outils CLI tels que `riot`, `sparql` et `tdb2.*` ;
+- `apache-jena-fuseki` : le serveur SPARQL Fuseki autonome et son interface web ;
+- le JAR expérimental `jena-graphrag`, placé sous `JENA_INSTALL_DIR/graphrag/`.
+
+## Compiler et installer Apache Jena
+
+### 1. Définir le répertoire d'installation dans `.env`
 
 Depuis la racine du dépôt :
 
@@ -33,7 +43,48 @@ Depuis la racine du dépôt :
 cd jena-graphrag-tutorial
 ```
 
-Cette commande place le terminal dans le répertoire qui contient le `Makefile` du tutoriel.
+Créez le profil local s'il n'existe pas encore :
+
+```bash
+test -f env/.env || cp env/.env.example env/.env
+chmod 600 env/.env
+```
+
+Dans `env/.env`, renseignez un chemin absolu et accessible en écriture, sans guillemets ni espace autour du signe `=` :
+
+```dotenv
+JENA_INSTALL_DIR=/chemin/absolu/vers/jena-install
+```
+
+Le tutoriel lit la version de référence dans le `pom.xml` racine du dépôt : ne la recopiez pas dans ce fichier. Toutes les distributions compilées seront installées sous `JENA_INSTALL_DIR` ; aucune écriture dans `/usr` ou `/opt` et aucun privilège administrateur ne sont nécessaires.
+
+### 2. Compiler la version de référence et l'installer
+
+Lancez la cible d'installation du tutoriel :
+
+```bash
+make jena-install
+```
+
+La cible prépare le profil local, lit la version de référence dans le `pom.xml` racine, compile le dépôt avec les profils `complete` et `graphrag`, puis extrait les distributions dans `JENA_INSTALL_DIR`. Elle copie également le JAR GraphRAG dans `JENA_INSTALL_DIR/graphrag/`. Si l'installation existe déjà, la cible s'arrête avant toute écriture : choisissez un autre `JENA_INSTALL_DIR` ou supprimez explicitement l'installation à remplacer.
+
+### 3. Activer et vérifier l'installation
+
+Vérifiez les outils CLI, Fuseki et le JAR GraphRAG installés :
+
+```bash
+make jena-install-check
+```
+
+La cible utilise `JENA_INSTALL_DIR` et la version Maven du checkout pour retrouver les distributions. Elle vérifie `sparql`, `riot`, Fuseki et le JAR GraphRAG sans modifier les variables d'environnement du terminal.
+
+Ces commandes valident le Fuseki autonome. Le JAR GraphRAG est installé comme résultat de compilation ; le tutoriel démarre toutefois `GraphRAGFusekiUIServer` avec le classpath Maven du projet, afin d'inclure ses dépendances expérimentales.
+
+## Poursuivre avec le tutoriel GraphRAG
+
+Le terminal doit toujours se trouver dans `jena-graphrag-tutorial/`, le répertoire qui contient le `Makefile` du tutoriel.
+
+### Préparer la configuration locale
 
 ```bash
 make providers-bootstrap

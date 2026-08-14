@@ -64,17 +64,25 @@ des validations et des contributions. Sans regles explicites, une issue peut
 devenir trop large, ne pas distinguer la cible de l'existant, ou perdre les liens
 entre une decision, sa branche, sa validation et sa contribution.
 
-Apache Jena utilise GitHub Issues pour suivre le travail et privilegie les pull
-requests pour les contributions. Les discussions de projet sont publiques et
-peuvent egalement avoir lieu sur la liste `dev@jena.apache.org`. Cette decision
-definit un processus de suivi complementaire aux conventions de contribution du
-depot.
+Ce projet suit son travail dans les GitHub Issues du fork
+`https://github.com/michel-heon/jena/`. Les pull requests restent le support des
+contributions. Les discussions de projet peuvent egalement avoir lieu dans les
+espaces publics appropries. Cette decision definit un processus de suivi
+complementaire aux conventions de contribution du depot.
 
 ## Decision
 
 Les GitHub Issues sont le support canonique du travail actionnable. Une issue
 importante est fondee sur des faits verifies, reliee aux ADR et artefacts
 pertinents, et conserve les preuves de sa validation avant sa cloture.
+
+### Depot de suivi obligatoire
+
+Les issues de ce projet sont imperativement et exclusivement creees dans
+`https://github.com/michel-heon/jena/`. Il est interdit de creer, mettre a jour
+ou utiliser une issue dans `https://github.com/apache/jena/` ou dans tout autre
+depot pour suivre ce travail. Une issue creee dans un mauvais depot est cloturee
+avec une raison appropriee, puis recreee dans le depot de suivi obligatoire.
 
 ### Role et granularite
 
@@ -92,8 +100,9 @@ tranches lorsque leurs validations et leur livrable restent communs.
 
 Avant de creer ou modifier une issue, le redacteur :
 
-1. lit les sources locales et GitHub pertinentes, dont les ADR, le code, les
-   issues existantes et les conventions de contribution;
+1. lit les sources locales et GitHub pertinentes dans
+  `https://github.com/michel-heon/jena/`, dont les ADR, le code, les issues
+  existantes et les conventions de contribution;
 2. recherche les doublons avec des mots-cles discriminants (endpoint, classe,
    livrable, ADR ou symptome);
 3. met a jour l'issue existante lorsque le sujet est deja couvert;
@@ -201,6 +210,7 @@ requests GitHub.
 
 - [ADR-000, Processus de creation et de gestion des ADR](./000-META-processus-creation-adr.md)
 - [ADR-002, Usage verifie des agents IA et contrainte de non-hallucination](./002-META-agent-ia-non-hallucination.md)
+- [Depot de suivi obligatoire](https://github.com/michel-heon/jena/)
 - [Guide de contribution Apache Jena](../../../CONTRIBUTING.md)
 - [GitHub Docs - About issues](https://docs.github.com/en/issues/tracking-your-work-with-issues/learning-about-issues/about-issues)
 - [GitHub Docs - Configuring issue templates](https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/configuring-issue-templates-for-your-repository)
@@ -209,4 +219,5 @@ requests GitHub.
 
 | Date | Changement | Raison |
 |------|------------|--------|
+| 2026-08-14 | Depot GitHub de suivi rendu exclusif | Eviter la creation d'issues dans le depot amont Apache Jena |
 | 2026-08-10 | Import et adaptation au depot Apache Jena | Etablir un suivi d'issue verifiable et conforme aux conventions Apache Jena |
