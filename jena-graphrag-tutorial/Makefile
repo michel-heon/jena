@@ -25,7 +25,7 @@ ROOT_DIR := $(abspath $(MODULE_DIR)/..)
 -include $(MODULE_DIR)/env/generated/real-providers.mk
 WORK_DIR := $(MODULE_DIR)/target/tutorial-state
 GRAPHRAG_TUTORIAL_PDF_PATH ?= src/main/resources/corpus/ingestion/pdf
-GRAPHRAG_TUTORIAL_CORPUS_PATH ?= target/tutorial-state/pdf-corpus.ttl
+GRAPHRAG_TUTORIAL_CORPUS_PATH ?= data/pdf-corpus.ttl
 GRAPHRAG_TUTORIAL_DATASET ?= graphrag-smoke
 GRAPHRAG_TUTORIAL_EXPECTED_PDF_COUNT ?= 12
 PDF_DIR := $(abspath $(MODULE_DIR)/$(GRAPHRAG_TUTORIAL_PDF_PATH))
@@ -135,6 +135,7 @@ $(ARQ_CLASS):
 	@cd "$(ROOT_DIR)" && mvn -q -Drat.skip=true -pl jena-cmds -am package -DskipTests
 
 $(CORPUS_FILE): $(MODULE_DIR)/env/generated/real-providers.mk $(CLASSPATH_FILE) $(MATERIALIZER_SOURCE)
+	@mkdir -p "$$(dirname "$(CORPUS_FILE)")"
 	@rm -f "$(SEMANTIC_MARKER)"
 	@java -cp "$(MODULE_DIR)/target/classes:$(GRAPHRAG_CLASSES):$$(cat "$(CLASSPATH_FILE)")" \
 		org.apache.jena.graphrag.ingestion.PdfCorpusMaterializer "$(PDF_DIR)" "$@"

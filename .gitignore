@@ -54,6 +54,7 @@ jena-graphrag-integration-tests/env/generated/
 jena-graphrag-tutorial/env/.env
 jena-graphrag-tutorial/env/.env.user
 jena-graphrag-tutorial/env/generated/
+jena-graphrag-tutorial/data/pdf-corpus.ttl
 
 # Benchmark JSON results
 jena-benchmarks/jena-benchmarks-jmh/*.json

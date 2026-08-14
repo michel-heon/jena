@@ -73,7 +73,7 @@ Cette commande compile les dépendances du tutoriel et écrit un classpath tempo
 make corpus-materialize
 ```
 
-Cette commande transforme les PDF locaux en ressources RDF `Document` et `Chunk` au moyen de `DocumentIngestionService`. Le corpus Turtle temporaire est écrit sous `../target/tutorial-state/`. Elle n'extrait pas encore les entités, relations ni communautés, et n'appelle ni le service d'embeddings ni le service de génération de réponses.
+Cette commande transforme les PDF locaux en ressources RDF `Document` et `Chunk` au moyen de `DocumentIngestionService`. Le corpus Turtle est écrit sous `../data/pdf-corpus.ttl`. Elle n'extrait pas encore les entités, relations ni communautés, et n'appelle ni le service d'embeddings ni le service de génération de réponses.
 
 ### 4. Démarrer Fuseki
 
