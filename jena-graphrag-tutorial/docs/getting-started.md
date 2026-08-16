@@ -132,7 +132,7 @@ Cette commande transforme les PDF locaux en ressources RDF `Document` et `Chunk`
 make fuseki-start-basic
 ```
 
-Cette commande met en scène l'extension GraphRAG et toutes ses dépendances sous `target/tutorial-state/fuseki-distribution/extra`, génère `service.ttl`, puis démarre le `fuseki-server` installé avec un dataset TDB2 persistant. Une fois le ping disponible, elle envoie le corpus Turtle au endpoint Graph Store `/data?default` de Fuseki : le serveur ne lit donc pas le corpus depuis le checkout au démarrage. Elle charge les paramètres des services d'embeddings et de génération de réponses uniquement dans le processus du serveur, mais ne les appelle pas au démarrage. L'URL et le fichier journal sont affichés.
+Cette commande met en scène l'extension GraphRAG et toutes ses dépendances sous `target/tutorial-state/fuseki-distribution/extra`, génère `service.ttl`, puis démarre le `fuseki-server` installé sans modifier le dataset TDB2 persistant. Après `make tutorial-clean`, ce dataset est vide ; après un redémarrage, il conserve son contenu précédent. Cette commande ne matérialise aucun PDF et ne charge aucun Turtle. Elle charge les paramètres des services d'embeddings et de génération de réponses uniquement dans le processus du serveur, mais ne les appelle pas au démarrage. L'URL et le fichier journal sont affichés.
 
 Le dataset persiste dans `target/tutorial-state/fuseki-distribution/databases/<dataset>` entre deux `make fuseki-stop` et redémarrages. `make tutorial-clean` le supprime explicitement. Pour remplacer le corpus d'un serveur déjà démarré, exécutez `make corpus-load` : la requête HTTP `PUT` remplace le graphe par défaut.
 
@@ -144,7 +144,15 @@ make fuseki-ping
 
 Cette commande appelle `/$/ping` jusqu'à ce que Fuseki soit disponible. Elle se termine avec une erreur si le serveur ne répond pas dans le délai prévu.
 
-### 6. Vérifier le corpus chargé
+### 6. Charger le corpus dans Fuseki
+
+```bash
+make corpus-load
+```
+
+Cette commande envoie explicitement `data/pdf-corpus.ttl` au endpoint Graph Store `/data?default` par une requête HTTP `PUT`. Elle exige que `make corpus-materialize` ait déjà produit le Turtle et remplace le graphe par défaut du dataset TDB2. Aucun PDF n'est relu à cette étape.
+
+### 7. Vérifier le corpus chargé
 
 ```bash
 make corpus-verify-pdfs
@@ -152,7 +160,7 @@ make corpus-verify-pdfs
 
 Cette commande appelle le binaire `sparql` installé, qui interroge le service Fuseki et vérifie exactement le nombre attendu de documents PDF ainsi qu'au moins un chunk. Elle échoue si l'un de ces contrôles ne correspond pas.
 
-### 7. Inspecter la configuration publique
+### 8. Inspecter la configuration publique
 
 ```bash
 make graphrag-config
@@ -160,7 +168,7 @@ make graphrag-config
 
 Cette commande affiche la configuration GraphRAG publiée par Fuseki. Vérifiez que GraphRAG est activé ; les secrets et l'instruction système ne doivent pas apparaître dans ce JSON.
 
-### 8. Déclencher l'indexation vectorielle
+### 9. Déclencher l'indexation vectorielle
 
 ```bash
 make indexing-start
@@ -168,7 +176,7 @@ make indexing-start
 
 Cette commande appelle `POST /{dataset}/graphrag/index`, enregistre le `taskId` dans l'état temporaire et lance la vectorisation des chunks. Elle appelle le service de génération d'embeddings configuré et consomme son quota.
 
-### 9. Attendre la fin de l'indexation
+### 10. Attendre la fin de l'indexation
 
 ```bash
 make indexing-wait
@@ -176,7 +184,7 @@ make indexing-wait
 
 Cette commande consulte l'état de la tâche jusqu'à `done`. Un état `failed` interrompt le parcours et la cause détaillée est disponible dans le journal Fuseki.
 
-### 10. Poser une première question
+### 11. Poser une première question
 
 ```bash
 make chat-question QUESTION="What is GraphRAG?" MODE=basic

@@ -74,7 +74,7 @@ help: ## Display tutorial steps
 		'' \
 		'Recommended sequence:' \
 		'  make jena-install providers-bootstrap corpus-materialize corpus-semantic-extract' \
-		'  make fuseki-start fuseki-ping corpus-verify-pdfs indexing-start indexing-wait' \
+		'  make fuseki-start fuseki-ping corpus-load corpus-verify-pdfs indexing-start indexing-wait' \
 		'' \
 		'Preparation' \
 		'  providers-bootstrap       Generate the local provider environment.' \
@@ -94,8 +94,8 @@ help: ## Display tutorial steps
 		'  graph-cat                 Dump the local RDF graph page by page with Jena.' \
 		'' \
 		'Fuseki and indexing' \
-		'  fuseki-start              Start Fuseki with the enriched corpus.' \
-		'  fuseki-start-basic        Start Fuseki with documents and chunks only.' \
+		'  fuseki-start              Start installed Fuseki after semantic materialization; no upload.' \
+		'  fuseki-start-basic        Start installed Fuseki; no corpus materialization or upload.' \
 		'  fuseki-ping               Confirm that Fuseki is reachable.' \
 		'  fuseki-status             Report Fuseki process and HTTP status.' \
 		'  fuseki-open               Open the Fuseki UI.' \
@@ -163,7 +163,7 @@ jena-install-check: providers-bootstrap ## Verify the installed Jena distributio
 	[[ "$$runtime_jars" -gt 1 ]] || { echo "GraphRAG runtime dependencies are unavailable." >&2; exit 1; }; \
 	echo "Jena $$jena_version is installed in $$JENA_INSTALL_DIR."
 
-fuseki-distribution-prepare: jena-install-check $(CORPUS_FILE) $(PORT_FILE) ## Stage GraphRAG for the installed Fuseki and generate its service config
+fuseki-distribution-prepare: jena-install-check $(PORT_FILE) ## Stage GraphRAG for the installed Fuseki and generate its service config
 	@set -euo pipefail; \
 	env_file="$(MODULE_DIR)/env/generated/real-providers.env.sh"; \
 	set -a; source "$$env_file"; set +a; \
@@ -217,7 +217,8 @@ corpus-validate: jena-install-check $(CORPUS_FILE) ## Validate the Turtle corpus
 	JENA_HOME="$$jena_home" "$$jena_home/bin/riot" --validate "$(CORPUS_FILE)" >/dev/null; \
 	echo "Turtle corpus validated by installed RIOT."
 
-corpus-load: fuseki-ping $(CORPUS_FILE) ## Upload the Turtle corpus through Fuseki Graph Store HTTP
+corpus-load: fuseki-ping ## Upload a materialized Turtle corpus through Fuseki Graph Store HTTP
+	@test -s "$(CORPUS_FILE)" || { echo "Corpus unavailable: run make corpus-materialize first." >&2; exit 1; }
 	@curl --fail --silent --show-error \
 		-X PUT -H 'Content-Type: text/turtle' --upload-file "$(CORPUS_FILE)" \
 		"$(FUSEKI_URL)/$(DATASET)/data?default" >/dev/null
@@ -238,13 +239,12 @@ $(PORT_FILE):
 	@mkdir -p "$(WORK_DIR)"
 	@node -e 'const server = require("net").createServer(); server.listen(0, "127.0.0.1", () => { console.log(server.address().port); server.close(); });' > "$@"
 
-fuseki-start: $(SEMANTIC_MARKER) fuseki-distribution-prepare ## Start the installed Fuseki with the enriched corpus
+fuseki-start: fuseki-distribution-prepare ## Start the installed Fuseki, ready for an enriched corpus upload
+	@test -f "$(SEMANTIC_MARKER)" || { echo "Semantic corpus unavailable: run make corpus-semantic-extract first." >&2; exit 1; }
 	@$(MAKE) fuseki-start-server
-	@$(MAKE) corpus-load
 
-fuseki-start-basic: fuseki-distribution-prepare ## Start the installed Fuseki with documents and chunks only
+fuseki-start-basic: fuseki-distribution-prepare ## Start the installed Fuseki without loading a corpus
 	@$(MAKE) fuseki-start-server
-	@$(MAKE) corpus-load
 
 fuseki-start-server:
 	@if [[ -f "$(PID_FILE)" ]] && kill -0 "$$(cat "$(PID_FILE)")" 2>/dev/null; then \
@@ -529,9 +529,9 @@ tutorial-clean: fuseki-stop ## Remove all temporary tutorial state
 	@rm -rf "$(WORK_DIR)"
 	@echo "Tutorial state removed."
 
-getting-started: providers-bootstrap pdfs-check project-prepare corpus-materialize fuseki-start-basic fuseki-ping graphrag-config indexing-start indexing-wait ## Run the minimal indexed basic-mode workflow
+getting-started: providers-bootstrap pdfs-check project-prepare corpus-materialize fuseki-start-basic fuseki-ping corpus-load corpus-verify-pdfs graphrag-config indexing-start indexing-wait ## Run the minimal indexed basic-mode workflow
 	@$(MAKE) chat-question QUESTION="$(GETTING_STARTED_QUESTION)" MODE=basic
 	@echo "Getting started completed. Run make fuseki-stop when you are finished with Fuseki."
 
-tutorial-run: providers-bootstrap pdfs-check project-prepare corpus-materialize fuseki-start fuseki-ping graphrag-config indexing-start indexing-wait corpus-verify-pdfs chat-ask-questions chat-qualify-mode ## Run every tutorial step in sequence
+tutorial-run: providers-bootstrap pdfs-check project-prepare corpus-materialize corpus-semantic-extract fuseki-start fuseki-ping corpus-load corpus-verify-pdfs graphrag-config indexing-start indexing-wait chat-ask-questions chat-qualify-mode ## Run every tutorial step in sequence
 	@echo "Tutorial completed successfully. Run make fuseki-stop when you are finished with Fuseki."
