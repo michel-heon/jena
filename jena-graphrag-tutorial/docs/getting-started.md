@@ -21,7 +21,7 @@
 
 Ce parcours commence par compiler ce dépôt Apache Jena, puis installe Jena CLI, Fuseki et l'artefact GraphRAG résultants dans un répertoire choisi dans `env/.env`. Il obtient ensuite une première réponse GraphRAG citée à partir du corpus PDF local : préparer l'espace de travail, indexer, puis interroger. Voir aussi le [README du tutoriel](../README.md) pour le parcours complet.
 
-Il utilise les services de production de Jena : `DocumentIngestionService`, `GraphRAGFusekiUIServer` et les routes HTTP GraphRAG. Aucun endpoint réservé au tutoriel n'est créé.
+Il utilise les services de production de Jena : `DocumentIngestionService`, le lanceur `fuseki-server` installé et les routes HTTP GraphRAG. Aucun endpoint réservé au tutoriel n'est créé.
 
 ## Prérequis
 
@@ -31,7 +31,7 @@ La compilation du dépôt produit et installe :
 
 - `apache-jena` : les API courantes, ARQ/SPARQL, TDB et les outils CLI tels que `riot`, `sparql` et `tdb2.*` ;
 - `apache-jena-fuseki` : le serveur SPARQL Fuseki autonome et son interface web ;
-- le JAR expérimental `jena-graphrag`, placé sous `JENA_INSTALL_DIR/graphrag/`.
+- le JAR expérimental `jena-graphrag` et ses dépendances d'exécution, placés sous `JENA_INSTALL_DIR/graphrag/`.
 
 ## Compiler et installer Apache Jena
 
@@ -76,9 +76,9 @@ Vérifiez les outils CLI, Fuseki et le JAR GraphRAG installés :
 make jena-install-check
 ```
 
-La cible utilise `JENA_INSTALL_DIR` et la version Maven du checkout pour retrouver les distributions. Elle vérifie `sparql`, `riot`, Fuseki et le JAR GraphRAG sans modifier les variables d'environnement du terminal.
+La cible utilise `JENA_INSTALL_DIR` et la version Maven du checkout pour retrouver les distributions. Elle vérifie `sparql`, `riot`, Fuseki, le JAR GraphRAG et ses dépendances, sans modifier les variables d'environnement du terminal.
 
-Ces commandes valident le Fuseki autonome. Le JAR GraphRAG est installé comme résultat de compilation ; le tutoriel démarre toutefois `GraphRAGFusekiUIServer` avec le classpath Maven du projet, afin d'inclure ses dépendances expérimentales.
+Le tutoriel copie ces JARs dans son `FUSEKI_BASE/extra`, génère une configuration de service déterministe (dataset TDB2 persistant, port et index), puis démarre exclusivement `fuseki-server` depuis `JENA_INSTALL_DIR`. Il ne réutilise pas de classpath Maven pour le serveur.
 
 ## Poursuivre avec le tutoriel GraphRAG
 
@@ -100,7 +100,7 @@ Assurez-vous que le serveur du tutoriel n'est pas déjà en cours d'exécution. 
 make tutorial-clean
 ```
 
-Cette commande arrête le Fuseki du tutoriel s'il est actif et efface le corpus temporaire, l'index et les journaux. Elle ne modifie pas les PDF de référence ni les fichiers de configuration locaux.
+Cette commande arrête le Fuseki du tutoriel s'il est actif et efface le corpus temporaire, le dataset TDB2, l'index et les journaux. Elle ne modifie pas les PDF de référence ni les fichiers de configuration locaux.
 
 ### 1. Vérifier le corpus PDF
 
@@ -124,7 +124,7 @@ Cette commande compile les dépendances du tutoriel et écrit un classpath tempo
 make corpus-materialize
 ```
 
-Cette commande transforme les PDF locaux en ressources RDF `Document` et `Chunk` au moyen de `DocumentIngestionService`. Le corpus Turtle est écrit sous `data/pdf-corpus.ttl`. Elle n'extrait pas encore les entités, relations ni communautés, et n'appelle ni le service d'embeddings ni le service de génération de réponses.
+Cette commande transforme les PDF locaux en ressources RDF `Document` et `Chunk` au moyen de `DocumentIngestionService`. Le corpus Turtle est écrit sous `data/pdf-corpus.ttl`, puis validé par le binaire `riot` installé. Elle n'extrait pas encore les entités, relations ni communautés, et n'appelle ni le service d'embeddings ni le service de génération de réponses.
 
 ### 4. Démarrer Fuseki
 
@@ -132,7 +132,9 @@ Cette commande transforme les PDF locaux en ressources RDF `Document` et `Chunk`
 make fuseki-start-basic
 ```
 
-Cette commande démarre le serveur Fuseki de production avec les documents et chunks du corpus. Elle charge les paramètres des services d'embeddings et de génération de réponses uniquement dans le processus du serveur, mais ne les appelle pas au démarrage. L'URL et le fichier journal sont affichés.
+Cette commande met en scène l'extension GraphRAG et toutes ses dépendances sous `target/tutorial-state/fuseki-distribution/extra`, génère `service.ttl`, puis démarre le `fuseki-server` installé avec un dataset TDB2 persistant. Une fois le ping disponible, elle envoie le corpus Turtle au endpoint Graph Store `/data?default` de Fuseki : le serveur ne lit donc pas le corpus depuis le checkout au démarrage. Elle charge les paramètres des services d'embeddings et de génération de réponses uniquement dans le processus du serveur, mais ne les appelle pas au démarrage. L'URL et le fichier journal sont affichés.
+
+Le dataset persiste dans `target/tutorial-state/fuseki-distribution/databases/<dataset>` entre deux `make fuseki-stop` et redémarrages. `make tutorial-clean` le supprime explicitement. Pour remplacer le corpus d'un serveur déjà démarré, exécutez `make corpus-load` : la requête HTTP `PUT` remplace le graphe par défaut.
 
 ### 5. Vérifier que le serveur répond
 
@@ -142,7 +144,15 @@ make fuseki-ping
 
 Cette commande appelle `/$/ping` jusqu'à ce que Fuseki soit disponible. Elle se termine avec une erreur si le serveur ne répond pas dans le délai prévu.
 
-### 6. Inspecter la configuration publique
+### 6. Vérifier le corpus chargé
+
+```bash
+make corpus-verify-pdfs
+```
+
+Cette commande appelle le binaire `sparql` installé, qui interroge le service Fuseki et vérifie exactement le nombre attendu de documents PDF ainsi qu'au moins un chunk. Elle échoue si l'un de ces contrôles ne correspond pas.
+
+### 7. Inspecter la configuration publique
 
 ```bash
 make graphrag-config
@@ -150,7 +160,7 @@ make graphrag-config
 
 Cette commande affiche la configuration GraphRAG publiée par Fuseki. Vérifiez que GraphRAG est activé ; les secrets et l'instruction système ne doivent pas apparaître dans ce JSON.
 
-### 7. Déclencher l'indexation vectorielle
+### 8. Déclencher l'indexation vectorielle
 
 ```bash
 make indexing-start
@@ -158,7 +168,7 @@ make indexing-start
 
 Cette commande appelle `POST /{dataset}/graphrag/index`, enregistre le `taskId` dans l'état temporaire et lance la vectorisation des chunks. Elle appelle le service de génération d'embeddings configuré et consomme son quota.
 
-### 8. Attendre la fin de l'indexation
+### 9. Attendre la fin de l'indexation
 
 ```bash
 make indexing-wait
@@ -166,7 +176,7 @@ make indexing-wait
 
 Cette commande consulte l'état de la tâche jusqu'à `done`. Un état `failed` interrompt le parcours et la cause détaillée est disponible dans le journal Fuseki.
 
-### 9. Poser une première question
+### 10. Poser une première question
 
 ```bash
 make chat-question QUESTION="What is GraphRAG?" MODE=basic
@@ -206,4 +216,4 @@ Cette commande réaffiche la configuration publique sans exposer de secret ni d'
 make fuseki-stop
 ```
 
-Cette commande arrête uniquement le processus Fuseki ; elle conserve le corpus temporaire, l'index et les journaux. Utilisez `make tutorial-clean` pour les supprimer également.
+Cette commande arrête uniquement le processus Fuseki ; elle conserve le corpus temporaire, le dataset TDB2, l'index et les journaux. Utilisez `make tutorial-clean` pour les supprimer également.

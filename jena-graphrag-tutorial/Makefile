@@ -38,6 +38,10 @@ PID_FILE := $(WORK_DIR)/fuseki.pid
 TASK_FILE := $(WORK_DIR)/task-id
 LOG_FILE := $(WORK_DIR)/fuseki.log
 INDEX_DIR := $(WORK_DIR)/real-provider-index
+FUSEKI_DISTRIBUTION_BASE := $(WORK_DIR)/fuseki-distribution
+FUSEKI_DISTRIBUTION_CONFIG := $(FUSEKI_DISTRIBUTION_BASE)/service.ttl
+FUSEKI_DISTRIBUTION_EXTRA := $(FUSEKI_DISTRIBUTION_BASE)/extra
+FUSEKI_CONFIG_GENERATOR := $(MODULE_DIR)/scripts/graphrag-tutorial-fuseki-config.sh
 MATERIALIZER_SOURCE := $(ROOT_DIR)/jena-graphrag/src/main/java/org/apache/jena/graphrag/ingestion/PdfCorpusMaterializer.java
 ARQ_CLASS := $(ROOT_DIR)/jena-cmds/target/classes/arq/arq.class
 GRAPHRAG_CLASSES := $(ROOT_DIR)/jena-graphrag/target/classes
@@ -57,7 +61,7 @@ SYSTEM_PROMPT := Answer only from the ingested GraphRAG research PDF corpus. Cit
 FUSEKI_URL = http://127.0.0.1:$$(cat "$(PORT_FILE)")
 WINDOWS_FUSEKI_URL = http://$$(hostname -I | awk '{print $$1}'):$$(cat "$(PORT_FILE)")
 
-.PHONY: help providers-bootstrap jena-install jena-install-check pdfs-check project-prepare corpus-materialize \
+.PHONY: help providers-bootstrap jena-install jena-install-check fuseki-distribution-prepare pdfs-check project-prepare corpus-materialize corpus-validate corpus-load \
 	corpus-semantic-extract fuseki-start fuseki-start-basic fuseki-start-server fuseki-ping fuseki-status fuseki-open graphrag-config indexing-start indexing-status \
 	indexing-wait rdf-lifecycle corpus-verify-pdfs corpus-statistic graph-cat ttt-cat entities-list relationships-list communities-list findings-list chat-ask-questions chat-ask-modes chat-qualify-mode chat-qualify-basic-vector chat-qualify-drift chat-qualify-drift-limits chat-question context-question fuseki-stop tutorial-clean tutorial-run getting-started
 
@@ -69,19 +73,22 @@ help: ## Display tutorial steps
 		'  getting-started           Run the minimal basic-mode workflow with real providers.' \
 		'' \
 		'Recommended sequence:' \
-		'  make providers-bootstrap corpus-materialize corpus-semantic-extract' \
-		'  make corpus-statistic fuseki-start fuseki-ping indexing-start indexing-wait' \
+		'  make jena-install providers-bootstrap corpus-materialize corpus-semantic-extract' \
+		'  make fuseki-start fuseki-ping corpus-verify-pdfs indexing-start indexing-wait' \
 		'' \
 		'Preparation' \
 		'  providers-bootstrap       Generate the local provider environment.' \
 		'  jena-install              Build and install the checkout Jena version.' \
 		'  jena-install-check        Verify the installed Jena distributions.' \
+		'  fuseki-distribution-prepare Stage GraphRAG for the installed Fuseki and generate its service config.' \
 		'  pdfs-check                Verify the configured PDF corpus.' \
 		'  project-prepare           Compile the tutorial dependencies.' \
+		'  corpus-validate           Validate the Turtle corpus with installed RIOT.' \
 		'  tutorial-clean            Remove the temporary tutorial state.' \
 		'' \
 		'Corpus' \
 		'  corpus-materialize        Ingest PDFs into the local Turtle corpus.' \
+		'  corpus-load               Upload the local Turtle corpus through Fuseki HTTP.' \
 		'  corpus-semantic-extract   Extract entities, relationships, and communities.' \
 		'  corpus-statistic          Show local corpus and semantic graph counts.' \
 		'  graph-cat                 Dump the local RDF graph page by page with Jena.' \
@@ -133,11 +140,13 @@ jena-install: providers-bootstrap ## Build and install the checkout Jena version
 	done; \
 	echo "Installing Jena $$jena_version in $$JENA_INSTALL_DIR"; \
 	mkdir -p "$$JENA_INSTALL_DIR"; \
-	cd "$(ROOT_DIR)" && mvn -Drat.skip=true -Pcomplete,graphrag package -DskipTests; \
+	cd "$(ROOT_DIR)" && mvn -Drat.skip=true -Pcomplete,graphrag clean package -DskipTests; \
 	tar --extract --gzip --file "$(ROOT_DIR)/apache-jena/target/apache-jena-$$jena_version.tar.gz" --directory "$$JENA_INSTALL_DIR"; \
 	tar --extract --gzip --file "$(ROOT_DIR)/jena-fuseki2/apache-jena-fuseki/target/apache-jena-fuseki-$$jena_version.tar.gz" --directory "$$JENA_INSTALL_DIR"; \
 	mkdir "$$JENA_INSTALL_DIR/graphrag"; \
-	cp "$(ROOT_DIR)/jena-graphrag/target/jena-graphrag-$$jena_version.jar" "$$JENA_INSTALL_DIR/graphrag/"
+	cp "$(ROOT_DIR)/jena-graphrag/target/jena-graphrag-$$jena_version.jar" "$$JENA_INSTALL_DIR/graphrag/"; \
+	cd "$(ROOT_DIR)" && mvn -q -Pcomplete,graphrag -pl jena-graphrag dependency:copy-dependencies \
+		-DincludeScope=runtime -DoutputDirectory="$$JENA_INSTALL_DIR/graphrag"
 
 jena-install-check: providers-bootstrap ## Verify the installed Jena distributions
 	@set -euo pipefail; \
@@ -146,11 +155,31 @@ jena-install-check: providers-bootstrap ## Verify the installed Jena distributio
 	jena_version="$$(cd "$(ROOT_DIR)" && mvn -q -DforceStdout help:evaluate -Dexpression=project.version)"; \
 	jena_home="$$JENA_INSTALL_DIR/apache-jena-$$jena_version"; \
 	fuseki_home="$$JENA_INSTALL_DIR/apache-jena-fuseki-$$jena_version"; \
-	"$$jena_home/bin/sparql" --version; \
-	"$$jena_home/bin/riot" --version; \
-	"$$fuseki_home/fuseki-server" --help >/dev/null; \
+	JENA_HOME="$$jena_home" "$$jena_home/bin/sparql" --version; \
+	JENA_HOME="$$jena_home" "$$jena_home/bin/riot" --version; \
+	FUSEKI_HOME="$$fuseki_home" "$$fuseki_home/fuseki-server" --version >/dev/null; \
 	test -f "$$JENA_INSTALL_DIR/graphrag/jena-graphrag-$$jena_version.jar"; \
+	runtime_jars=$$(find "$$JENA_INSTALL_DIR/graphrag" -maxdepth 1 -type f -name '*.jar' | wc -l); \
+	[[ "$$runtime_jars" -gt 1 ]] || { echo "GraphRAG runtime dependencies are unavailable." >&2; exit 1; }; \
 	echo "Jena $$jena_version is installed in $$JENA_INSTALL_DIR."
+
+fuseki-distribution-prepare: jena-install-check $(CORPUS_FILE) $(PORT_FILE) ## Stage GraphRAG for the installed Fuseki and generate its service config
+	@set -euo pipefail; \
+	env_file="$(MODULE_DIR)/env/generated/real-providers.env.sh"; \
+	set -a; source "$$env_file"; set +a; \
+	jena_version="$$(cd "$(ROOT_DIR)" && mvn -q -DforceStdout help:evaluate -Dexpression=project.version)"; \
+	fuseki_home="$$JENA_INSTALL_DIR/apache-jena-fuseki-$$jena_version"; \
+	graphrag_home="$$JENA_INSTALL_DIR/graphrag"; \
+	[[ -x "$$fuseki_home/fuseki-server" ]] || { echo "Installed Fuseki launcher is unavailable: $$fuseki_home/fuseki-server" >&2; exit 1; }; \
+	shopt -s nullglob; jars=("$$graphrag_home"/*.jar); \
+	(( $${#jars[@]} > 0 )) || { echo "Installed GraphRAG runtime jars are unavailable: $$graphrag_home" >&2; exit 1; }; \
+	mkdir -p "$(FUSEKI_DISTRIBUTION_EXTRA)"; \
+	cp "$${jars[@]}" "$(FUSEKI_DISTRIBUTION_EXTRA)/"; \
+	vector_dimension="$${GRAPHRAG_EMBEDDING_DIMENSION:-384}"; \
+	"$(FUSEKI_CONFIG_GENERATOR)" "$(FUSEKI_DISTRIBUTION_CONFIG)" "$(FUSEKI_DISTRIBUTION_BASE)" \
+		"$(DATASET)" "$$(cat "$(PORT_FILE)")" "$(INDEX_DIR)" "$$vector_dimension"; \
+	echo "Installed Fuseki runtime staged in $(FUSEKI_DISTRIBUTION_BASE)."; \
+	echo "Service configuration: $(FUSEKI_DISTRIBUTION_CONFIG)"
 
 pdfs-check: ## Verify the configured PDF fixture count
 	@count=$$(find "$(PDF_DIR)" -maxdepth 1 -type f -iname '*.pdf' | wc -l); \
@@ -176,8 +205,23 @@ $(CORPUS_FILE): $(MODULE_DIR)/env/generated/real-providers.mk $(CLASSPATH_FILE) 
 		org.apache.jena.graphrag.ingestion.PdfCorpusMaterializer "$(PDF_DIR)" "$@"
 	@test -s "$@"
 
-corpus-materialize: pdfs-check $(CORPUS_FILE) ## Materialize the PDFs through DocumentIngestionService
+corpus-materialize: pdfs-check $(CORPUS_FILE) corpus-validate ## Materialize the PDFs through DocumentIngestionService
 	@echo "PDF corpus materialized at $(CORPUS_FILE)."
+
+corpus-validate: jena-install-check $(CORPUS_FILE) ## Validate the Turtle corpus with the installed RIOT command
+	@set -euo pipefail; \
+	env_file="$(MODULE_DIR)/env/generated/real-providers.env.sh"; \
+	set -a; source "$$env_file"; set +a; \
+	jena_version="$$(cd "$(ROOT_DIR)" && mvn -q -DforceStdout help:evaluate -Dexpression=project.version)"; \
+	jena_home="$$JENA_INSTALL_DIR/apache-jena-$$jena_version"; \
+	JENA_HOME="$$jena_home" "$$jena_home/bin/riot" --validate "$(CORPUS_FILE)" >/dev/null; \
+	echo "Turtle corpus validated by installed RIOT."
+
+corpus-load: fuseki-ping $(CORPUS_FILE) ## Upload the Turtle corpus through Fuseki Graph Store HTTP
+	@curl --fail --silent --show-error \
+		-X PUT -H 'Content-Type: text/turtle' --upload-file "$(CORPUS_FILE)" \
+		"$(FUSEKI_URL)/$(DATASET)/data?default" >/dev/null
+	@echo "Turtle corpus uploaded to the persistent Fuseki dataset."
 
 $(SEMANTIC_MARKER): $(CORPUS_FILE) $(CLASSPATH_FILE) $(MATERIALIZER_SOURCE)
 	@env_file="$(MODULE_DIR)/env/generated/real-providers.env.sh"; \
@@ -194,11 +238,13 @@ $(PORT_FILE):
 	@mkdir -p "$(WORK_DIR)"
 	@node -e 'const server = require("net").createServer(); server.listen(0, "127.0.0.1", () => { console.log(server.address().port); server.close(); });' > "$@"
 
-fuseki-start: $(SEMANTIC_MARKER) $(PORT_FILE) ## Start production Fuseki with the enriched corpus
+fuseki-start: $(SEMANTIC_MARKER) fuseki-distribution-prepare ## Start the installed Fuseki with the enriched corpus
 	@$(MAKE) fuseki-start-server
+	@$(MAKE) corpus-load
 
-fuseki-start-basic: $(CORPUS_FILE) $(PORT_FILE) ## Start Fuseki with documents and chunks only
+fuseki-start-basic: fuseki-distribution-prepare ## Start the installed Fuseki with documents and chunks only
 	@$(MAKE) fuseki-start-server
+	@$(MAKE) corpus-load
 
 fuseki-start-server:
 	@if [[ -f "$(PID_FILE)" ]] && kill -0 "$$(cat "$(PID_FILE)")" 2>/dev/null; then \
@@ -207,11 +253,13 @@ fuseki-start-server:
 		env_file="$(MODULE_DIR)/env/generated/real-providers.env.sh"; \
 		[[ -r "$$env_file" ]] || { echo "Run make bootstrap first." >&2; exit 1; }; \
 		set -a; source "$$env_file"; set +a; \
+		jena_version="$$(cd "$(ROOT_DIR)" && mvn -q -DforceStdout help:evaluate -Dexpression=project.version)"; \
+		fuseki_home="$$JENA_INSTALL_DIR/apache-jena-fuseki-$$jena_version"; \
 		GRAPHRAG_SYSTEM_PROMPT='$(SYSTEM_PROMPT)' \
-		java -cp "$(MODULE_DIR)/target/classes:$(GRAPHRAG_CLASSES):$$(cat "$(CLASSPATH_FILE)")" \
-			$(GRAPHRAG_TUTORIAL_JAVA_OPTIONS) \
-			org.apache.jena.graphrag.fuseki.GraphRAGFusekiUIServer "$(CORPUS_FILE)" "$$(cat "$(PORT_FILE)")" "$(DATASET)" true "$(INDEX_DIR)" \
-			> "$(LOG_FILE)" 2>&1 & echo $$! > "$(PID_FILE)"; \
+		FUSEKI_HOME="$$fuseki_home" FUSEKI_BASE="$(FUSEKI_DISTRIBUTION_BASE)" \
+		JVM_ARGS="-Xmx4G $(GRAPHRAG_TUTORIAL_JAVA_OPTIONS)" \
+		nohup "$$fuseki_home/fuseki-server" --port="$$(cat "$(PORT_FILE)")" --config="$(FUSEKI_DISTRIBUTION_CONFIG)" \
+			> "$(LOG_FILE)" 2>&1 < /dev/null & echo $$! > "$(PID_FILE)"; \
 		echo "Fuseki started at $(FUSEKI_URL)."; \
 		echo "Log: $(LOG_FILE)"; \
 	fi
@@ -234,6 +282,7 @@ fuseki-status: ## Report Fuseki process, ping, and dataset status
 	echo "PID: $$pid"; \
 	echo "URL: http://127.0.0.1:$$port"; \
 	echo "Dataset: $(DATASET)"; \
+	echo "Configuration: $(FUSEKI_DISTRIBUTION_CONFIG)"; \
 	if [[ "$$pid" != unknown ]] && kill -0 "$$pid" 2>/dev/null; then echo "Process: running"; else echo "Process: not running"; fi; \
 	if [[ "$$port" != unknown ]] && curl --fail --silent --show-error "http://127.0.0.1:$$port/\$$/ping" >/dev/null 2>&1; then \
 		echo "Ping: reachable"; \
@@ -336,13 +385,15 @@ rdf-lifecycle: fuseki-ping ## Exercise isolated RDF import, read, update, deleti
 	[[ "$$remaining" == 0 ]] || { echo "The reconstructed tutorial dataset still contains lifecycle RDF." >&2; exit 1; }; \
 	echo "Clean tutorial state restored: the temporary vector index was rebuilt from the original corpus."
 
-corpus-verify-pdfs: ## Assert the configured number of PDF source files are stored
-	@response=$$(curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/sparql" \
-		--data-urlencode 'query=PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> SELECT (COUNT(DISTINCT ?sourceFile) AS ?count) WHERE { ?document a grag:Document ; grag:sourceFile ?sourceFile . FILTER(STRENDS(LCASE(STR(?sourceFile)), ".pdf")) }' \
-		--data-urlencode 'format=application/sparql-results+json'); \
-	count=$$(printf '%s' "$$response" | node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk).on("end", () => console.log(JSON.parse(input).results.bindings[0].count.value));'); \
-	[[ "$$count" == "$(GRAPHRAG_TUTORIAL_EXPECTED_PDF_COUNT)" ]] || { echo "Expected $(GRAPHRAG_TUTORIAL_EXPECTED_PDF_COUNT) PDF source files, found $$count." >&2; exit 1; }; \
-	echo "$$count PDF source file(s) found."
+corpus-verify-pdfs: fuseki-ping jena-install-check ## Verify the loaded PDFs and chunks with the installed SPARQL command
+	@set -euo pipefail; \
+	env_file="$(MODULE_DIR)/env/generated/real-providers.env.sh"; \
+	set -a; source "$$env_file"; set +a; \
+	jena_version="$$(cd "$(ROOT_DIR)" && mvn -q -DforceStdout help:evaluate -Dexpression=project.version)"; \
+	jena_home="$$JENA_INSTALL_DIR/apache-jena-$$jena_version"; \
+	service="$(FUSEKI_URL)/$(DATASET)/sparql"; \
+	response=$$(printf '%s\n' "PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> SELECT (COUNT(DISTINCT ?document) AS ?pdfDocuments) (COUNT(DISTINCT ?chunk) AS ?chunks) WHERE { SERVICE <$$service> { OPTIONAL { ?document a grag:Document ; grag:sourceFile ?sourceFile . FILTER(STRENDS(LCASE(STR(?sourceFile)), \".pdf\")) } OPTIONAL { ?chunk a grag:Chunk } } }" | JENA_HOME="$$jena_home" "$$jena_home/bin/sparql" --query=- --results=JSON); \
+	RESPONSE="$$response" EXPECTED="$(GRAPHRAG_TUTORIAL_EXPECTED_PDF_COUNT)" node -e 'const row = JSON.parse(process.env.RESPONSE).results.bindings[0] ?? {}; const pdfs = Number(row.pdfDocuments?.value ?? 0); const chunks = Number(row.chunks?.value ?? 0); if (pdfs !== Number(process.env.EXPECTED) || chunks < 1) process.exit(1); console.log(pdfs + " PDF document(s) and " + chunks + " chunk(s) verified with installed SPARQL.");' || { echo "Expected $(GRAPHRAG_TUTORIAL_EXPECTED_PDF_COUNT) PDF documents and at least one chunk." >&2; exit 1; }
 
 corpus-statistic: pdfs-check $(CORPUS_FILE) $(ARQ_CLASS) ## Display GraphRAG resource and structural-link statistics
 	@printf '%s\n' 'PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> SELECT ?triples ?documents ?pdfDocuments ?chunks ?entities ?relationships ?communities ?findings ?partOfLinks ?entityLinks ?relatedToLinks ?communityLinks WHERE { { SELECT (COUNT(*) AS ?triples) WHERE { ?subject ?predicate ?object } } { SELECT (COUNT(DISTINCT ?document) AS ?documents) WHERE { ?document a grag:Document } } { SELECT (COUNT(DISTINCT ?pdfDocument) AS ?pdfDocuments) WHERE { ?pdfDocument a grag:Document ; grag:sourceFile ?sourceFile . FILTER(STRENDS(LCASE(STR(?sourceFile)), ".pdf")) } } { SELECT (COUNT(DISTINCT ?chunk) AS ?chunks) WHERE { ?chunk a grag:Chunk } } { SELECT (COUNT(DISTINCT ?entity) AS ?entities) WHERE { ?entity a grag:Entity } } { SELECT (COUNT(DISTINCT ?relationship) AS ?relationships) WHERE { ?relationship a grag:Relationship } } { SELECT (COUNT(DISTINCT ?community) AS ?communities) WHERE { ?community a grag:Community } } { SELECT (COUNT(DISTINCT ?finding) AS ?findings) WHERE { ?finding a grag:Finding } } { SELECT (COUNT(*) AS ?partOfLinks) WHERE { ?chunk grag:partOf ?document } } { SELECT (COUNT(*) AS ?entityLinks) WHERE { ?chunk grag:hasEntity ?entity } } { SELECT (COUNT(*) AS ?relatedToLinks) WHERE { ?source grag:relatedTo ?target } } { SELECT (COUNT(*) AS ?communityLinks) WHERE { ?entity grag:inCommunity ?community } } }' | \

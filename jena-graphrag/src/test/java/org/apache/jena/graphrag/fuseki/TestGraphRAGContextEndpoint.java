@@ -36,7 +36,7 @@ import org.apache.jena.atlas.json.JSON;
 import org.apache.jena.atlas.json.JsonArray;
 import org.apache.jena.atlas.json.JsonObject;
 import org.apache.jena.fuseki.main.FusekiServer;
-import org.apache.jena.fuseki.main.sys.FusekiModule;
+import org.apache.jena.fuseki.main.sys.FusekiAutoModule;
 import org.apache.jena.fuseki.main.sys.FusekiModules;
 import org.apache.jena.graphrag.GraphRAGImporter;
 import org.apache.jena.graphrag.index.GraphRAGTextDatasetFactory;
@@ -64,7 +64,7 @@ public class TestGraphRAGContextEndpoint {
 
     @Test
     public void module_isDiscoverableThroughJavaSPI() {
-        boolean found = ServiceLoader.load(FusekiModule.class).stream()
+        boolean found = ServiceLoader.load(FusekiAutoModule.class).stream()
                 .anyMatch(provider -> provider.type().equals(GraphRAGModule.class));
         assertTrue(found);
     }

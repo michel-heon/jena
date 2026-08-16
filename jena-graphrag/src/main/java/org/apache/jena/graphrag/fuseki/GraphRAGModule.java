@@ -42,7 +42,7 @@ import org.apache.jena.atlas.json.JsonException;
 import org.apache.jena.atlas.json.JsonObject;
 import org.apache.jena.atlas.json.JsonValue;
 import org.apache.jena.fuseki.main.FusekiServer;
-import org.apache.jena.fuseki.main.sys.FusekiModule;
+import org.apache.jena.fuseki.main.sys.FusekiAutoModule;
 import org.apache.jena.graphrag.index.ChunkVectorIndexer;
 import org.apache.jena.graphrag.index.CommunityReportVectorIndexer;
 import org.apache.jena.graphrag.index.GraphRAGAssembler;
@@ -84,7 +84,7 @@ import org.apache.jena.web.HttpSC;
  * model contains {@code grag:enableGraphRAG true}. The current processors expose
  * context, hybrid search and Phase 4 operator endpoints.
  */
-public final class GraphRAGModule implements FusekiModule {
+public final class GraphRAGModule implements FusekiAutoModule {
 
     /** Namespace for GraphRAG Fuseki configuration terms such as {@code enableGraphRAG}. */
     public static final String CONFIG_NS = GraphRAGAssemblerVocab.uri;

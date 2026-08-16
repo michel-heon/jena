@@ -23,7 +23,7 @@
 
 Ce répertoire documente les parcours GraphRAG exécutables avec le [Makefile](Makefile). Le Makefile reste l'orchestrateur : il conserve l'état temporaire sous `target/tutorial-state/` et ne stocke aucune valeur de service externe.
 
-Les parcours utilisent `DocumentIngestionService`, `GraphRAGFusekiUIServer` et les routes GraphRAG de production. Les appels au service de génération d'embeddings et au service de génération de réponses sont réels, consomment des quotas et exigent des paramètres locaux. Ne jamais afficher, committer ou transmettre les valeurs de `env/.env.user` ou de `env/generated/`.
+Les parcours utilisent `DocumentIngestionService`, le `fuseki-server` installé et les routes GraphRAG de production. L'extension GraphRAG et ses dépendances sont copiées dans le répertoire `extra/` du `FUSEKI_BASE` temporaire. Les appels au service de génération d'embeddings et au service de génération de réponses sont réels, consomment des quotas et exigent des paramètres locaux. Ne jamais afficher, committer ou transmettre les valeurs de `env/.env.user` ou de `env/generated/`.
 
 ## Parcours
 
