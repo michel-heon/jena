@@ -31,9 +31,10 @@ make project-prepare
 make corpus-materialize
 make fuseki-start-basic
 make fuseki-ping
+make corpus-load
 ```
 
-Utiliser `make corpus-semantic-extract` suivi de `make fuseki-start` pour indexer aussi les ressources d'un corpus enrichi. Le démarrage charge les paramètres des services dans le seul processus Fuseki, mais ne les appelle pas.
+Utiliser `make corpus-semantic-extract`, `make fuseki-start fuseki-ping` puis `make corpus-load` pour indexer aussi les ressources d'un corpus enrichi. Le démarrage charge les paramètres des services dans le seul processus Fuseki, mais ne les appelle pas. `corpus-load` valide le Turtle avec le binaire `riot` installé avant de remplacer le graphe par défaut.
 
 ## Contrôler la configuration
 

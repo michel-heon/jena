@@ -206,7 +206,7 @@ make chat-qualify-mode QUESTION="What is GraphRAG?" MODE=basic TOP_K=1
 
 ### Test spécifique DRIFT
 
-Après `make corpus-semantic-extract`, `make fuseki-start` et `make indexing-wait`, exécuter la qualification DRIFT avec les fournisseurs réels configurés :
+Après `make corpus-semantic-extract`, `make fuseki-start fuseki-ping corpus-load` et `make indexing-start indexing-wait`, exécuter la qualification DRIFT avec les fournisseurs réels configurés :
 
 ```bash
 make chat-qualify-drift QUESTION="What is GraphRAG?" TOP_K=1

@@ -56,7 +56,7 @@ L'extraction envoie les chunks aux extracteurs HTTP de production. Les résultat
 
 ## État et nettoyage
 
-Le corpus enrichi est local au tutoriel et sera chargé par `make fuseki-start`. Pour supprimer ce corpus, son index et les journaux associés :
+Le corpus enrichi est local au tutoriel. Après `make fuseki-start fuseki-ping`, `make corpus-load` le valide avec le `riot` installé puis remplace le graphe par défaut de Fuseki. Pour supprimer ce corpus, son index et les journaux associés :
 
 ```bash
 make tutorial-clean

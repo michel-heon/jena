@@ -208,7 +208,8 @@ $(CORPUS_FILE): $(MODULE_DIR)/env/generated/real-providers.mk $(CLASSPATH_FILE) 
 corpus-materialize: pdfs-check $(CORPUS_FILE) corpus-validate ## Materialize the PDFs through DocumentIngestionService
 	@echo "PDF corpus materialized at $(CORPUS_FILE)."
 
-corpus-validate: jena-install-check $(CORPUS_FILE) ## Validate the Turtle corpus with the installed RIOT command
+corpus-validate: jena-install-check ## Validate an existing Turtle corpus with the installed RIOT command
+	@test -s "$(CORPUS_FILE)" || { echo "Corpus unavailable: run make corpus-materialize first." >&2; exit 1; }
 	@set -euo pipefail; \
 	env_file="$(MODULE_DIR)/env/generated/real-providers.env.sh"; \
 	set -a; source "$$env_file"; set +a; \
@@ -217,7 +218,7 @@ corpus-validate: jena-install-check $(CORPUS_FILE) ## Validate the Turtle corpus
 	JENA_HOME="$$jena_home" "$$jena_home/bin/riot" --validate "$(CORPUS_FILE)" >/dev/null; \
 	echo "Turtle corpus validated by installed RIOT."
 
-corpus-load: fuseki-ping ## Upload a materialized Turtle corpus through Fuseki Graph Store HTTP
+corpus-load: fuseki-ping corpus-validate ## Validate and upload a materialized Turtle corpus through Fuseki Graph Store HTTP
 	@test -s "$(CORPUS_FILE)" || { echo "Corpus unavailable: run make corpus-materialize first." >&2; exit 1; }
 	@curl --fail --silent --show-error \
 		-X PUT -H 'Content-Type: text/turtle' --upload-file "$(CORPUS_FILE)" \
@@ -337,7 +338,7 @@ indexing-wait: ## Wait until the indexing task completes
 		sleep 5; \
 	done
 
-rdf-lifecycle: fuseki-ping ## Exercise isolated RDF import, read, update, deletion, and index reconstruction
+rdf-lifecycle: corpus-load ## Exercise isolated RDF import, read, update, deletion, and index reconstruction
 	@set -e; \
 	base="$(FUSEKI_URL)/$(DATASET)"; \
 	document='urn:graphrag:tutorial:rdf-lifecycle:document'; \
@@ -378,7 +379,7 @@ rdf-lifecycle: fuseki-ping ## Exercise isolated RDF import, read, update, deleti
 	@$(MAKE) fuseki-stop
 	@rm -rf "$(INDEX_DIR)"
 	@rm -f "$(TASK_FILE)" "$(WORK_DIR)/index-response.json"
-	@$(MAKE) fuseki-start-basic fuseki-ping indexing-start indexing-wait
+	@$(MAKE) fuseki-start-basic fuseki-ping corpus-load indexing-start indexing-wait
 	@set -e; \
 	base="$(FUSEKI_URL)/$(DATASET)"; \
 	remaining=$$(curl --fail --silent --show-error -G "$$base/sparql" --data-urlencode 'query=PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> SELECT (COUNT(*) AS ?count) WHERE { VALUES ?resource { <urn:graphrag:tutorial:rdf-lifecycle:document> <urn:graphrag:tutorial:rdf-lifecycle:document#chunk-0> } ?resource ?predicate ?object }' --data-urlencode 'format=application/sparql-results+json' | node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk).on("end", () => console.log(JSON.parse(input).results.bindings[0].count.value));'); \

@@ -47,6 +47,7 @@ make project-prepare
 make corpus-materialize
 make fuseki-start-basic
 make fuseki-ping
+make corpus-load
 ```
 
 Le corpus, le PID, les journaux et l'index sont alors contenus sous
@@ -197,7 +198,7 @@ manuellement :
 make fuseki-stop
 rm -rf target/tutorial-state/real-provider-index
 rm -f target/tutorial-state/task-id target/tutorial-state/index-response.json
-make fuseki-start-basic fuseki-ping indexing-start indexing-wait
+make fuseki-start-basic fuseki-ping corpus-load indexing-start indexing-wait
 ```
 
 Ces suppressions concernent exclusivement l'état temporaire local de ce

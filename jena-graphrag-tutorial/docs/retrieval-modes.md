@@ -32,6 +32,7 @@ make corpus-materialize
 make corpus-semantic-extract
 make fuseki-start
 make fuseki-ping
+make corpus-load
 make indexing-start
 make indexing-wait
 ```

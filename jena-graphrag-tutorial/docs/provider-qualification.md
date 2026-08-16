@@ -33,6 +33,7 @@ make corpus-materialize
 make corpus-semantic-extract
 make fuseki-start
 make fuseki-ping
+make corpus-load
 make graphrag-config
 make indexing-start
 make indexing-wait
@@ -61,7 +62,7 @@ make chat-qualify-drift-limits QUESTION="What is GraphRAG?"
 
 Cette cible arrête puis redémarre Fuseki avec les valeurs non défaut `communityTopK=1`, `maxFollowUps=1`, `contextTokenBudget=64` et `localTopK=1`, réindexe le corpus et contrôle la configuration publiée ainsi que les limites observées. Adapter les valeurs avec `DRIFT_LIMIT_COMMUNITY_TOP_K`, `DRIFT_LIMIT_MAX_FOLLOW_UPS`, `DRIFT_LIMIT_CONTEXT_TOKEN_BUDGET` et `DRIFT_LIMIT_LOCAL_TOP_K`.
 
-Le redémarrage et la réindexation modifient l'état temporaire du tutoriel. Relancer `make fuseki-start` suivi de `make indexing-start indexing-wait` rétablit la configuration habituelle.
+Le redémarrage et la réindexation modifient l'état temporaire du tutoriel. Relancer `make fuseki-start fuseki-ping corpus-load` suivi de `make indexing-start indexing-wait` rétablit la configuration habituelle avec le corpus enrichi courant.
 
 ## Diagnostiquer et nettoyer
 
