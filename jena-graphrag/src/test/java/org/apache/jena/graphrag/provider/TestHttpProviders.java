@@ -152,6 +152,18 @@ public class TestHttpProviders {
     }
 
     @Test
+    public void relationshipExtractor_skipsIndividualRelationshipsWithBlankFields() throws Exception {
+        try (TestServer server = TestServer.responding(200,
+                "{\"choices\":[{\"message\":{\"content\":\"{\\\"relationships\\\":[{\\\"source\\\":\\\"Alice\\\",\\\"target\\\":\\\"Bob\\\",\\\"description\\\":\\\"\\\"},{\\\"source\\\":\\\"Alice\\\",\\\"target\\\":\\\"Bob\\\",\\\"description\\\":\\\"knows\\\"}]}\"}}]}")) {
+            HttpRelationshipExtractor extractor = new HttpRelationshipExtractor(configuration(Duration.ofSeconds(2), 100),
+                    server.uri(), "chat-model", API_KEY);
+
+            assertEquals(List.of(new RelationshipExtractor.Relationship("Alice", "Bob", "knows")),
+                    extractor.extract("Alice knows Bob.", List.of("Alice", "Bob")));
+        }
+    }
+
+    @Test
     public void communitySummarizer_callsChatProviderAndParsesJson() throws Exception {
         try (TestServer server = TestServer.responding(200,
                 "{\"choices\":[{\"message\":{\"content\":\"{\\\"summary\\\":\\\"Alice and Bob collaborate.\\\"}\"}}]}")) {

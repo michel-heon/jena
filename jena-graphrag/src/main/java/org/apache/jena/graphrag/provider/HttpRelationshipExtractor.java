@@ -60,8 +60,13 @@ public final class HttpRelationshipExtractor implements RelationshipExtractor {
             List<Relationship> relationships = new ArrayList<>();
             for (JsonValue value : ExtractionJson.required(object, "relationships").getAsArray()) {
                 JsonObject relationship = value.getAsObject();
-                relationships.add(new Relationship(ExtractionJson.string(relationship, "source"),
-                        ExtractionJson.string(relationship, "target"), ExtractionJson.string(relationship, "description")));
+                try {
+                    relationships.add(new Relationship(ExtractionJson.string(relationship, "source"),
+                            ExtractionJson.string(relationship, "target"), ExtractionJson.string(relationship, "description")));
+                } catch (ProviderException ex) {
+                    if ( !ExtractionJson.isInvalid(ex) )
+                        throw ex;
+                }
             }
             return List.copyOf(relationships);
         } catch (ProviderException ex) {
