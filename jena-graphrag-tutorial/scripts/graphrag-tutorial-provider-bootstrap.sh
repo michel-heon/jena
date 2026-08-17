@@ -29,6 +29,11 @@ GENERATED_PROPERTIES="$GENERATED_DIR/real-providers.properties"
 ENVIRONMENT_VARIABLES=(
     JENA_VERSION
     JENA_INSTALL_DIR
+    FUSEKI_URL
+    FUSEKI_MANAGED_LOCALLY
+    FUSEKI_JAVA_OPTIONS
+    FUSEKI_ALLOW_DATASET_CREATE
+    FUSEKI_REMOTE_DATASET_CONFIG
     GRAPHRAG_EMBEDDING_API_URL
     GRAPHRAG_EMBEDDING_API_KEY
     GRAPHRAG_EMBEDDING_MODEL
@@ -161,6 +166,25 @@ if [[ -z "${provider_values[GRAPHRAG_EMBEDDING_DIMENSION]:-}" ]]; then
 fi
 provider_values[GRAPHRAG_EMBEDDING_API_URL]="$(openai_compatible_base_url "${provider_values[GRAPHRAG_EMBEDDING_API_URL]:-}")"
 provider_values[OPENAI_API_URL]="$(openai_compatible_base_url "${provider_values[OPENAI_API_URL]:-}")"
+provider_values[FUSEKI_ALLOW_DATASET_CREATE]="${provider_values[FUSEKI_ALLOW_DATASET_CREATE]:-false}"
+provider_values[FUSEKI_JAVA_OPTIONS]="${provider_values[FUSEKI_JAVA_OPTIONS]:--Xmx4G}"
+
+if [[ ! "${provider_values[FUSEKI_URL]:-}" =~ ^https?://[^/]+$ ]]; then
+    printf 'FUSEKI_URL must be an absolute HTTP(S) base URL without a trailing slash\n' >&2
+    exit 1
+fi
+if [[ "${provider_values[FUSEKI_MANAGED_LOCALLY]:-}" != true && "${provider_values[FUSEKI_MANAGED_LOCALLY]:-}" != false ]]; then
+    printf 'FUSEKI_MANAGED_LOCALLY must be true or false\n' >&2
+    exit 1
+fi
+if [[ "${provider_values[FUSEKI_ALLOW_DATASET_CREATE]:-}" != true && "${provider_values[FUSEKI_ALLOW_DATASET_CREATE]:-}" != false ]]; then
+    printf 'FUSEKI_ALLOW_DATASET_CREATE must be true or false\n' >&2
+    exit 1
+fi
+if [[ "${provider_values[FUSEKI_MANAGED_LOCALLY]}" == true && ! "${provider_values[FUSEKI_URL]}" =~ ^http://(127\.0\.0\.1|localhost):[0-9]+$ ]]; then
+    printf 'A locally managed Fuseki requires FUSEKI_URL=http://127.0.0.1:<port> or http://localhost:<port>\n' >&2
+    exit 1
+fi
 
 shell_quote() {
     printf "'%s'" "${1//\'/\'\\\'}"

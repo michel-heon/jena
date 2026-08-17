@@ -50,13 +50,54 @@ test -f env/.env || cp env/.env.example env/.env
 chmod 600 env/.env
 ```
 
-Dans `env/.env`, renseignez un chemin absolu et accessible en écriture, sans guillemets ni espace autour du signe `=` :
+Dans `env/.env`, renseignez un chemin absolu et accessible en écriture et
+l'URL de base de Fuseki, sans guillemets ni espace autour du signe `=` :
 
 ```dotenv
 JENA_INSTALL_DIR=/chemin/absolu/vers/jena-install
+FUSEKI_URL=http://127.0.0.1:3030
+FUSEKI_MANAGED_LOCALLY=true
 ```
 
 Le tutoriel lit la version de référence dans le `pom.xml` racine du dépôt : ne la recopiez pas dans ce fichier. Toutes les distributions compilées seront installées sous `JENA_INSTALL_DIR` ; aucune écriture dans `/usr` ou `/opt` et aucun privilège administrateur ne sont nécessaires.
+
+`FUSEKI_URL` est la source de vérité de toutes les requêtes HTTP du tutoriel et
+ne doit pas se terminer par `/`. Pour utiliser un Fuseki distant, définissez
+par exemple `FUSEKI_URL=https://fuseki.example.org` et
+`FUSEKI_MANAGED_LOCALLY=false`. Dans ce mode, n'exécutez pas les cibles qui
+administrent un serveur local (`fuseki-start*`, `fuseki-stop`, `rdf-lifecycle`
+et `chat-qualify-drift-limits`) ; utilisez les cibles HTTP. Les opérations de
+chargement et de mutation s'appliquent alors au serveur distant.
+
+### Créer un dataset GraphRAG distant
+
+Cette étape est nécessaire seulement si le dataset distant n'existe pas déjà.
+Elle nécessite le droit d'administration sur `POST /$/datasets`. Préparez sur
+votre poste un fichier Turtle de service destiné **au serveur distant**. Il
+doit nommer `GRAPHRAG_TUTORIAL_DATASET`, configurer ses répertoires TDB2 et
+d'index accessibles depuis le serveur, activer `grag:enableGraphRAG true`,
+déclarer un `grag:GraphRAGIndex` et les fournisseurs nécessaires. Les variables
+de fournisseur référencées par cette configuration doivent être définies dans
+l'environnement du serveur distant.
+
+Ajoutez les valeurs suivantes dans `env/.env`, puis régénérez la projection :
+
+```dotenv
+FUSEKI_ALLOW_DATASET_CREATE=true
+FUSEKI_REMOTE_DATASET_CONFIG=/chemin/vers/service-graphrag-distant.ttl
+```
+
+```bash
+make providers-bootstrap
+make fuseki-dataset-create
+```
+
+Cette cible envoie le Turtle avec `POST $FUSEKI_URL/$/datasets`. Elle est
+refusée si `FUSEKI_MANAGED_LOCALLY=true`, si l'autorisation explicite manque
+ou si le fichier de configuration est illisible. Fuseki retourne une erreur de
+conflit si ce nom de dataset existe déjà. Après sa réussite, réglez
+`FUSEKI_ALLOW_DATASET_CREATE=false`, exécutez `make providers-bootstrap`, puis
+continuez avec `make fuseki-ping`.
 
 ### 2. Compiler la version de référence et l'installer
 
@@ -134,6 +175,10 @@ make fuseki-start-basic
 
 Cette commande met en scène l'extension GraphRAG et toutes ses dépendances sous `target/tutorial-state/fuseki-distribution/extra`, génère `service.ttl`, puis démarre le `fuseki-server` installé sans modifier le dataset TDB2 persistant. Après `make tutorial-clean`, ce dataset est vide ; après un redémarrage, il conserve son contenu précédent. Cette commande ne matérialise aucun PDF et ne charge aucun Turtle. Elle charge les paramètres des services d'embeddings et de génération de réponses uniquement dans le processus du serveur, mais ne les appelle pas au démarrage. L'URL et le fichier journal sont affichés.
 
+Cette étape est réservée à `FUSEKI_MANAGED_LOCALLY=true` et démarre le serveur
+installé à `FUSEKI_URL`. Avec un serveur distant, sautez-la : le serveur doit
+être administré et configuré avec GraphRAG avant d'utiliser le tutoriel.
+
 Le dataset persiste dans `target/tutorial-state/fuseki-distribution/databases/<dataset>` entre deux `make fuseki-stop` et redémarrages. `make tutorial-clean` le supprime explicitement. Pour remplacer le corpus d'un serveur déjà démarré, exécutez `make corpus-load` : la requête HTTP `PUT` remplace le graphe par défaut.
 
 ### 5. Vérifier que le serveur répond
@@ -142,7 +187,9 @@ Le dataset persiste dans `target/tutorial-state/fuseki-distribution/databases/<d
 make fuseki-ping
 ```
 
-Cette commande appelle `/$/ping` jusqu'à ce que Fuseki soit disponible. Elle se termine avec une erreur si le serveur ne répond pas dans le délai prévu.
+Cette commande appelle `FUSEKI_URL/$/ping` jusqu'à ce que Fuseki soit
+disponible. Elle se termine avec une erreur si le serveur ne répond pas dans le
+délai prévu.
 
 ### 6. Charger le corpus dans Fuseki
 

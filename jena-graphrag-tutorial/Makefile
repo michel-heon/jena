@@ -33,7 +33,6 @@ CLASSPATH_FILE := $(WORK_DIR)/classpath
 CORPUS_FILE := $(abspath $(MODULE_DIR)/$(GRAPHRAG_TUTORIAL_CORPUS_PATH))
 SEMANTIC_MARKER := $(WORK_DIR)/semantic-extraction.done
 SEMANTIC_CHECKPOINT := $(WORK_DIR)/semantic-extraction.properties
-PORT_FILE := $(WORK_DIR)/port
 PID_FILE := $(WORK_DIR)/fuseki.pid
 TASK_FILE := $(WORK_DIR)/task-id
 LOG_FILE := $(WORK_DIR)/fuseki.log
@@ -51,6 +50,7 @@ CHAT_MODE_REQUIRE_MIXED_LOCAL ?= false
 CHAT_MODE_REQUIRE_MULTIPLE_GLOBAL ?= false
 TOP_K ?= 1
 GRAPHRAG_TUTORIAL_JAVA_OPTIONS ?=
+FUSEKI_JAVA_OPTIONS ?= -Xmx4G
 GETTING_STARTED_QUESTION ?= What is GraphRAG?
 DRIFT_LIMIT_COMMUNITY_TOP_K ?= 1
 DRIFT_LIMIT_MAX_FOLLOW_UPS ?= 1
@@ -58,11 +58,13 @@ DRIFT_LIMIT_CONTEXT_TOKEN_BUDGET ?= 64
 DRIFT_LIMIT_LOCAL_TOP_K ?= 1
 export QUESTION MODE TOP_K
 SYSTEM_PROMPT := Answer only from the ingested GraphRAG research PDF corpus. Cite retrieved sources and say when the corpus lacks the answer. When the sources mention GraphDB, Elasticsearch, LM Studio, or LangChain, identify them as components of the described RDF integration or corpus, not requirements of generic Microsoft GraphRAG.
-FUSEKI_URL = http://127.0.0.1:$$(cat "$(PORT_FILE)")
-WINDOWS_FUSEKI_URL = http://$$(hostname -I | awk '{print $$1}'):$$(cat "$(PORT_FILE)")
+FUSEKI_URL ?=
+FUSEKI_MANAGED_LOCALLY ?= false
+FUSEKI_ALLOW_DATASET_CREATE ?= false
+FUSEKI_REMOTE_DATASET_CONFIG ?=
 
 .PHONY: help providers-bootstrap jena-install jena-install-check fuseki-distribution-prepare pdfs-check project-prepare corpus-materialize corpus-validate corpus-load \
-	corpus-semantic-extract fuseki-start fuseki-start-basic fuseki-start-server fuseki-ping fuseki-status fuseki-open graphrag-config indexing-start indexing-status \
+	corpus-semantic-extract fuseki-local-required fuseki-remote-required fuseki-dataset-create fuseki-start fuseki-start-basic fuseki-start-server fuseki-ping fuseki-status fuseki-open graphrag-config indexing-start indexing-status \
 	indexing-wait rdf-lifecycle corpus-verify-pdfs corpus-statistic graph-cat ttt-cat entities-list relationships-list communities-list findings-list chat-ask-questions chat-ask-modes chat-qualify-mode chat-qualify-basic-vector chat-qualify-drift chat-qualify-drift-limits chat-question context-question fuseki-stop tutorial-clean tutorial-run getting-started
 
 help: ## Display tutorial steps
@@ -80,7 +82,7 @@ help: ## Display tutorial steps
 		'  providers-bootstrap       Generate the local provider environment.' \
 		'  jena-install              Build and install the checkout Jena version.' \
 		'  jena-install-check        Verify the installed Jena distributions.' \
-		'  fuseki-distribution-prepare Stage GraphRAG for the installed Fuseki and generate its service config.' \
+		'  fuseki-distribution-prepare Stage GraphRAG for the locally managed installed Fuseki.' \
 		'  pdfs-check                Verify the configured PDF corpus.' \
 		'  project-prepare           Compile the tutorial dependencies.' \
 		'  corpus-validate           Validate the Turtle corpus with installed RIOT.' \
@@ -94,8 +96,9 @@ help: ## Display tutorial steps
 		'  graph-cat                 Dump the local RDF graph page by page with Jena.' \
 		'' \
 		'Fuseki and indexing' \
-		'  fuseki-start              Start installed Fuseki after semantic materialization; no upload.' \
-		'  fuseki-start-basic        Start installed Fuseki; no corpus materialization or upload.' \
+		'  fuseki-start              Start locally managed Fuseki after semantic materialization; no upload.' \
+		'  fuseki-start-basic        Start locally managed Fuseki; no corpus materialization or upload.' \
+		'  fuseki-dataset-create     Create the configured GraphRAG dataset on remotely managed Fuseki.' \
 		'  fuseki-ping               Confirm that Fuseki is reachable.' \
 		'  fuseki-status             Report Fuseki process and HTTP status.' \
 		'  fuseki-open               Open the Fuseki UI.' \
@@ -163,7 +166,13 @@ jena-install-check: providers-bootstrap ## Verify the installed Jena distributio
 	[[ "$$runtime_jars" -gt 1 ]] || { echo "GraphRAG runtime dependencies are unavailable." >&2; exit 1; }; \
 	echo "Jena $$jena_version is installed in $$JENA_INSTALL_DIR."
 
-fuseki-distribution-prepare: jena-install-check $(PORT_FILE) ## Stage GraphRAG for the installed Fuseki and generate its service config
+fuseki-local-required: ## Require a locally managed Fuseki configuration
+	@[[ "$(FUSEKI_MANAGED_LOCALLY)" == true ]] || { echo 'This target manages a local Fuseki process; set FUSEKI_MANAGED_LOCALLY=true or use the HTTP targets with remote Fuseki.' >&2; exit 1; }
+
+fuseki-remote-required: ## Require a remotely managed Fuseki configuration
+	@[[ "$(FUSEKI_MANAGED_LOCALLY)" != true ]] || { echo 'This target creates a dataset through remote Fuseki administration; set FUSEKI_MANAGED_LOCALLY=false.' >&2; exit 1; }
+
+fuseki-distribution-prepare: fuseki-local-required jena-install-check ## Stage GraphRAG for the installed Fuseki and generate its service config
 	@set -euo pipefail; \
 	env_file="$(MODULE_DIR)/env/generated/real-providers.env.sh"; \
 	set -a; source "$$env_file"; set +a; \
@@ -177,7 +186,7 @@ fuseki-distribution-prepare: jena-install-check $(PORT_FILE) ## Stage GraphRAG f
 	cp "$${jars[@]}" "$(FUSEKI_DISTRIBUTION_EXTRA)/"; \
 	vector_dimension="$${GRAPHRAG_EMBEDDING_DIMENSION:-384}"; \
 	"$(FUSEKI_CONFIG_GENERATOR)" "$(FUSEKI_DISTRIBUTION_CONFIG)" "$(FUSEKI_DISTRIBUTION_BASE)" \
-		"$(DATASET)" "$$(cat "$(PORT_FILE)")" "$(INDEX_DIR)" "$$vector_dimension"; \
+		"$(DATASET)" "$${FUSEKI_URL##*:}" "$(INDEX_DIR)" "$$vector_dimension"; \
 	echo "Installed Fuseki runtime staged in $(FUSEKI_DISTRIBUTION_BASE)."; \
 	echo "Service configuration: $(FUSEKI_DISTRIBUTION_CONFIG)"
 
@@ -236,10 +245,6 @@ $(SEMANTIC_MARKER): $(CORPUS_FILE) $(CLASSPATH_FILE) $(MATERIALIZER_SOURCE)
 corpus-semantic-extract: pdfs-check $(SEMANTIC_MARKER) ## Extract entities, relationships, and communities from the PDF chunks
 	@echo "Semantic graph materialized in $(CORPUS_FILE)."
 
-$(PORT_FILE):
-	@mkdir -p "$(WORK_DIR)"
-	@node -e 'const server = require("net").createServer(); server.listen(0, "127.0.0.1", () => { console.log(server.address().port); server.close(); });' > "$@"
-
 fuseki-start: fuseki-distribution-prepare ## Start the installed Fuseki, ready for an enriched corpus upload
 	@test -f "$(SEMANTIC_MARKER)" || { echo "Semantic corpus unavailable: run make corpus-semantic-extract first." >&2; exit 1; }
 	@$(MAKE) fuseki-start-server
@@ -247,7 +252,7 @@ fuseki-start: fuseki-distribution-prepare ## Start the installed Fuseki, ready f
 fuseki-start-basic: fuseki-distribution-prepare ## Start the installed Fuseki without loading a corpus
 	@$(MAKE) fuseki-start-server
 
-fuseki-start-server:
+fuseki-start-server: fuseki-local-required
 	@if [[ -f "$(PID_FILE)" ]] && kill -0 "$$(cat "$(PID_FILE)")" 2>/dev/null; then \
 		echo "Fuseki is already running at $(FUSEKI_URL)."; \
 	else \
@@ -258,8 +263,8 @@ fuseki-start-server:
 		fuseki_home="$$JENA_INSTALL_DIR/apache-jena-fuseki-$$jena_version"; \
 		GRAPHRAG_SYSTEM_PROMPT='$(SYSTEM_PROMPT)' \
 		FUSEKI_HOME="$$fuseki_home" FUSEKI_BASE="$(FUSEKI_DISTRIBUTION_BASE)" \
-		JVM_ARGS="-Xmx4G $(GRAPHRAG_TUTORIAL_JAVA_OPTIONS)" \
-		nohup "$$fuseki_home/fuseki-server" --port="$$(cat "$(PORT_FILE)")" --config="$(FUSEKI_DISTRIBUTION_CONFIG)" \
+		JVM_ARGS="$(FUSEKI_JAVA_OPTIONS) $(GRAPHRAG_TUTORIAL_JAVA_OPTIONS)" \
+		nohup "$$fuseki_home/fuseki-server" --port="$${FUSEKI_URL##*:}" --config="$(FUSEKI_DISTRIBUTION_CONFIG)" \
 			> "$(LOG_FILE)" 2>&1 < /dev/null & echo $$! > "$(PID_FILE)"; \
 		echo "Fuseki started at $(FUSEKI_URL)."; \
 		echo "Log: $(LOG_FILE)"; \
@@ -276,18 +281,30 @@ fuseki-ping: ## Confirm Fuseki is reachable
 	done
 	@echo "Fuseki responds to ping."
 
+fuseki-dataset-create: fuseki-remote-required providers-bootstrap fuseki-ping ## Create the configured GraphRAG dataset through remote Fuseki administration
+	@set -euo pipefail; \
+	[[ "$(FUSEKI_ALLOW_DATASET_CREATE)" == true ]] || { echo 'Set FUSEKI_ALLOW_DATASET_CREATE=true to create a remote dataset.' >&2; exit 1; }; \
+	config="$(FUSEKI_REMOTE_DATASET_CONFIG)"; \
+	[[ -n "$$config" ]] || { echo 'Set FUSEKI_REMOTE_DATASET_CONFIG to a readable GraphRAG Fuseki Turtle configuration.' >&2; exit 1; }; \
+	[[ -r "$$config" ]] || { echo "Remote Fuseki dataset configuration is unreadable: $$config" >&2; exit 1; }; \
+	curl --fail --silent --show-error -X POST -H 'Content-Type: text/turtle' \
+		--data-binary @"$$config" "$(FUSEKI_URL)/\$$/datasets" >/dev/null; \
+	echo "Remote Fuseki dataset created from $$config."
+
 fuseki-status: ## Report Fuseki process, ping, and dataset status
-	@port=unknown; [[ -s "$(PORT_FILE)" ]] && port=$$(cat "$(PORT_FILE)"); \
-	pid=unknown; [[ -s "$(PID_FILE)" ]] && pid=$$(cat "$(PID_FILE)"); \
+	@pid=unknown; [[ -s "$(PID_FILE)" ]] && pid=$$(cat "$(PID_FILE)"); \
 	echo "Fuseki status"; \
-	echo "PID: $$pid"; \
-	echo "URL: http://127.0.0.1:$$port"; \
+	echo "URL: $(FUSEKI_URL)"; \
 	echo "Dataset: $(DATASET)"; \
-	echo "Configuration: $(FUSEKI_DISTRIBUTION_CONFIG)"; \
-	if [[ "$$pid" != unknown ]] && kill -0 "$$pid" 2>/dev/null; then echo "Process: running"; else echo "Process: not running"; fi; \
-	if [[ "$$port" != unknown ]] && curl --fail --silent --show-error "http://127.0.0.1:$$port/\$$/ping" >/dev/null 2>&1; then \
+	if [[ "$(FUSEKI_MANAGED_LOCALLY)" == true ]]; then \
+		echo "Configuration: $(FUSEKI_DISTRIBUTION_CONFIG)"; \
+		if [[ "$$pid" != unknown ]] && kill -0 "$$pid" 2>/dev/null; then echo "Process: running"; else echo "Process: not running"; fi; \
+	else \
+		echo "Process: remotely managed"; \
+	fi; \
+	if curl --fail --silent --show-error "$(FUSEKI_URL)/\$$/ping" >/dev/null 2>&1; then \
 		echo "Ping: reachable"; \
-		base="http://127.0.0.1:$$port/$(DATASET)/graphrag"; \
+		base="$(FUSEKI_URL)/$(DATASET)/graphrag"; \
 		if curl --fail --silent --show-error "$$base/config" >/dev/null 2>&1; then echo "API config: available"; else echo "API config: unavailable"; fi; \
 		if curl --fail --silent --show-error -G "$$base/context" --data-urlencode 'q=fuseki-status' --data-urlencode 'mode=local' --data-urlencode 'topK=1' >/dev/null 2>&1; then echo "API context: available"; else echo "API context: unavailable"; fi; \
 		if [[ -s "$(TASK_FILE)" ]]; then \
@@ -302,10 +319,11 @@ fuseki-status: ## Report Fuseki process, ping, and dataset status
 		echo "Ping: unreachable"; \
 	fi
 
-fuseki-open: fuseki-ping ## Open the Fuseki UI in the Windows default browser from WSL
-	@url="$(WINDOWS_FUSEKI_URL)"; \
-	powershell.exe -NoProfile -Command "Start-Process '$$url'"; \
-	echo "Opened $$url in the Windows default browser."
+fuseki-open: fuseki-ping ## Open the configured Fuseki UI
+	@url="$(FUSEKI_URL)"; \
+	if command -v powershell.exe >/dev/null 2>&1; then powershell.exe -NoProfile -Command "Start-Process '$$url'"; \
+	elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$$url"; \
+	else echo "Open $$url in a browser."; fi
 
 graphrag-config: ## Show the public GraphRAG configuration
 	@curl --fail --silent --show-error "$(FUSEKI_URL)/$(DATASET)/graphrag/config"
@@ -338,7 +356,7 @@ indexing-wait: ## Wait until the indexing task completes
 		sleep 5; \
 	done
 
-rdf-lifecycle: corpus-load ## Exercise isolated RDF import, read, update, deletion, and index reconstruction
+rdf-lifecycle: fuseki-local-required corpus-load ## Exercise isolated RDF import, read, update, deletion, and index reconstruction
 	@set -e; \
 	base="$(FUSEKI_URL)/$(DATASET)"; \
 	document='urn:graphrag:tutorial:rdf-lifecycle:document'; \
@@ -487,7 +505,7 @@ chat-qualify-drift: ## Qualify the DRIFT primer, citations, and traversal metada
 	response=$$(curl --fail --silent --show-error -G "$(FUSEKI_URL)/$(DATASET)/graphrag/answer" --data-urlencode "q=$$question" --data-urlencode 'mode=drift' --data-urlencode "topK=$$top_k"); \
 	CONTEXT="$$context" RESPONSE="$$response" TOP_K="$$top_k" node -e 'const context = JSON.parse(process.env.CONTEXT); const response = JSON.parse(process.env.RESPONSE); const topK = Number(process.env.TOP_K); const abstention = "Aucun contexte GraphRAG correspondant a la question."; const results = context.results ?? []; const citations = response.citations ?? []; const expected = results.map(result => [result.uri, result.sourceText]); const actual = citations.map(citation => [citation.uri, citation.text]); const matchesPrimer = JSON.stringify(actual.slice(0, expected.length)) === JSON.stringify(expected); if (context.mode !== "drift" || results.length > topK || results.some(result => result.type !== "community") || !response.answer?.trim()) process.exit(1); if (response.answer === abstention) { if (results.length !== 0 || citations.length !== 0) process.exit(1); console.log("DRIFT qualification passed: abstention without primer."); console.log("Answer: " + response.answer.trim()); process.exit(0); } if (results.length === 0 || !matchesPrimer || !response.reasonStop || !Number.isInteger(response.followUpCount) || response.followUpCount < 0) process.exit(1); console.log("DRIFT qualification passed."); console.log("Primer communities: " + results.length); console.log("Stop reason: " + response.reasonStop); console.log("Follow-ups: " + response.followUpCount); console.log("Answer:\n" + response.answer.trim());';
 
-chat-qualify-drift-limits: ## Restart Fuseki with non-default DRIFT limits and qualify them with real providers
+chat-qualify-drift-limits: fuseki-local-required ## Restart Fuseki with non-default DRIFT limits and qualify them with real providers
 	@set -e; \
 	$(MAKE) fuseki-stop; \
 	$(MAKE) fuseki-start GRAPHRAG_TUTORIAL_JAVA_OPTIONS="-Djena.graphrag.drift.communityTopK=$(DRIFT_LIMIT_COMMUNITY_TOP_K) -Djena.graphrag.drift.maxFollowUps=$(DRIFT_LIMIT_MAX_FOLLOW_UPS) -Djena.graphrag.drift.contextTokenBudget=$(DRIFT_LIMIT_CONTEXT_TOKEN_BUDGET) -Djena.graphrag.drift.localTopK=$(DRIFT_LIMIT_LOCAL_TOP_K)"; \
@@ -517,7 +535,9 @@ context-question: ## Retrieve context for QUESTION with MODE=basic, local, or gl
 	CONTEXT="$$context" METRICS="$$metrics" MODE="$(MODE)" node -e 'const context = JSON.parse(process.env.CONTEXT); const metrics = JSON.parse(process.env.METRICS).results.bindings[0]; const count = name => metrics[name]?.value ?? "0"; console.log(JSON.stringify(context, null, 2)); if (context.results.length !== 0) process.exit(0); console.log("No context result."); console.log("Graph entities: " + count("entities") + ", relationships: " + count("relationships") + ", communities: " + count("communities") + "."); if (process.env.MODE === "basic") console.log("basic requires vector-indexed chunks when a GraphRAG index is configured; otherwise it uses the text or literal fallback."); if (process.env.MODE === "local") console.log("local requires GraphRAG entities and relationships; PDF ingestion alone creates documents and chunks only."); if (process.env.MODE === "global") console.log("global requires indexed GraphRAG communities with summary or fullContent values.");'
 
 fuseki-stop: ## Stop the tutorial Fuseki process
-	@if [[ -f "$(PID_FILE)" ]]; then \
+	@if [[ "$(FUSEKI_MANAGED_LOCALLY)" != true ]]; then \
+		echo "Fuseki is remotely managed; no process was stopped."; \
+	elif [[ -f "$(PID_FILE)" ]]; then \
 		pid=$$(cat "$(PID_FILE)"); \
 		if kill -0 "$$pid" 2>/dev/null; then kill "$$pid"; fi; \
 		rm -f "$(PID_FILE)"; \

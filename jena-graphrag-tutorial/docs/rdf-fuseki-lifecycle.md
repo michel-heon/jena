@@ -81,18 +81,22 @@ absence avant de déclarer l'état restauré.
 ## Les opérations, explicitement
 
 Fuseki expose le SPARQL Update standard sur `/{dataset}/update` et les requêtes
-SPARQL sur `/{dataset}/sparql`. Pour exécuter les commandes à la main, récupérer
-d'abord l'URL locale produite par le tutoriel :
+SPARQL sur `/{dataset}/sparql`. Pour exécuter les commandes à la main, charger
+la configuration locale afin d'utiliser `FUSEKI_URL`, qui peut désigner un
+serveur distant :
 
 ```bash
-base="http://127.0.0.1:$(cat target/tutorial-state/port)/graphrag-smoke"
+set -a
+. env/generated/real-providers.env.sh
+set +a
+base="$FUSEKI_URL/$GRAPHRAG_TUTORIAL_DATASET"
 document='urn:graphrag:tutorial:rdf-lifecycle:document'
 chunk='urn:graphrag:tutorial:rdf-lifecycle:document#chunk-0'
 ```
 
-Si votre environnement redéfinit `GRAPHRAG_TUTORIAL_DATASET`, remplacez
-`graphrag-smoke` par cette valeur. Vérifiez toujours l'URI et le graphe ciblés
-avant de soumettre une mutation.
+Vérifiez toujours `FUSEKI_URL`, l'URI et le graphe ciblés avant de soumettre
+une mutation. Ce parcours modifie et redémarre un Fuseki local : ne l'utilisez
+pas avec `FUSEKI_MANAGED_LOCALLY=false`.
 
 ### Importer le document
 
