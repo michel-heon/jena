@@ -69,16 +69,38 @@ administrent un serveur local (`fuseki-start*`, `fuseki-stop`, `rdf-lifecycle`
 et `chat-qualify-drift-limits`) ; utilisez les cibles HTTP. Les opérations de
 chargement et de mutation s'appliquent alors au serveur distant.
 
-### Créer un dataset GraphRAG distant
+### Déployer un service GraphRAG distant
 
-Cette étape est nécessaire seulement si le dataset distant n'existe pas déjà.
-Elle nécessite le droit d'administration sur `POST /$/datasets`. Préparez sur
-votre poste un fichier Turtle de service destiné **au serveur distant**. Il
-doit nommer `GRAPHRAG_TUTORIAL_DATASET`, configurer ses répertoires TDB2 et
-d'index accessibles depuis le serveur, activer `grag:enableGraphRAG true`,
-déclarer un `grag:GraphRAGIndex` et les fournisseurs nécessaires. Les variables
-de fournisseur référencées par cette configuration doivent être définies dans
-l'environnement du serveur distant.
+Avant le premier parcours distant, déployez l'extension GraphRAG et ses JARs de
+dépendance dans `FUSEKI_BASE/extra` sur le serveur. Copiez ensuite le modèle
+[service-graphrag-remote.ttl](../examples/service-graphrag-remote.ttl) sur le
+serveur et remplacez le nom de dataset, les chemins TDB2 et d'index, les modèles
+et la dimension vectorielle. Les quatre variables `GRAPHRAG_EMBEDDING_API_URL`,
+`GRAPHRAG_EMBEDDING_API_KEY`, `OPENAI_API_URL` et `OPENAI_API_KEY` doivent être
+fournies à l'environnement du processus Fuseki distant, jamais au Turtle ni au
+poste client. Les répertoires doivent être inscriptibles par l'utilisateur du
+service et ne doivent être ouverts que par une seule JVM Fuseki.
+
+Exposez le serveur via HTTPS et placez l'authentification devant les routes
+Fuseki, puis créez sur le poste client le fichier `curl` décrit dans la
+[référence API](fuseki-apis.md#acces-distant-et-securite). Configurez :
+
+```dotenv
+FUSEKI_URL=https://fuseki.example.org
+FUSEKI_MANAGED_LOCALLY=false
+FUSEKI_CURL_CONFIG=/home/alice/.config/jena/fuseki-curl.conf
+```
+
+Exécutez `make providers-bootstrap`, puis `make fuseki-ping`. Le compte client
+doit disposer au minimum des droits de lecture SPARQL, Graph Store `PUT` et des
+routes GraphRAG utilisées.
+
+#### Créer le dataset distant
+
+Cette étape est nécessaire seulement si le dataset n'existe pas déjà. Elle crée
+le service déclaré dans le Turtle adapté au serveur, et exige le droit
+d'administration sur `POST /$/datasets`. Le nom défini par `fuseki:name` dans
+ce fichier doit être identique à `GRAPHRAG_TUTORIAL_DATASET` dans `env/.env`.
 
 Ajoutez les valeurs suivantes dans `env/.env`, puis régénérez la projection :
 
@@ -97,7 +119,12 @@ refusée si `FUSEKI_MANAGED_LOCALLY=true`, si l'autorisation explicite manque
 ou si le fichier de configuration est illisible. Fuseki retourne une erreur de
 conflit si ce nom de dataset existe déjà. Après sa réussite, réglez
 `FUSEKI_ALLOW_DATASET_CREATE=false`, exécutez `make providers-bootstrap`, puis
-continuez avec `make fuseki-ping`.
+vérifiez le nouveau service :
+
+```bash
+make fuseki-ping
+make graphrag-config
+```
 
 ### 2. Compiler la version de référence et l'installer
 

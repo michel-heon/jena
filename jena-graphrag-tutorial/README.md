@@ -29,6 +29,14 @@ Les parcours utilisent `DocumentIngestionService`, le `fuseki-server` installé 
 
 Commencer par [Getting started](docs/getting-started.md) pour préparer le corpus local, démarrer Fuseki sans enrichissement sémantique, indexer les chunks et obtenir une réponse citée en mode `basic`.
 
+Pour exploiter une instance distante, commencez par la section de déploiement de
+[Getting started](docs/getting-started.md#deployer-un-service-graphrag-distant),
+puis adaptez le modèle
+[service-graphrag-remote.ttl](examples/service-graphrag-remote.ttl). Le serveur
+porte les JARs GraphRAG, les données TDB2, les index et les secrets des
+fournisseurs ; le poste client ne conserve que `FUSEKI_URL` et, si nécessaire,
+une configuration `curl` locale d'authentification.
+
 Les fonctionnalités avancées sont décrites dans des guides indépendants :
 
 - [Ingestion et enrichissement du corpus PDF](docs/pdf-ingestion.md)
@@ -108,7 +116,7 @@ make fuseki-status
 make fuseki-open
 ```
 
-`make fuseki-start` charge les valeurs des fournisseurs uniquement dans le processus Fuseki, fixe l'instruction système du corpus et démarre le serveur TDB2 en arrière-plan sans importer de corpus. La cible est disponible avec `FUSEKI_MANAGED_LOCALLY=true` et utilise `FUSEKI_URL`. Les options JVM, notamment la mémoire, sont définies par `FUSEKI_JAVA_OPTIONS` dans `.env`; consultez le [guide de configuration et optimisation](docs/fuseki-configuration-optimization.md). Pour un serveur distant, réglez `FUSEKI_MANAGED_LOCALLY=false`. Si le dataset n'existe pas, `make fuseki-dataset-create` peut l'envoyer à l'API d'administration distante à partir de `FUSEKI_REMOTE_DATASET_CONFIG`, après l'opt-in `FUSEKI_ALLOW_DATASET_CREATE=true`. Cette configuration doit être adaptée au serveur distant et activer GraphRAG. Ensuite, utilisez `make fuseki-ping` et les cibles HTTP. `make corpus-load` est l'étape explicite suivante : elle envoie le Turtle déjà matérialisé vers l'API Graph Store de Fuseki ; elle ne traite pas les PDF.
+`make fuseki-start` charge les valeurs des fournisseurs uniquement dans le processus Fuseki, fixe l'instruction système du corpus et démarre le serveur TDB2 en arrière-plan sans importer de corpus. La cible est disponible avec `FUSEKI_MANAGED_LOCALLY=true` et utilise `FUSEKI_URL`. Les options JVM, notamment la mémoire, sont définies par `FUSEKI_JAVA_OPTIONS` dans `.env`; consultez le [guide de configuration et optimisation](docs/fuseki-configuration-optimization.md). Pour un serveur distant, réglez `FUSEKI_MANAGED_LOCALLY=false` et configurez `FUSEKI_CURL_CONFIG` si l'instance est protégée. Si le dataset n'existe pas, `make fuseki-dataset-create` peut l'envoyer à l'API d'administration distante à partir de `FUSEKI_REMOTE_DATASET_CONFIG`, après l'opt-in `FUSEKI_ALLOW_DATASET_CREATE=true`. Utilisez le modèle [service-graphrag-remote.ttl](examples/service-graphrag-remote.ttl), adapté au serveur et chargé avec l'extension GraphRAG. Ensuite, utilisez `make fuseki-ping` et les cibles HTTP. `make corpus-load` est l'étape explicite suivante : elle envoie le Turtle déjà matérialisé vers l'API Graph Store de Fuseki ; elle ne traite pas les PDF.
 
 `make fuseki-status` affiche le PID et l'URL configurés, puis l'état du processus, du ping HTTP et des API GraphRAG sûres à sonder: `config`, `context` et `status` lorsqu'une tâche d'indexation est connue. Les routes `answer` et `index` sont explicitement indiquées comme non sondées, car elles appelleraient un fournisseur de chat ou déclencheraient une indexation. La commande reste purement diagnostique.
 

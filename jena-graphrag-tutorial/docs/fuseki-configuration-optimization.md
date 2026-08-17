@@ -79,13 +79,17 @@ les chemins sont ceux du **serveur**, non ceux du poste qui lance `curl`.
     tdb2:location "/srv/fuseki/databases/graphrag-production" .
 ```
 
-Le service standard ci-dessus ne suffit pas à exécuter GraphRAG. Ajoutez les
-classes GraphRAG au serveur, puis les propriétés `grag:enableGraphRAG true`,
-`grag:graphragIndex`, les répertoires d'index et les fournisseurs. Le générateur
-local [graphrag-tutorial-fuseki-config.sh](../scripts/graphrag-tutorial-fuseki-config.sh)
-montre la configuration attendue par ce tutoriel. Sur un serveur distant,
-adaptez les chemins des index et les noms des variables d'environnement au
-serveur distant ; n'envoyez pas les secrets du poste client dans le Turtle.
+Le service standard ci-dessus ne suffit pas à exécuter GraphRAG. Le modèle
+[service-graphrag-remote.ttl](../examples/service-graphrag-remote.ttl) est une
+configuration complète à copier sur le serveur : installez les JARs GraphRAG et
+leurs dépendances dans `FUSEKI_BASE/extra`, adaptez les chemins du serveur, le
+nom du dataset, les modèles et la dimension vectorielle, puis chargez le
+service avec le mécanisme d'administration de votre instance. Il définit
+`grag:enableGraphRAG true`, `grag:graphragIndex`, les répertoires d'index et les
+fournisseurs. Exportez `GRAPHRAG_EMBEDDING_API_URL`,
+`GRAPHRAG_EMBEDDING_API_KEY`, `OPENAI_API_URL` et `OPENAI_API_KEY` dans le
+service système, conteneur ou manifeste qui lance Fuseki. N'envoyez pas ces
+secrets depuis le poste client ni dans le Turtle.
 
 Une fois déployé, contrôlez les capacités effectivement exposées :
 
@@ -134,7 +138,10 @@ Protégez les flux d'administration et les écritures :
   endpoint. Donnez un compte de lecture aux clients de requêtes et un compte
   distinct aux opérations `update`, `data` et `/$/`.
 - Ne placez ni mot de passe ni jeton dans `FUSEKI_URL`. Configurez
-  l'authentification côté client ou proxy sans journaliser les secrets.
+  l'authentification côté client ou proxy sans journaliser les secrets. Le
+  tutoriel utilise `FUSEKI_CURL_CONFIG`, documenté dans la
+  [référence API](fuseki-apis.md#acces-distant-et-securite), pour transmettre
+  à toutes ses requêtes HTTP une configuration `curl` locale et ignorée.
 
 Les contrôles de graphe existent également dans Fuseki, mais la documentation
 précise qu'ils s'appliquent actuellement aux datasets en lecture seule. Ne les

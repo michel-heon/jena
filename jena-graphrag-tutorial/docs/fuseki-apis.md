@@ -131,9 +131,29 @@ lecture SPARQL, Graph Store `PUT` pour `corpus-load`, SPARQL Update pour
 `rdf-lifecycle`, et les routes GraphRAG souhaitées.
 
 Ne mettez pas un mot de passe ou un jeton dans `FUSEKI_URL` : cette valeur peut
-être affichée par les cibles Make. Configurez l'authentification auprès du
-proxy ou de Fuseki, par exemple via les mécanismes locaux de `curl`, puis
-exécutez les commandes du tutoriel avec le moindre privilège nécessaire.
+être affichée par les cibles Make. Le tutoriel transmet toutes ses requêtes HTTP
+à `curl` via la variable locale `FUSEKI_CURL_CONFIG`. Définissez-la dans
+`env/.env` avec le chemin absolu d'un fichier de configuration `curl` ignoré par
+Git. Ce fichier peut fournir une authentification Basic ou Digest avec un
+fichier `netrc`, un certificat client TLS, ou les paramètres d'un proxy :
+
+```dotenv
+FUSEKI_CURL_CONFIG=/home/alice/.config/jena/fuseki-curl.conf
+```
+
+```text
+# /home/alice/.config/jena/fuseki-curl.conf (permissions 0600)
+netrc-file = "/home/alice/.config/jena/fuseki.netrc"
+```
+
+Le fichier `netrc`, également en permissions `0600`, contient les informations
+de connexion pour le nom d'hôte de `FUSEKI_URL`. Il n'est ni lu ni généré par le
+tutoriel. Après toute modification de `env/.env`, exécutez `make
+providers-bootstrap`. La configuration est appliquée à toutes les cibles HTTP,
+y compris `fuseki-ping`, les chargements Graph Store, l'indexation, les routes
+GraphRAG et la vérification distante des PDF. En mode local,
+`corpus-verify-pdfs` conserve le client CLI `sparql`; en mode distant, il passe
+par la route SPARQL HTTP afin que cette authentification soit honorée.
 
 La documentation générale de Fuseki est disponible dans le
 [manuel Apache Jena](https://jena.apache.org/documentation/fuseki2/).

@@ -35,6 +35,13 @@ Set `FUSEKI_URL` to the HTTP(S) base URL of the Fuseki server, without a trailin
 
 Set `FUSEKI_JAVA_OPTIONS` in `.env` to JVM options for the locally managed Fuseki process, for example `-Xms1G -Xmx4G`. This setting is not sent to a remote server; configure its JVM through its own service, container, or deployment manifest.
 
+For an authenticated remote Fuseki, set `FUSEKI_CURL_CONFIG` to the absolute
+path of a local, ignored curl configuration file. It is passed to every tutorial
+HTTP request and can reference a protected `netrc` file, a TLS client
+certificate, or proxy settings. Keep credentials out of `FUSEKI_URL`, `.env`,
+and generated projections. The concrete client format and server deployment
+sequence are documented in `docs/fuseki-apis.md` and `docs/getting-started.md`.
+
 Set GraphRAG runtime settings and embedding credentials in `.env`; keep chat-specific overrides in `.env.user`. Both files are local-only and must not be committed. `GRAPHRAG_SERVER_MODE` is projected for launch scripts; GraphRAG Java configuration consumes `GRAPHRAG_DEFAULT_MODE`, the top-K limits, the DRIFT limits (`GRAPHRAG_DRIFT_COMMUNITY_TOP_K`, `GRAPHRAG_DRIFT_MAX_FOLLOW_UPS`, `GRAPHRAG_DRIFT_CONTEXT_TOKEN_BUDGET`, `GRAPHRAG_DRIFT_LOCAL_TOP_K`), the index content limit, and the ingestion settings. The tutorial also reads `GRAPHRAG_TUTORIAL_PDF_PATH`, `GRAPHRAG_TUTORIAL_CORPUS_PATH`, `GRAPHRAG_TUTORIAL_DATASET`, and `GRAPHRAG_TUTORIAL_EXPECTED_PDF_COUNT` from this projection. The local development profile uses `pdf-development` and three PDFs, including the local-to-global GraphRAG reference; the checked-in example keeps the full twelve-PDF corpus. Source the generated values immediately before running a real-provider Maven profile:
 
 ```bash
