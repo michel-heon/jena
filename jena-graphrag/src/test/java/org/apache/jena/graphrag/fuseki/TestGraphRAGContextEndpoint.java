@@ -268,9 +268,34 @@ public class TestGraphRAGContextEndpoint {
             assertTrue(task.hasKey("createdAt"));
             assertTrue(task.hasKey("startedAt"));
             assertTrue(task.hasKey("completedAt"));
+            JsonObject progress = task.get("progress").getAsObject();
+            assertEquals(0, progress.get("totalChunks").getAsNumber().value().intValue());
+            assertEquals(0, progress.get("chunksIndexed").getAsNumber().value().intValue());
+            assertEquals(100, progress.get("percentComplete").getAsNumber().value().intValue());
         } finally {
             server.stop();
         }
+    }
+
+    @Test
+    public void taskStatusJsonExposesRunningAndFailedProgressWithoutSensitiveDetails() {
+        GraphRAGTaskService taskService = new GraphRAGTaskService(2, 10);
+        GraphRAGTask running = taskService.markRunning(taskService.createTask().taskId());
+        taskService.setTotalChunks(running.taskId(), 2);
+        taskService.incrementChunksIndexed(running.taskId());
+
+        JsonObject runningJson = GraphRAGStatusAction.taskJson(taskService.find(running.taskId()).orElseThrow()).getAsObject();
+        JsonObject runningProgress = runningJson.get("progress").getAsObject();
+        assertEquals("running", runningJson.get("status").getAsString().value());
+        assertEquals(2, runningProgress.get("totalChunks").getAsNumber().value().intValue());
+        assertEquals(1, runningProgress.get("chunksIndexed").getAsNumber().value().intValue());
+        assertEquals(50, runningProgress.get("percentComplete").getAsNumber().value().intValue());
+
+        GraphRAGTask failed = taskService.markFailed(running.taskId(), "echec indexation GraphRAG");
+        JsonObject failedJson = GraphRAGStatusAction.taskJson(failed).getAsObject();
+        assertEquals("failed", failedJson.get("status").getAsString().value());
+        assertEquals(50, failedJson.get("progress").getAsObject().get("percentComplete").getAsNumber().value().intValue());
+        assertTrue(!failedJson.toString().contains("apiKey"));
     }
 
     @Test

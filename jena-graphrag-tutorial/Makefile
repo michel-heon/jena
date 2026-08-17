@@ -339,13 +339,10 @@ indexing-start: ## Trigger public indexing and save the returned task identifier
 	printf '%s' "$$response" | node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk).on("end", () => { const taskId = JSON.parse(input).taskId; if (!taskId) process.exit(1); console.log(taskId); });' > "$(TASK_FILE)"; \
 	echo "Index task: $$(cat "$(TASK_FILE)")."
 
-indexing-status: ## Display the current indexing task state
+indexing-status: ## Display the current indexing task progress
 	@[[ -s "$(TASK_FILE)" ]] || { echo "Run make indexing-start first." >&2; exit 1; }
-	@task=$$($(CURL) "$(FUSEKI_URL)/$(DATASET)/graphrag/status?taskId=$$(cat "$(TASK_FILE)")"); \
-	metrics=$$($(CURL) -G "$(FUSEKI_URL)/$(DATASET)/sparql" \
-		--data-urlencode 'query=PREFIX grag: <http://ormynet.com/ns/msft-graphrag#> SELECT (COUNT(DISTINCT ?document) AS ?documents) (COUNT(DISTINCT ?pdf) AS ?pdfDocuments) (COUNT(DISTINCT ?chunk) AS ?chunks) WHERE { { ?document a grag:Document . } UNION { ?chunk a grag:Chunk . } OPTIONAL { ?pdf a grag:Document ; grag:sourceFile ?sourceFile . FILTER(STRENDS(LCASE(STR(?sourceFile)), ".pdf")) } }' \
-		--data-urlencode 'format=application/sparql-results+json'); \
-	TASK="$$task" METRICS="$$metrics" node -e 'const task = JSON.parse(process.env.TASK); const bindings = JSON.parse(process.env.METRICS).results.bindings[0]; const count = name => bindings[name]?.value ?? "0"; const started = task.startedAt ? new Date(task.startedAt) : null; const ended = task.completedAt ? new Date(task.completedAt) : null; const elapsed = started ? Math.floor(((ended ?? new Date()) - started) / 1000) : null; console.log("Task: " + task.taskId); console.log("State: " + task.status); console.log("Documents loaded: " + count("documents")); console.log("PDF documents: " + count("pdfDocuments")); console.log("Chunks to vectorize: " + count("chunks")); if (task.status === "done") { console.log("Indexed chunks: " + count("chunks") + " / " + count("chunks")); console.log("Indexing progress: 100%"); } else { console.log("Indexed chunks: not exposed while the task is running"); console.log("Indexing progress: not exposed by the GraphRAG task API"); } if (elapsed !== null) console.log("Elapsed: " + elapsed + "s"); if (task.error) console.log("Error: " + task.error);'
+	@task=$$($(CURL) "$(FUSEKI_URL)/$(DATASET)/graphrag/status?taskId=$$(cat "$(TASK_FILE)")); \
+	TASK="$$task" node -e 'const task = JSON.parse(process.env.TASK); const progress = task.progress ?? {}; const started = task.startedAt ? new Date(task.startedAt) : null; const ended = task.completedAt ? new Date(task.completedAt) : null; const elapsed = started ? Math.floor(((ended ?? new Date()) - started) / 1000) : null; console.log("Task: " + task.taskId); console.log("State: " + task.status); console.log("Indexed chunks: " + (progress.chunksIndexed ?? 0) + " / " + (progress.totalChunks ?? 0)); console.log("Indexing progress: " + (progress.percentComplete ?? 0) + "%"); if (elapsed !== null) console.log("Elapsed: " + elapsed + "s"); if (task.error) console.log("Error: " + task.error.message);'
 
 indexing-wait: ## Wait until the indexing task completes
 	@[[ -s "$(TASK_FILE)" ]] || { echo "Run make indexing-start first." >&2; exit 1; }; \

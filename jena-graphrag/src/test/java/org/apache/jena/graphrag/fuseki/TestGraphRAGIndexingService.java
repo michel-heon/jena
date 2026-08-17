@@ -59,6 +59,9 @@ public class TestGraphRAGIndexingService {
             GraphRAGTask completedTask = awaitCompletion(taskService, task.taskId());
 
             assertEquals(GraphRAGTaskStatus.DONE, completedTask.status());
+            assertEquals(1, completedTask.progress().totalChunks());
+            assertEquals(1, completedTask.progress().chunksIndexed());
+            assertEquals(100, completedTask.progress().percentComplete(completedTask.status()));
             assertTrue(graphRAGIndex.vectorIndex().contains("urn:test:source#chunk-" + task.taskId()));
         }
     }

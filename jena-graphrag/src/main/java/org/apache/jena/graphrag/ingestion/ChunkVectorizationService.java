@@ -23,6 +23,7 @@ package org.apache.jena.graphrag.ingestion;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.IntConsumer;
 
 import org.apache.jena.graphrag.index.ChunkVectorIndexer;
 import org.apache.jena.query.Dataset;
@@ -37,18 +38,36 @@ public final class ChunkVectorizationService {
     }
 
     public Result vectorize(Dataset dataset) {
+        return vectorize(dataset, ignored -> {});
+    }
+
+    /**
+     * Vectorizes the chunks that are not already present in the vector index.
+     * The callback is invoked after each successfully persisted vector.
+     */
+    public Result vectorize(Dataset dataset, IntConsumer onChunkIndexed) {
         Objects.requireNonNull(dataset, "dataset");
+        Objects.requireNonNull(onChunkIndexed, "onChunkIndexed");
 
         List<ChunkTextReader.ChunkText> chunks = ChunkTextReader.read(dataset);
         int indexed = 0;
         int alreadyIndexed = 0;
         for (ChunkTextReader.ChunkText chunk : chunks) {
-            if (chunkVectorIndexer.indexChunk(chunk.uri(), chunk.text()))
+            if (chunkVectorIndexer.indexChunk(chunk.uri(), chunk.text())) {
                 indexed++;
-            else
+                onChunkIndexed.accept(indexed);
+            } else
                 alreadyIndexed++;
         }
         return new Result(chunks.size(), indexed, alreadyIndexed);
+    }
+
+    /** Returns the number of chunks that require a new vectorization operation. */
+    public int pendingChunkCount(Dataset dataset) {
+        Objects.requireNonNull(dataset, "dataset");
+        return (int)ChunkTextReader.read(dataset).stream()
+                .filter(chunk -> chunkVectorIndexer.requiresIndexing(chunk.uri()))
+                .count();
     }
 
     public record Result(int chunksSeen, int chunksIndexed, int chunksAlreadyIndexed) {}

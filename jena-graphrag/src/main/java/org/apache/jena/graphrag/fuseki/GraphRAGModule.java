@@ -51,7 +51,6 @@ import org.apache.jena.graphrag.index.GraphRAGIndex;
 import org.apache.jena.graphrag.ingestion.ChunkVectorizationService;
 import org.apache.jena.graphrag.ingestion.CommunityReportVectorizationService;
 import org.apache.jena.graphrag.provider.MockChatCompletionProvider;
-import org.apache.jena.graphrag.provider.ProviderException;
 import org.apache.jena.graphrag.retrieval.GraphRAGContextService;
 import org.apache.jena.graphrag.retrieval.CommunityReportVectorSearchService;
 import org.apache.jena.graphrag.retrieval.GraphRAGSearchService;
@@ -398,6 +397,11 @@ final class GraphRAGStatusAction extends ActionREST {
             builder.pair("completedAt", task.completedAt().toString());
         if ( task.error() != null )
             builder.key("error").startObject().pair("message", task.error()).finishObject();
+        builder.key("progress").startObject()
+               .pair("totalChunks", task.progress().totalChunks())
+               .pair("chunksIndexed", task.progress().chunksIndexed())
+               .pair("percentComplete", task.progress().percentComplete(task.status()))
+               .finishObject();
         builder.finishObject();
         return builder.build();
     }
@@ -507,8 +511,18 @@ final class GraphRAGIndexingService {
     GraphRAGTask submit(GraphRAGIndexRequest request) {
         validate(request);
         GraphRAGTask task = taskService.createTask();
+        taskService.setTotalChunks(task.taskId(), plannedChunkVectorizations());
         CompletableFuture.runAsync(() -> execute(task.taskId(), request));
         return task;
+    }
+
+    private int plannedChunkVectorizations() {
+        if ( graphRAGIndex == null )
+            return 0;
+        ChunkVectorIndexer vectorIndexer = new ChunkVectorIndexer(graphRAGIndex.vectorIndex(),
+                graphRAGIndex.embeddingProvider(), graphRAGIndex.vectorDimension());
+        // The submitted request always creates one new, task-specific chunk.
+        return new ChunkVectorizationService(vectorIndexer).pendingChunkCount(dataset) + 1;
     }
 
     private void validate(GraphRAGIndexRequest request) {
@@ -530,10 +544,7 @@ final class GraphRAGIndexingService {
             index(request, taskId);
             taskService.markDone(taskId);
         } catch (RuntimeException ex) {
-            String error = "echec indexation GraphRAG";
-            if ( ex instanceof ProviderException )
-                error += ": " + ex.getMessage();
-            taskService.markFailed(taskId, error);
+            taskService.markFailed(taskId, "echec indexation GraphRAG");
         }
     }
 
@@ -558,15 +569,16 @@ final class GraphRAGIndexingService {
                 dataset.abort();
             dataset.end();
         }
-        vectorizeChunks();
+        vectorizeChunks(taskId);
     }
 
-    private void vectorizeChunks() {
+    private void vectorizeChunks(String taskId) {
         if ( graphRAGIndex == null )
             return;
         ChunkVectorIndexer vectorIndexer = new ChunkVectorIndexer(graphRAGIndex.vectorIndex(),
                 graphRAGIndex.embeddingProvider(), graphRAGIndex.vectorDimension());
-        new ChunkVectorizationService(vectorIndexer).vectorize(dataset);
+        ChunkVectorizationService vectorizationService = new ChunkVectorizationService(vectorIndexer);
+        vectorizationService.vectorize(dataset, ignored -> taskService.incrementChunksIndexed(taskId));
         CommunityReportVectorIndexer communityVectorIndexer = new CommunityReportVectorIndexer(
                 graphRAGIndex.communityVectorIndex(), graphRAGIndex.embeddingProvider(), graphRAGIndex.vectorDimension());
         new CommunityReportVectorizationService(communityVectorIndexer).vectorize(dataset);

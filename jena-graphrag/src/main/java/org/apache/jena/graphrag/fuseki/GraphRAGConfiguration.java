@@ -239,26 +239,58 @@ enum GraphRAGTaskStatus {
     }
 }
 
+record GraphRAGTaskProgress(int totalChunks, int chunksIndexed) {
+    GraphRAGTaskProgress {
+        if ( totalChunks < 0 || chunksIndexed < 0 || chunksIndexed > totalChunks )
+            throw new IllegalArgumentException("progression GraphRAG invalide");
+    }
+
+    GraphRAGTaskProgress withTotalChunks(int totalChunks) {
+        return new GraphRAGTaskProgress(totalChunks, chunksIndexed);
+    }
+
+    GraphRAGTaskProgress incrementChunksIndexed() {
+        return new GraphRAGTaskProgress(totalChunks, chunksIndexed + 1);
+    }
+
+    int percentComplete(GraphRAGTaskStatus status) {
+        if ( status == GraphRAGTaskStatus.DONE )
+            return 100;
+        if ( totalChunks == 0 )
+            return 0;
+        return Math.min(99, (int)((long)chunksIndexed * 100 / totalChunks));
+    }
+}
+
 record GraphRAGTask(String taskId, GraphRAGTaskStatus status, Instant createdAt, Instant startedAt,
-                   Instant completedAt, String error) {
+                   Instant completedAt, String error, GraphRAGTaskProgress progress) {
 
     GraphRAGTask {
         Objects.requireNonNull(taskId);
         Objects.requireNonNull(status);
         Objects.requireNonNull(createdAt);
+        Objects.requireNonNull(progress);
     }
 
     GraphRAGTask running(Instant startedAt) {
-        return new GraphRAGTask(taskId, GraphRAGTaskStatus.RUNNING, createdAt, Objects.requireNonNull(startedAt), null, null);
+        return new GraphRAGTask(taskId, GraphRAGTaskStatus.RUNNING, createdAt, Objects.requireNonNull(startedAt), null, null, progress);
     }
 
     GraphRAGTask done(Instant completedAt) {
-        return new GraphRAGTask(taskId, GraphRAGTaskStatus.DONE, createdAt, startedAt, Objects.requireNonNull(completedAt), null);
+        return new GraphRAGTask(taskId, GraphRAGTaskStatus.DONE, createdAt, startedAt, Objects.requireNonNull(completedAt), null, progress);
     }
 
     GraphRAGTask failed(Instant completedAt, String error) {
         return new GraphRAGTask(taskId, GraphRAGTaskStatus.FAILED, createdAt, startedAt,
-                Objects.requireNonNull(completedAt), Objects.requireNonNull(error));
+                Objects.requireNonNull(completedAt), Objects.requireNonNull(error), progress);
+    }
+
+    GraphRAGTask withTotalChunks(int totalChunks) {
+        return new GraphRAGTask(taskId, status, createdAt, startedAt, completedAt, error, progress.withTotalChunks(totalChunks));
+    }
+
+    GraphRAGTask incrementChunksIndexed() {
+        return new GraphRAGTask(taskId, status, createdAt, startedAt, completedAt, error, progress.incrementChunksIndexed());
     }
 }
 
@@ -289,7 +321,8 @@ final class GraphRAGTaskService {
         if ( activeTasks() >= maxActiveTasks )
             throw new TaskLimitExceededException("trop de taches GraphRAG actives");
         String taskId = "graphrag-" + sequence.incrementAndGet();
-        GraphRAGTask task = new GraphRAGTask(taskId, GraphRAGTaskStatus.PENDING, clock.instant(), null, null, null);
+        GraphRAGTask task = new GraphRAGTask(taskId, GraphRAGTaskStatus.PENDING, clock.instant(), null, null, null,
+                new GraphRAGTaskProgress(0, 0));
         tasks.put(taskId, task);
         return task;
     }
@@ -308,6 +341,18 @@ final class GraphRAGTaskService {
         GraphRAGTask task = requireTask(taskId).done(clock.instant());
         tasks.put(taskId, task);
         pruneCompletedTasks();
+        return task;
+    }
+
+    synchronized GraphRAGTask setTotalChunks(String taskId, int totalChunks) {
+        GraphRAGTask task = requireTask(taskId).withTotalChunks(totalChunks);
+        tasks.put(taskId, task);
+        return task;
+    }
+
+    synchronized GraphRAGTask incrementChunksIndexed(String taskId) {
+        GraphRAGTask task = requireTask(taskId).incrementChunksIndexed();
+        tasks.put(taskId, task);
         return task;
     }
 

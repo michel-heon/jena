@@ -137,7 +137,7 @@ make indexing-start
 make indexing-status
 ```
 
-L'indexation utilise `POST /{dataset}/graphrag/index`, une route publique existante. Elle ajoute un document de déclenchement, puis vectorise tous les chunks visibles, y compris ceux du corpus PDF. `make indexing-start` conserve le `taskId` dans l'état temporaire et affiche la réponse. `make indexing-status` affiche l'état, les nombres de documents, de PDF et de chunks à vectoriser. Une fois la tâche terminée, il confirme le nombre de chunks indexés et `100%`. Pendant l'exécution, l'API GraphRAG ne fournit pas de compteur par chunk: le pourcentage intermédiaire est donc explicitement indiqué comme indisponible.
+L'indexation utilise `POST /{dataset}/graphrag/index`, une route publique existante. Elle ajoute un document de déclenchement, puis vectorise tous les chunks visibles, y compris ceux du corpus PDF. `make indexing-start` conserve le `taskId` dans l'état temporaire et affiche la réponse. `make indexing-status` affiche l'état et les compteurs de l'API de tâche : chunks à vectoriser, vecteurs créés avec succès et pourcentage fondé sur ce travail réel. Le pourcentage atteint `100%` uniquement lorsque la tâche est terminée.
 
 ## Étape 9: attendre la fin de la tâche
 

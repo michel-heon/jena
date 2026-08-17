@@ -149,6 +149,25 @@ public class TestGraphRAGConfiguration {
             }
 
             @Test
+            public void taskProgressTracksSuccessfulVectorizationsAndTerminalStates() {
+                GraphRAGTaskService service = serviceAt("2026-07-19T10:00:00Z", 2, 10);
+                GraphRAGTask running = service.markRunning(service.createTask().taskId());
+                GraphRAGTask planned = service.setTotalChunks(running.taskId(), 3);
+                service.incrementChunksIndexed(running.taskId());
+                GraphRAGTask failed = service.markFailed(running.taskId(), "echec indexation GraphRAG");
+
+                assertEquals(3, planned.progress().totalChunks());
+                assertEquals(1, failed.progress().chunksIndexed());
+                assertEquals(33, failed.progress().percentComplete(failed.status()));
+
+                GraphRAGTask doneRunning = service.markRunning(service.createTask().taskId());
+                service.setTotalChunks(doneRunning.taskId(), 1);
+                service.incrementChunksIndexed(doneRunning.taskId());
+                GraphRAGTask done = service.markDone(doneRunning.taskId());
+                assertEquals(100, done.progress().percentComplete(done.status()));
+            }
+
+            @Test
             public void unknownTaskRaisesExplicitException() {
                 GraphRAGTaskService service = serviceAt("2026-07-19T10:00:00Z", 2, 10);
 

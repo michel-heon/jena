@@ -52,4 +52,11 @@ public final class ChunkVectorIndexer {
         vectorIndex.index(chunkUri, vector);
         return true;
     }
+
+    /** Returns whether a chunk still requires an embedding to be added to the vector index. */
+    public boolean requiresIndexing(String chunkUri) {
+        if ( chunkUri == null || chunkUri.isBlank() )
+            throw new IllegalArgumentException("chunkUri must not be blank");
+        return !vectorIndex.contains(chunkUri);
+    }
 }

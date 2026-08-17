@@ -75,7 +75,7 @@ l'API standard Fuseki.
 | Configuration publique | `GET $dataset_url/graphrag/config` | Lit les capacités GraphRAG sans révéler les secrets. |
 | Recherche hybride | `GET` ou `POST $dataset_url/graphrag/search` | Retourne les scores texte, vectoriel et hybride pour `q` et `topK`. |
 | Lancer l'indexation | `POST $dataset_url/graphrag/index` | Crée une tâche d'indexation à partir d'un document JSON. |
-| État de la tâche | `GET $dataset_url/graphrag/status?taskId=<id>` | Lit l'état d'une tâche d'indexation. Sans `taskId`, retourne un résumé. |
+| État de la tâche | `GET $dataset_url/graphrag/status?taskId=<id>` | Lit l'état et la progression réelle d'une tâche d'indexation. Sans `taskId`, retourne un résumé. |
 | Contexte récupéré | `GET` ou `POST $dataset_url/graphrag/context` | Retourne le contexte GraphRAG pour `q`, `mode` et `topK`. |
 | Réponse citée | `GET` ou `POST $dataset_url/graphrag/answer` | Retourne une réponse et ses citations ; peut appeler le fournisseur de chat. |
 
@@ -99,6 +99,25 @@ vectorise les chunks et les rapports de communautés lorsqu'un index GraphRAG
 est configuré. Dans ce cas, elle peut appeler le fournisseur d'embeddings.
 Les routes `index` et `answer` ont donc des effets externes et ne sont pas
 appelées par `make fuseki-status`.
+
+Avec un `taskId`, la réponse contient aussi `progress` : `totalChunks` est le
+nombre stable de chunks qui nécessitent une vectorisation pour cette tâche,
+`chunksIndexed` compte uniquement les vecteurs effectivement créés, et
+`percentComplete` est calculé à partir de ces deux compteurs. Il ne vaut `100`
+que lorsque l'état est `done`. Les erreurs ne contiennent pas de détail de
+fournisseur, de prompt, de contenu ou de secret.
+
+```json
+{
+  "taskId": "graphrag-7",
+  "status": "running",
+  "progress": {
+    "totalChunks": 42,
+    "chunksIndexed": 17,
+    "percentComplete": 40
+  }
+}
+```
 
 ## Accès distant et sécurité
 
