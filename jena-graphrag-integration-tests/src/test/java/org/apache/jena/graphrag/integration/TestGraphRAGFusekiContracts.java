@@ -30,22 +30,32 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.jena.atlas.json.JSON;
 import org.apache.jena.atlas.json.JsonObject;
+import org.apache.jena.assembler.Assembler;
 import org.apache.jena.fuseki.main.FusekiServer;
 import org.apache.jena.fuseki.main.sys.FusekiModules;
 import org.apache.jena.graphrag.GraphRAGImporter;
 import org.apache.jena.graphrag.fuseki.GraphRAGModule;
+import org.apache.jena.graphrag.index.GraphRAGAssembler;
+import org.apache.jena.graphrag.index.GraphRAGAssemblerVocab;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
+import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.vocabulary.RDF;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestGraphRAGFusekiContracts {
     private static final HttpClient HTTP = HttpClient.newHttpClient();
     private static final String DATASET = "graphrag";
+
+    @TempDir
+    Path tempDir;
 
     @Test
     public void enabledServer_exposesPingConfigurationContextAndStructuredErrors() throws Exception {
@@ -118,6 +128,30 @@ public class TestGraphRAGFusekiContracts {
         }
     }
 
+    @Test
+    public void enabledServer_reportsIndexingProgressThroughTaskApi() throws Exception {
+        FusekiServer server = serverWithIndex();
+        try {
+            HttpResponse<String> accepted = post(server, "/" + DATASET + "/graphrag/index",
+                    "{\"title\":\"Progress fixture\",\"content\":\"One indexed chunk\",\"sourceUri\":\"urn:test:progress\"}");
+            assertEquals(202, accepted.statusCode());
+            String taskId = JSON.parse(accepted.body()).get("taskId").getAsString().value();
+
+            JsonObject task = awaitTerminalTask(server, taskId);
+            JsonObject progress = task.get("progress").getAsObject();
+            int totalChunks = progress.get("totalChunks").getAsNumber().value().intValue();
+            int chunksIndexed = progress.get("chunksIndexed").getAsNumber().value().intValue();
+            int percentComplete = progress.get("percentComplete").getAsNumber().value().intValue();
+
+            assertEquals("done", task.get("status").getAsString().value());
+            assertEquals(1, totalChunks);
+            assertEquals(totalChunks, chunksIndexed);
+            assertEquals(100, percentComplete);
+        } finally {
+            server.stop();
+        }
+    }
+
     private static FusekiServer server(boolean enabled) {
         Dataset dataset = DatasetFactory.createTxnMem();
         GraphRAGImporter.load(corpusPath(), dataset);
@@ -132,6 +166,51 @@ public class TestGraphRAGFusekiContracts {
                 .enablePing(true)
                 .build()
                 .start();
+    }
+
+    private FusekiServer serverWithIndex() {
+        GraphRAGAssembler.init();
+        Dataset dataset = DatasetFactory.createTxnMem();
+        Model configuration = ModelFactory.createDefaultModel();
+        Resource index = configuration.createResource("urn:graphrag:progress:index")
+                .addProperty(RDF.type, GraphRAGAssemblerVocab.GraphRAGIndex)
+                .addProperty(GraphRAGAssemblerVocab.textIndexDir, tempDir.resolve("text").toString())
+                .addProperty(GraphRAGAssemblerVocab.vectorIndexDir, tempDir.resolve("vector").toString())
+                .addLiteral(GraphRAGAssemblerVocab.vectorDimension, 2)
+                .addProperty(GraphRAGAssemblerVocab.embeddingProvider,
+                        configuration.createResource().addProperty(RDF.type, GraphRAGAssemblerVocab.MockEmbeddingProvider));
+        configuration.createResource("urn:graphrag:progress:service")
+                .addLiteral(GraphRAGAssemblerVocab.enableGraphRAG, true)
+                .addProperty(GraphRAGAssemblerVocab.graphragIndex, index);
+        return FusekiServer.create().port(0).add("/" + DATASET, dataset)
+                .parseConfig(configuration)
+                .fusekiModules(FusekiModules.create(new GraphRAGModule()))
+                .enablePing(true)
+                .build()
+                .start();
+    }
+
+    private static JsonObject awaitTerminalTask(FusekiServer server, String taskId) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        JsonObject last = null;
+        while ( System.nanoTime() < deadline ) {
+            HttpResponse<String> response = get(server,
+                    "/" + DATASET + "/graphrag/status?taskId=" + taskId);
+            assertEquals(200, response.statusCode());
+            last = JSON.parse(response.body());
+            String status = last.get("status").getAsString().value();
+            JsonObject progress = last.get("progress").getAsObject();
+            int totalChunks = progress.get("totalChunks").getAsNumber().value().intValue();
+            int chunksIndexed = progress.get("chunksIndexed").getAsNumber().value().intValue();
+            int percentComplete = progress.get("percentComplete").getAsNumber().value().intValue();
+            assertTrue(totalChunks >= 0);
+            assertTrue(chunksIndexed >= 0 && chunksIndexed <= totalChunks);
+            assertTrue(percentComplete >= 0 && percentComplete <= 100);
+            if ( "done".equals(status) || "failed".equals(status) )
+                return last;
+            Thread.sleep(10);
+        }
+        throw new AssertionError("Timed out waiting for indexing task: " + last);
     }
 
     private static Path corpusPath() {
