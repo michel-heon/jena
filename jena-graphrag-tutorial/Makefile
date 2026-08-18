@@ -341,7 +341,7 @@ indexing-start: ## Trigger public indexing and save the returned task identifier
 
 indexing-status: ## Display the current indexing task progress
 	@[[ -s "$(TASK_FILE)" ]] || { echo "Run make indexing-start first." >&2; exit 1; }
-	@task=$$($(CURL) "$(FUSEKI_URL)/$(DATASET)/graphrag/status?taskId=$$(cat "$(TASK_FILE)")); \
+	@task=$$($(CURL) "$(FUSEKI_URL)/$(DATASET)/graphrag/status?taskId=$$(cat "$(TASK_FILE)")"); \
 	TASK="$$task" node -e 'const task = JSON.parse(process.env.TASK); const progress = task.progress ?? {}; const started = task.startedAt ? new Date(task.startedAt) : null; const ended = task.completedAt ? new Date(task.completedAt) : null; const elapsed = started ? Math.floor(((ended ?? new Date()) - started) / 1000) : null; console.log("Task: " + task.taskId); console.log("State: " + task.status); console.log("Indexed chunks: " + (progress.chunksIndexed ?? 0) + " / " + (progress.totalChunks ?? 0)); console.log("Indexing progress: " + (progress.percentComplete ?? 0) + "%"); if (elapsed !== null) console.log("Elapsed: " + elapsed + "s"); if (task.error) console.log("Error: " + task.error.message);'
 
 indexing-wait: ## Wait until the indexing task completes
