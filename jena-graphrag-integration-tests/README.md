@@ -84,6 +84,17 @@ Provider calls have a 60-second request timeout. Chat context is bounded by the 
 
 Provider failures returned by `/{dataset}/graphrag/answer` are structured and do not expose endpoint, credential, or provider response details: an authentication rejection is `502` with `provider_authentication_failed`, a provider timeout is `504` with `provider_timeout`, and other provider failures are `502` with `provider_unavailable`.
 
+## Tranche 8: indexing progress contract
+
+`TestGraphRAGFusekiContracts.enabledServer_reportsIndexingProgressThroughTaskApi`
+starts a real ephemeral Fuseki server with a temporary Lucene vector index and
+the built-in deterministic embedding provider. It submits one indexing request
+through the public API, polls the public task resource, and verifies that
+`progress.totalChunks`, `chunksIndexed`, and `percentComplete` remain bounded
+and coherent, with `100` reported at the `done` terminal state. This provider is
+used only for a deterministic API regression; real-provider qualification stays
+in the opt-in tranche-4 and browser scenarios.
+
 ## Root Make targets
 
 From the repository root, the Make facade orchestrates the completed integration tranches:
@@ -129,6 +140,8 @@ To execute the tranche-3 real Fuseki API contracts:
 ```bash
 mvn -Pgraphrag -pl jena-graphrag-integration-tests -Dtest=TestGraphRAGFusekiContracts test
 ```
+
+The same command includes the tranche-8 indexing progress contract.
 
 To execute the tranche-4 real-provider qualification:
 
