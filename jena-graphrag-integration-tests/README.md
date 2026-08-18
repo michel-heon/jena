@@ -143,6 +143,13 @@ mvn -Pgraphrag -pl jena-graphrag-integration-tests -Dtest=TestGraphRAGFusekiCont
 
 The same command includes the tranche-8 indexing progress contract.
 
+To execute the tranche-10 local lifecycle and operation-guard checks:
+
+```bash
+mvn -Pgraphrag -pl jena-graphrag-integration-tests -Dtest=TestGraphRAGFusekiLifecycle test
+make -C jena-graphrag-integration-tests tutorial-mode-guards
+```
+
 To execute the tranche-9 enriched-corpus qualification with real providers:
 
 ```bash
@@ -156,6 +163,21 @@ scenario overrides the DRIFT limits to `communityTopK=1`, `maxFollowUps=1`,
 `contextTokenBudget=64`, and `localTopK=1`, verifies the published configuration
 and observed response bounds, then restores the JVM properties. It uses real
 embedding and chat providers, can consume quota, and never prints their values.
+
+## Tranche 10: Fuseki lifecycle and operation guards
+
+`TestGraphRAGFusekiLifecycle` starts a real ephemeral Fuseki server and exercises
+the production `/update` and `/sparql` endpoints against the default graph. It
+verifies import of a document and chunk, a read, a controlled text update, and
+targeted deletion. The test uses no provider and leaves no persistent server
+state.
+
+The `tutorial-mode-guards` target verifies the deployment boundary without
+contacting a remote server: local process-management targets are rejected when
+`FUSEKI_MANAGED_LOCALLY=false`, and remote dataset administration is rejected
+when `FUSEKI_MANAGED_LOCALLY=true`. A real remote Fuseki qualification remains
+opt-in and requires an explicitly configured test server and local curl
+authentication file.
 
 To execute the tranche-4 real-provider qualification:
 
