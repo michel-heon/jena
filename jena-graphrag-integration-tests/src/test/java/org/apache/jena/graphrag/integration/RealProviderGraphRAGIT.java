@@ -132,7 +132,44 @@ public class RealProviderGraphRAGIT {
         }
     }
 
+    @Test
+    public void realProviders_qualifyEnrichedModesAndDriftLimits() throws Exception {
+        Map<String, String> environment = System.getenv();
+        ExternalProviderPrerequisites.requireRealProviderEnvironment(environment);
+        assertRuntimeConfiguration(environment);
+        Map<String, String> previousProperties = setDriftLimits(1, 1, 64, 1);
+        FusekiServer server = null;
+        try {
+            server = server(environment, true);
+            JsonObject configuration = JSON.parse(get(server, "config").body());
+            JsonObject limits = configuration.get("driftLimits").getAsObject();
+            assertEquals(1, limits.get("communityTopK").getAsNumber().value().intValue());
+            assertEquals(1, limits.get("maxFollowUps").getAsNumber().value().intValue());
+            assertEquals(64, limits.get("contextTokenBudget").getAsNumber().value().intValue());
+            assertEquals(1, limits.get("localTopK").getAsNumber().value().intValue());
+
+            JsonObject accepted = JSON.parse(post(server, "index", """
+                    {"title":"Enriched GraphRAG integration corpus","content":"The Beta service publishes citations for retrieved chunks.","sourceUri":"urn:graphrag:enriched-provider"}
+                    """).body());
+            JsonObject task = awaitTask(server, accepted.get("taskId").getAsString().value());
+            assertEquals("done", task.get("status").getAsString().value(), task.toString());
+
+            assertMode(server, "Beta", "basic", "chunk");
+            assertMode(server, "Beta", "local", "relationship");
+            assertMode(server, "citations", "global", "community");
+            assertDriftWithLimits(server, "citations", limits);
+        } finally {
+            if ( server != null )
+                server.stop();
+            restoreProperties(previousProperties);
+        }
+    }
+
     private FusekiServer server(Map<String, String> environment) {
+        return server(environment, false);
+    }
+
+    private FusekiServer server(Map<String, String> environment, boolean enrichedCorpus) {
         Model configuration = ModelFactory.createDefaultModel();
         Resource index = configuration.createResource("urn:graphrag:real:index")
                 .addProperty(RDF.type, GraphRAGAssemblerVocab.GraphRAGIndex)
@@ -149,19 +186,94 @@ public class RealProviderGraphRAGIT {
                 .addLiteral(GraphRAGAssemblerVocab.enableGraphRAG, true)
                 .addProperty(GraphRAGAssemblerVocab.graphragIndex, index);
         org.apache.jena.query.Dataset dataset = DatasetFactory.createTxnMem();
-        dataset.begin(org.apache.jena.query.ReadWrite.WRITE);
-        try {
-            dataset.getDefaultModel().createResource("urn:graphrag:real-provider:community")
-                    .addProperty(RDF.type, GRAG.Community)
-                    .addProperty(GRAG.title, "Real-provider citation community")
-                    .addProperty(GRAG.summary, "The GraphRAG citation community publishes cited knowledge.")
-                    .addProperty(GRAG.fullContent, "The GraphRAG citation community publishes cited knowledge.");
-            dataset.commit();
-        } finally {
-            dataset.end();
+        if ( enrichedCorpus ) {
+            org.apache.jena.graphrag.GraphRAGImporter.load(chatCorpusPath(), dataset);
+        } else {
+            dataset.begin(org.apache.jena.query.ReadWrite.WRITE);
+            try {
+                dataset.getDefaultModel().createResource("urn:graphrag:real-provider:community")
+                        .addProperty(RDF.type, GRAG.Community)
+                        .addProperty(GRAG.title, "Real-provider citation community")
+                        .addProperty(GRAG.summary, "The GraphRAG citation community publishes cited knowledge.")
+                        .addProperty(GRAG.fullContent, "The GraphRAG citation community publishes cited knowledge.");
+                dataset.commit();
+            } finally {
+                dataset.end();
+            }
         }
         return FusekiServer.create().port(0).add("/" + DATASET, dataset)
                 .parseConfig(configuration).fusekiModules(FusekiModules.create(new GraphRAGModule())).build().start();
+    }
+
+    private static Path chatCorpusPath() {
+        try {
+            return Path.of(RealProviderGraphRAGIT.class.getClassLoader()
+                    .getResource("corpus/chat/citation-graph.ttl").toURI());
+        } catch (Exception ex) {
+            throw new IllegalStateException("Missing enriched GraphRAG integration fixture", ex);
+        }
+    }
+
+    private static void assertMode(FusekiServer server, String query, String mode, String expectedType) throws Exception {
+        JsonObject context = JSON.parse(get(server,
+                "context?q=" + queryParameter(query) + "&mode=" + mode + "&topK=1").body());
+        assertEquals(mode, context.get("mode").getAsString().value());
+        assertTrue(context.get("results").getAsArray().size() >= 1);
+        assertEquals(expectedType, context.get("results").getAsArray().getFirst().getAsObject()
+                .get("type").getAsString().value());
+        JsonObject answer = JSON.parse(get(server,
+                "answer?q=" + queryParameter(query) + "&mode=" + mode + "&topK=1").body());
+        assertFalse(answer.get("answer").getAsString().value().isBlank());
+        assertTrue(answer.get("citations").getAsArray().size() >= 1);
+        assertEquals(context.get("results").getAsArray().getFirst().getAsObject().get("uri").getAsString().value(),
+                answer.get("citations").getAsArray().getFirst().getAsObject().get("uri").getAsString().value());
+    }
+
+    private static void assertDriftWithLimits(FusekiServer server, String query, JsonObject limits) throws Exception {
+        JsonObject context = JSON.parse(get(server,
+                "context?q=" + queryParameter(query) + "&mode=drift&topK=100").body());
+        assertEquals("drift", context.get("mode").getAsString().value());
+        assertTrue(context.get("results").getAsArray().size()
+                <= limits.get("communityTopK").getAsNumber().value().intValue());
+        int words = context.get("results").getAsArray().stream()
+                .mapToInt(value -> value.getAsObject().get("sourceText").getAsString().value().trim()
+                        .split("\\s+").length)
+                .sum();
+        assertTrue(words <= limits.get("contextTokenBudget").getAsNumber().value().intValue());
+        JsonObject answer = JSON.parse(get(server,
+                "answer?q=" + queryParameter(query) + "&mode=drift&topK=100").body());
+        assertFalse(answer.get("answer").getAsString().value().isBlank());
+        assertTrue(answer.get("followUpCount").getAsNumber().value().intValue()
+                <= limits.get("maxFollowUps").getAsNumber().value().intValue());
+        assertEquals(context.get("results").getAsArray().getFirst().getAsObject().get("uri").getAsString().value(),
+                answer.get("citations").getAsArray().getFirst().getAsObject().get("uri").getAsString().value());
+    }
+
+    private static Map<String, String> setDriftLimits(int communityTopK, int maxFollowUps,
+                                                       int contextTokenBudget, int localTopK) {
+        Map<String, String> previous = new java.util.HashMap<>();
+        previous.put("jena.graphrag.drift.communityTopK",
+                System.getProperty("jena.graphrag.drift.communityTopK"));
+        previous.put("jena.graphrag.drift.maxFollowUps",
+                System.getProperty("jena.graphrag.drift.maxFollowUps"));
+        previous.put("jena.graphrag.drift.contextTokenBudget",
+                System.getProperty("jena.graphrag.drift.contextTokenBudget"));
+        previous.put("jena.graphrag.drift.localTopK",
+                System.getProperty("jena.graphrag.drift.localTopK"));
+        System.setProperty("jena.graphrag.drift.communityTopK", Integer.toString(communityTopK));
+        System.setProperty("jena.graphrag.drift.maxFollowUps", Integer.toString(maxFollowUps));
+        System.setProperty("jena.graphrag.drift.contextTokenBudget", Integer.toString(contextTokenBudget));
+        System.setProperty("jena.graphrag.drift.localTopK", Integer.toString(localTopK));
+        return previous;
+    }
+
+    private static void restoreProperties(Map<String, String> properties) {
+        properties.forEach((name, value) -> {
+            if ( value == null )
+                System.clearProperty(name);
+            else
+                System.setProperty(name, value);
+        });
     }
 
     private static Resource provider(Model model, Map<String, String> environment, Resource type, String endpoint,
