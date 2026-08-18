@@ -68,7 +68,14 @@ public final class HttpChatCompletionProvider implements ChatCompletionProvider 
 
     @Override
     public String complete(String question, List<String> contextPassages) {
+        return complete(question, contextPassages, "");
+    }
+
+    @Override
+    public String complete(String question, List<String> contextPassages, String systemPrompt) {
         String prompt = "Question:\n" + question + "\n\nContext:\n" + String.join("\n\n", contextPassages);
+        if ( !Objects.requireNonNull(systemPrompt, "systemPrompt").isBlank() )
+            prompt = systemPrompt.strip() + "\n\n" + prompt;
         checkInputQuota(prompt);
         try {
             String answer = model.chat(prompt);
@@ -78,7 +85,7 @@ public final class HttpChatCompletionProvider implements ChatCompletionProvider 
         } catch (ProviderException ex) {
             throw ex;
         } catch (RuntimeException ex) {
-            throw new ProviderException(sanitizeFailure(ex), ex);
+            throw ProviderException.from(ex);
         }
     }
 
@@ -87,29 +94,6 @@ public final class HttpChatCompletionProvider implements ChatCompletionProvider 
         int estimatedTokens = stripped.isEmpty() ? 0 : stripped.split("\\s+").length;
         if ( estimatedTokens > configuration.maxTokensPerRequest() )
             throw new ProviderQuotaExceededException(configuration.maxTokensPerRequest());
-    }
-
-    private static String sanitizeFailure(RuntimeException ex) {
-        String message = ex.getMessage();
-        String exceptionType = ex.getClass().getSimpleName();
-        if ( message == null || message.isBlank() )
-            return "Provider request failed (" + exceptionType + ")";
-        if ( message.contains("invalid json") || message.contains("Invalid JSON") )
-            return "Provider returned invalid JSON";
-        if ( message.contains("404") || message.contains("Not Found") )
-            return "Provider endpoint rejected the request (404/" + exceptionType + ")";
-        if ( message.contains("401") || message.contains("403") || message.contains("Unauthorized") || message.contains("Forbidden") )
-            return "Provider authentication failed (" + extractStatusCode(message) + "/" + exceptionType + ")";
-        if ( message.contains("400") || message.contains("Bad Request") )
-            return "Provider rejected the request payload (400/" + exceptionType + ")";
-        if ( message.contains("status code") || message.contains("HTTP") )
-            return "Provider request failed (" + extractStatusCode(message) + "/" + exceptionType + ")";
-        return "Provider request failed (" + exceptionType + ")";
-    }
-
-    private static String extractStatusCode(String message) {
-        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\\b(400|401|403|404|429|500|502|503|504)\\b").matcher(message);
-        return matcher.find() ? matcher.group(1) : "unknown";
     }
 
     private static URI requireHttpEndpoint(URI endpoint) {

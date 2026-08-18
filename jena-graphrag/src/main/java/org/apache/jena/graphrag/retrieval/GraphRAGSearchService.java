@@ -89,6 +89,17 @@ public final class GraphRAGSearchService {
         return new GraphRAGSearch(query, List.copyOf(results));
     }
 
+    /** Returns only the nearest vector-indexed chunks for a query. */
+    public GraphRAGSearch searchVector(String query, int topK) {
+        if ( query == null || query.isBlank() )
+            throw new IllegalArgumentException("parametre 'q' requis");
+        if ( topK < 1 )
+            throw new IllegalArgumentException("topK must be greater than zero");
+        return new GraphRAGSearch(query, vectorResults(query, topK).stream()
+                .map(result -> new GraphRAGSearch.Result(result.uri(), 0.0, result.score(), result.score()))
+                .toList());
+    }
+
     private static List<ScoredResult> textResults(DatasetGraph datasetGraph, String query, int topK) {
         if ( !hasTextIndex(datasetGraph) )
             return List.of();

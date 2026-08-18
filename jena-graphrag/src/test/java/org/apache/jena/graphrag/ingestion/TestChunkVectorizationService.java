@@ -24,6 +24,8 @@ package org.apache.jena.graphrag.ingestion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import org.apache.jena.graphrag.index.ChunkVectorIndexer;
 import org.apache.jena.graphrag.index.EmbeddingProvider;
 import org.apache.jena.graphrag.index.LuceneVectorIndex;
@@ -52,12 +54,15 @@ public class TestChunkVectorizationService {
             ChunkVectorizationService service = new ChunkVectorizationService(
                     new ChunkVectorIndexer(vectorIndex, provider, 2));
 
-            ChunkVectorizationService.Result result = service.vectorize(dataset);
+            AtomicInteger progressEvents = new AtomicInteger();
+            assertEquals(1, service.pendingChunkCount(dataset));
+            ChunkVectorizationService.Result result = service.vectorize(dataset, ignored -> progressEvents.incrementAndGet());
 
             assertEquals(2, result.chunksSeen());
             assertEquals(1, result.chunksIndexed());
             assertEquals(1, result.chunksAlreadyIndexed());
             assertEquals(1, provider.calls);
+            assertEquals(1, progressEvents.get());
             assertTrue(vectorIndex.contains("http://example.test/chunk-1"));
             VectorResult nearest = vectorIndex.search(new float[] { 1.0f, 0.0f }, 1).getFirst();
             assertEquals("http://example.test/chunk-1", nearest.uri());

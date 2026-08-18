@@ -1,0 +1,76 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Reference corpus for deterministic GraphRAG retrieval contracts. Community
+# membership at levels 0 and 1 represents the hierarchy used by global search.
+
+@prefix mg:  <http://ormynet.com/ns/msft-graphrag#> .
+@prefix ref: <urn:graphrag:reference:> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+ref:document a mg:Document ;
+    mg:title "GraphRAG reference corpus" .
+
+ref:chunk-retrieval a mg:Chunk ;
+    mg:partOf ref:document ;
+    mg:text "Semantic retrieval ranks relevant GraphRAG chunks for a question." ;
+    mg:hasEntity ref:entity-graphrag .
+
+ref:chunk-governance a mg:Chunk ;
+    mg:partOf ref:document ;
+    mg:text "Jena governance makes GraphRAG retrieval traceable through RDF citations." ;
+    mg:hasEntity ref:entity-jena .
+
+ref:entity-graphrag a mg:Entity ;
+    mg:name "GraphRAG" ;
+    mg:inCommunity ref:community-retrieval, ref:community-platform .
+
+ref:entity-jena a mg:Entity ;
+    mg:name "Jena" ;
+    mg:inCommunity ref:community-governance, ref:community-platform .
+
+ref:relationship-graphrag-jena a mg:Relationship ;
+    mg:source ref:entity-graphrag ;
+    mg:target ref:entity-jena ;
+    mg:description "GraphRAG uses Jena RDF resources to keep retrieval citations traceable." ;
+    mg:weight 8.0 ;
+    mg:rank 1 .
+
+ref:community-retrieval a mg:Community ;
+    mg:level 0 ;
+    mg:title "Retrieval" ;
+    mg:summary "Semantic retrieval makes GraphRAG chunks relevant to a question." ;
+    mg:fullContent "The retrieval report explains how GraphRAG selects and cites chunks." .
+
+ref:community-governance a mg:Community ;
+    mg:level 0 ;
+    mg:title "Governance" ;
+    mg:summary "Jena governance keeps GraphRAG citations traceable." ;
+    mg:fullContent "The governance report explains RDF provenance for GraphRAG answers." .
+
+ref:community-platform a mg:Community ;
+    mg:level 1 ;
+    mg:title "Platform overview" ;
+    mg:summary "The platform overview joins retrieval and governance for GraphRAG." ;
+    mg:fullContent "The platform report aggregates the retrieval and governance communities." ;
+    mg:hasFinding ref:finding-platform .
+
+ref:finding-platform a mg:Finding ;
+    mg:summary "GraphRAG needs retrieval and traceability." ;
+    mg:fullContent "The higher-level platform community combines the lower-level retrieval and governance reports." .

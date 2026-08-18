@@ -39,9 +39,10 @@ public record GraphRAGContext(String query, String mode, List<Result> results) {
     /**
      * One cited context item.
      * <p>
-     * Basic results cite {@code mg:Chunk}; local results cite {@code mg:Relationship};
-     * global results cite {@code mg:Community}. Optional fields are {@code null}
-     * when they do not apply to the selected retrieval mode.
+    * Basic results cite {@code mg:Chunk}; local results cite relevant entities,
+    * relationships, chunks or communities; global results cite
+    * {@code mg:Community}. Optional fields are {@code null} when they do not
+    * apply to the selected retrieval mode.
      *
      * @param uri URI of the cited RDF resource
      * @param score ranking score
@@ -89,6 +90,11 @@ public record GraphRAGContext(String query, String mode, List<Result> results) {
             return new Result(uri, score, sourceText, "relationship", entityUri, entityName,
                     neighborUri, neighborName, weight, rank, null, null, chunkUri, chunkText, documentUri);
         }
+
+                public static Result entity(String uri, double score, String entityName) {
+                    return new Result(uri, score, entityName, "entity", uri, entityName,
+                        null, null, null, null, null, null, null, null, null);
+                }
 
         public static Result community(String uri, double score, String sourceText, String communityTitle) {
             return new Result(uri, score, sourceText, "community", null, null, null, null,

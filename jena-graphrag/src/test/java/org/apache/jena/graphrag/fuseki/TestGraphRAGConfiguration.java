@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Map;
 
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
@@ -66,7 +67,7 @@ public class TestGraphRAGConfiguration {
     @Test
     public void rejectsUnsupportedDefaultMode() {
         assertThrows(IllegalArgumentException.class,
-            () -> new GraphRAGConfiguration("drift", 5, 100, 0.5));
+            () -> new GraphRAGConfiguration("unsupported", 5, 100, 0.5));
     }
 
     @Test
@@ -106,6 +107,30 @@ public class TestGraphRAGConfiguration {
             assertEquals(0.25, configuration.hybridAlpha());
         }
 
+        @Test
+        public void modelResolvesSystemPromptFromNamedEnvironmentVariable() {
+            Model config = ModelFactory.createDefaultModel();
+            config.createResource("urn:graphrag:service")
+                  .addLiteral(config.createProperty(GraphRAGModule.CONFIG_NS + "systemPromptEnv"),
+                          "GRAPHRAG_TEST_SYSTEM_PROMPT");
+
+            GraphRAGConfiguration configuration = GraphRAGConfiguration.fromModel(config,
+                    Map.of("GRAPHRAG_TEST_SYSTEM_PROMPT", "Use cited context only."));
+
+            assertEquals("Use cited context only.", configuration.systemPrompt());
+        }
+
+        @Test
+        public void modelRejectsMissingSystemPromptEnvironmentVariable() {
+            Model config = ModelFactory.createDefaultModel();
+            config.createResource("urn:graphrag:service")
+                  .addLiteral(config.createProperty(GraphRAGModule.CONFIG_NS + "systemPromptEnv"),
+                          "GRAPHRAG_TEST_SYSTEM_PROMPT");
+
+            assertThrows(IllegalArgumentException.class,
+                    () -> GraphRAGConfiguration.fromModel(config, Map.of()));
+        }
+
             @Test
             public void taskLifecycleTracksPendingRunningDone() {
                 GraphRAGTaskService service = serviceAt("2026-07-19T10:00:00Z", 2, 10);
@@ -121,6 +146,25 @@ public class TestGraphRAGConfiguration {
                 assertNotNull(done.startedAt());
                 assertNotNull(done.completedAt());
                 assertEquals(done, service.find(created.taskId()).orElseThrow());
+            }
+
+            @Test
+            public void taskProgressTracksSuccessfulVectorizationsAndTerminalStates() {
+                GraphRAGTaskService service = serviceAt("2026-07-19T10:00:00Z", 2, 10);
+                GraphRAGTask running = service.markRunning(service.createTask().taskId());
+                GraphRAGTask planned = service.setTotalChunks(running.taskId(), 3);
+                service.incrementChunksIndexed(running.taskId());
+                GraphRAGTask failed = service.markFailed(running.taskId(), "echec indexation GraphRAG");
+
+                assertEquals(3, planned.progress().totalChunks());
+                assertEquals(1, failed.progress().chunksIndexed());
+                assertEquals(33, failed.progress().percentComplete(failed.status()));
+
+                GraphRAGTask doneRunning = service.markRunning(service.createTask().taskId());
+                service.setTotalChunks(doneRunning.taskId(), 1);
+                service.incrementChunksIndexed(doneRunning.taskId());
+                GraphRAGTask done = service.markDone(doneRunning.taskId());
+                assertEquals(100, done.progress().percentComplete(done.status()));
             }
 
             @Test

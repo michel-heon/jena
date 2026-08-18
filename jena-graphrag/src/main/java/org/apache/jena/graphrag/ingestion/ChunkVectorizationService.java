@@ -21,19 +21,12 @@
 
 package org.apache.jena.graphrag.ingestion;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.IntConsumer;
 
 import org.apache.jena.graphrag.index.ChunkVectorIndexer;
 import org.apache.jena.query.Dataset;
-import org.apache.jena.query.Query;
-import org.apache.jena.query.QueryExecution;
-import org.apache.jena.query.QueryFactory;
-import org.apache.jena.query.QuerySolution;
-import org.apache.jena.query.ReadWrite;
-import org.apache.jena.rdf.model.Resource;
-import org.apache.jena.vocabulary.GRAG;
 
 /** Vectorizes existing {@code mg:Chunk} resources through a {@link ChunkVectorIndexer}. */
 public final class ChunkVectorizationService {
@@ -45,47 +38,37 @@ public final class ChunkVectorizationService {
     }
 
     public Result vectorize(Dataset dataset) {
-        Objects.requireNonNull(dataset, "dataset");
+        return vectorize(dataset, ignored -> {});
+    }
 
-        List<ChunkText> chunks = readChunkTexts(dataset);
+    /**
+     * Vectorizes the chunks that are not already present in the vector index.
+     * The callback is invoked after each successfully persisted vector.
+     */
+    public Result vectorize(Dataset dataset, IntConsumer onChunkIndexed) {
+        Objects.requireNonNull(dataset, "dataset");
+        Objects.requireNonNull(onChunkIndexed, "onChunkIndexed");
+
+        List<ChunkTextReader.ChunkText> chunks = ChunkTextReader.read(dataset);
         int indexed = 0;
         int alreadyIndexed = 0;
-        for (ChunkText chunk : chunks) {
-            if (chunkVectorIndexer.indexChunk(chunk.uri(), chunk.text()))
+        for (ChunkTextReader.ChunkText chunk : chunks) {
+            if (chunkVectorIndexer.indexChunk(chunk.uri(), chunk.text())) {
                 indexed++;
-            else
+                onChunkIndexed.accept(indexed);
+            } else
                 alreadyIndexed++;
         }
         return new Result(chunks.size(), indexed, alreadyIndexed);
     }
 
-    private static List<ChunkText> readChunkTexts(Dataset dataset) {
-        Query query = QueryFactory.create("""
-                SELECT DISTINCT ?chunk ?text WHERE {
-                  ?chunk a <%s> ;
-                         <%s> ?text .
-                  FILTER(isIRI(?chunk))
-                  FILTER(isLiteral(?text) && STRLEN(STR(?text)) > 0)
-                }
-                ORDER BY STR(?chunk)
-                """.formatted(GRAG.Chunk.getURI(), GRAG.text.getURI()));
-
-        List<ChunkText> chunks = new ArrayList<>();
-        dataset.begin(ReadWrite.READ);
-        try (QueryExecution queryExecution = QueryExecution.dataset(dataset).query(query).build()) {
-            queryExecution.execSelect().forEachRemaining(solution -> chunks.add(toChunkText(solution)));
-        } finally {
-            dataset.end();
-        }
-        return List.copyOf(chunks);
-    }
-
-    private static ChunkText toChunkText(QuerySolution solution) {
-        Resource chunk = solution.getResource("chunk");
-        return new ChunkText(chunk.getURI(), solution.getLiteral("text").getString());
+    /** Returns the number of chunks that require a new vectorization operation. */
+    public int pendingChunkCount(Dataset dataset) {
+        Objects.requireNonNull(dataset, "dataset");
+        return (int)ChunkTextReader.read(dataset).stream()
+                .filter(chunk -> chunkVectorIndexer.requiresIndexing(chunk.uri()))
+                .count();
     }
 
     public record Result(int chunksSeen, int chunksIndexed, int chunksAlreadyIndexed) {}
-
-    private record ChunkText(String uri, String text) {}
 }

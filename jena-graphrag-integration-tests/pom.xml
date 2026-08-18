@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+   Licensed to the Apache Software Foundation (ASF) under one
+   or more contributor license agreements.  See the NOTICE file
+   distributed with this work for additional information
+   regarding copyright ownership.  The ASF licenses this file
+   to you under the Apache License, Version 2.0 (the
+   "License"); you may not use this file except in compliance
+   with the License.  You may obtain a copy of the License at
+
+     https://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing,
+   software distributed under the License is distributed on an
+   "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+   KIND, either express or implied.  See the License for the
+   specific language governing permissions and limitations
+   under the License.
+
+     SPDX-License-Identifier: Apache-2.0
+-->
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.apache.jena</groupId>
+    <artifactId>jena</artifactId>
+    <version>6.2.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>jena-graphrag-integration-tests</artifactId>
+  <name>Apache Jena - GraphRAG Integration Tests</name>
+  <description>Integration tests for Apache Jena GraphRAG with real infrastructure.</description>
+
+  <properties>
+    <automatic.module.name>org.apache.jena.graphrag.integration_tests</automatic.module.name>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.apache.jena</groupId>
+      <artifactId>jena-graphrag</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.jena</groupId>
+      <artifactId>jena-fuseki-ui</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <profiles>
+    <profile>
+      <id>graphrag-real-providers</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>properties-maven-plugin</artifactId>
+            <version>1.3.0</version>
+            <executions>
+              <execution>
+                <id>load-real-provider-properties</id>
+                <phase>initialize</phase>
+                <goals>
+                  <goal>read-project-properties</goal>
+                </goals>
+                <configuration>
+                  <files>
+                    <file>${project.basedir}/../jena-graphrag-tutorial/env/generated/real-providers.properties</file>
+                  </files>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+              <includes>
+                <include>**/RealProviderGraphRAGIT.java</include>
+              </includes>
+              <environmentVariables>
+                <GRAPHRAG_EMBEDDING_API_URL>${graphrag.embedding.api.url}</GRAPHRAG_EMBEDDING_API_URL>
+                <GRAPHRAG_EMBEDDING_API_KEY>${graphrag.embedding.api.key}</GRAPHRAG_EMBEDDING_API_KEY>
+                <GRAPHRAG_EMBEDDING_MODEL>${graphrag.embedding.model}</GRAPHRAG_EMBEDDING_MODEL>
+                <GRAPHRAG_EMBEDDING_DIMENSION>${graphrag.embedding.dimension}</GRAPHRAG_EMBEDDING_DIMENSION>
+                <OPENAI_API_URL>${openai.api.url}</OPENAI_API_URL>
+                <OPENAI_API_KEY>${openai.api.key}</OPENAI_API_KEY>
+                <GRAPHRAG_CHAT_MODEL>${graphrag.chat.model}</GRAPHRAG_CHAT_MODEL>
+                <GRAPHRAG_DEFAULT_MODE>${jena.graphrag.defaultMode}</GRAPHRAG_DEFAULT_MODE>
+                <GRAPHRAG_DEFAULT_TOP_K>${jena.graphrag.defaultTopK}</GRAPHRAG_DEFAULT_TOP_K>
+                <GRAPHRAG_MAX_TOP_K>${jena.graphrag.maxTopK}</GRAPHRAG_MAX_TOP_K>
+                <GRAPHRAG_DRIFT_COMMUNITY_TOP_K>${jena.graphrag.drift.communityTopK}</GRAPHRAG_DRIFT_COMMUNITY_TOP_K>
+                <GRAPHRAG_DRIFT_MAX_FOLLOW_UPS>${jena.graphrag.drift.maxFollowUps}</GRAPHRAG_DRIFT_MAX_FOLLOW_UPS>
+                <GRAPHRAG_DRIFT_CONTEXT_TOKEN_BUDGET>${jena.graphrag.drift.contextTokenBudget}</GRAPHRAG_DRIFT_CONTEXT_TOKEN_BUDGET>
+                <GRAPHRAG_DRIFT_LOCAL_TOP_K>${jena.graphrag.drift.localTopK}</GRAPHRAG_DRIFT_LOCAL_TOP_K>
+                <GRAPHRAG_INDEX_MAX_CONTENT_LENGTH>${jena.graphrag.index.maxContentLength}</GRAPHRAG_INDEX_MAX_CONTENT_LENGTH>
+                <GRAPHRAG_INGESTION_BASE_URI>${jena.graphrag.ingestion.baseUri}</GRAPHRAG_INGESTION_BASE_URI>
+                <GRAPHRAG_INGESTION_CHUNK_SIZE>${jena.graphrag.ingestion.chunkSize}</GRAPHRAG_INGESTION_CHUNK_SIZE>
+                <GRAPHRAG_INGESTION_CHUNK_OVERLAP>${jena.graphrag.ingestion.chunkOverlap}</GRAPHRAG_INGESTION_CHUNK_OVERLAP>
+                <GRAPHRAG_INGESTION_MAX_FILE_SIZE_BYTES>${jena.graphrag.ingestion.maxFileSizeBytes}</GRAPHRAG_INGESTION_MAX_FILE_SIZE_BYTES>
+                <GRAPHRAG_SERVER_MODE>${graphrag.server.mode}</GRAPHRAG_SERVER_MODE>
+              </environmentVariables>
+              <systemPropertyVariables>
+                <jena.graphrag.defaultMode>${jena.graphrag.defaultMode}</jena.graphrag.defaultMode>
+                <jena.graphrag.defaultTopK>${jena.graphrag.defaultTopK}</jena.graphrag.defaultTopK>
+                <jena.graphrag.maxTopK>${jena.graphrag.maxTopK}</jena.graphrag.maxTopK>
+                <jena.graphrag.drift.communityTopK>${jena.graphrag.drift.communityTopK}</jena.graphrag.drift.communityTopK>
+                <jena.graphrag.drift.maxFollowUps>${jena.graphrag.drift.maxFollowUps}</jena.graphrag.drift.maxFollowUps>
+                <jena.graphrag.drift.contextTokenBudget>${jena.graphrag.drift.contextTokenBudget}</jena.graphrag.drift.contextTokenBudget>
+                <jena.graphrag.drift.localTopK>${jena.graphrag.drift.localTopK}</jena.graphrag.drift.localTopK>
+                <jena.graphrag.index.maxContentLength>${jena.graphrag.index.maxContentLength}</jena.graphrag.index.maxContentLength>
+                <jena.graphrag.ingestion.baseUri>${jena.graphrag.ingestion.baseUri}</jena.graphrag.ingestion.baseUri>
+                <jena.graphrag.ingestion.chunkSize>${jena.graphrag.ingestion.chunkSize}</jena.graphrag.ingestion.chunkSize>
+                <jena.graphrag.ingestion.chunkOverlap>${jena.graphrag.ingestion.chunkOverlap}</jena.graphrag.ingestion.chunkOverlap>
+                <jena.graphrag.ingestion.maxFileSizeBytes>${jena.graphrag.ingestion.maxFileSizeBytes}</jena.graphrag.ingestion.maxFileSizeBytes>
+              </systemPropertyVariables>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+
+</project>

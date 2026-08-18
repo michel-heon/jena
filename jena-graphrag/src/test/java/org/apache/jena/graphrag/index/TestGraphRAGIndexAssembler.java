@@ -78,13 +78,16 @@ public class TestGraphRAGIndexAssembler {
             assertTrue(graphRAGIndex.enabled());
             assertEquals(textDir, graphRAGIndex.textIndexDirectory());
             assertEquals(vectorDir, graphRAGIndex.vectorIndexDirectory());
+            assertEquals(vectorDir.resolve("communities"), graphRAGIndex.communityVectorIndexDirectory());
             assertEquals(2, graphRAGIndex.vectorDimension());
             assertNotNull(graphRAGIndex.textIndex());
             assertNotNull(graphRAGIndex.vectorIndex());
+            assertNotNull(graphRAGIndex.communityVectorIndex());
             assertInstanceOf(MockEmbeddingProvider.class, graphRAGIndex.embeddingProvider());
             assertInstanceOf(MockChatCompletionProvider.class, graphRAGIndex.chatCompletionProvider());
             assertTrue(Files.isDirectory(textDir));
             assertTrue(Files.isDirectory(vectorDir));
+            assertTrue(Files.isDirectory(vectorDir.resolve("communities")));
         }
     }
 

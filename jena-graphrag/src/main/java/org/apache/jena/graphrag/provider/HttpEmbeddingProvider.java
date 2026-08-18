@@ -35,37 +35,42 @@ public final class HttpEmbeddingProvider implements EmbeddingProvider {
     private static final String AZURE_OPENAI_HOST = ".openai.azure.com";
 
     private final ProviderConfiguration configuration;
-    private final OpenAiEmbeddingModel model;
+    private final URI endpoint;
+    private final String modelName;
+    private final String apiKey;
 
     public HttpEmbeddingProvider(ProviderConfiguration configuration, URI endpoint, String model, String apiKey) {
         this.configuration = Objects.requireNonNull(configuration, "configuration");
         if ( !configuration.allowExternalCalls() )
             throw new ProviderException("External provider calls are disabled");
 
-        URI checkedEndpoint = requireHttpEndpoint(endpoint);
-        String checkedModel = requireNonBlank(model, "model");
-        String checkedApiKey = requireNonBlank(apiKey, "apiKey");
+        this.endpoint = requireHttpEndpoint(endpoint);
+        this.modelName = requireNonBlank(model, "model");
+        this.apiKey = requireNonBlank(apiKey, "apiKey");
+    }
 
+    private OpenAiEmbeddingModel createModel(int dimension) {
         OpenAiEmbeddingModel.OpenAiEmbeddingModelBuilder builder = OpenAiEmbeddingModel.builder()
-                .baseUrl(checkedEndpoint.toString())
-                .modelName(checkedModel)
-                .apiKey(checkedApiKey)
+                .baseUrl(endpoint.toString())
+                .modelName(modelName)
+                .apiKey(apiKey)
+                .dimensions(dimension)
                 .timeout(configuration.timeout())
                 .maxRetries(0)
                 .logRequests(false)
                 .logResponses(false);
 
-        if ( usesAzureApiKey(checkedEndpoint) )
-            builder.customHeaders(Map.of("api-key", checkedApiKey));
+        if ( usesAzureApiKey(endpoint) )
+            builder.customHeaders(Map.of("api-key", apiKey));
 
-        this.model = builder.build();
+        return builder.build();
     }
 
     @Override
     public float[] embed(String text, int dimension) {
         checkInputQuota(text);
         try {
-            Embedding embedding = model.embed(text).content();
+            Embedding embedding = createModel(dimension).embed(text).content();
             float[] vector = embedding.vector();
             if ( vector.length != dimension )
                 throw new ProviderException("Provider returned an unexpected embedding dimension");
@@ -73,31 +78,8 @@ public final class HttpEmbeddingProvider implements EmbeddingProvider {
         } catch (ProviderException ex) {
             throw ex;
         } catch (RuntimeException ex) {
-            throw new ProviderException(sanitizeFailure(ex), ex);
+            throw ProviderException.from(ex);
         }
-    }
-
-    private static String sanitizeFailure(RuntimeException ex) {
-        String message = ex.getMessage();
-        String exceptionType = ex.getClass().getSimpleName();
-        if ( message == null || message.isBlank() )
-            return "Provider request failed (" + exceptionType + ")";
-        if ( message.contains("invalid json") || message.contains("Invalid JSON") )
-            return "Provider returned invalid JSON";
-        if ( message.contains("404") || message.contains("Not Found") )
-            return "Provider endpoint rejected the request (404/" + exceptionType + ")";
-        if ( message.contains("401") || message.contains("403") || message.contains("Unauthorized") || message.contains("Forbidden") )
-            return "Provider authentication failed (" + extractStatusCode(message) + "/" + exceptionType + ")";
-        if ( message.contains("400") || message.contains("Bad Request") )
-            return "Provider rejected the request payload (400/" + exceptionType + ")";
-        if ( message.contains("status code") || message.contains("HTTP") )
-            return "Provider request failed (" + extractStatusCode(message) + "/" + exceptionType + ")";
-        return "Provider request failed (" + exceptionType + ")";
-    }
-
-    private static String extractStatusCode(String message) {
-        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\\b(400|401|403|404|429|500|502|503|504)\\b").matcher(message);
-        return matcher.find() ? matcher.group(1) : "unknown";
     }
 
     private int maximumTokens() {

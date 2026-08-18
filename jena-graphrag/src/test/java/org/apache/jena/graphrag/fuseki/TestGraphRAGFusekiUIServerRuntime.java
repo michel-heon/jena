@@ -74,7 +74,7 @@ public class TestGraphRAGFusekiUIServerRuntime {
     public void serverBootsOnCorpusAndExposesUiPingConfigAndContext() throws Exception {
         Path corpus = copyCorpus();
         GraphRAGFusekiUIServer.ServerBootstrap bootstrap = GraphRAGFusekiUIServer.prepare(
-                new GraphRAGFusekiUIServer.Settings(corpus, 0, "ds", true));
+            new GraphRAGFusekiUIServer.Settings(corpus, 0, "ds", true, null));
         assertTrue(bootstrap.tripleCount() > 0, "Le corpus de qualification doit charger des triplets");
 
         FusekiServer server = bootstrap.server();
@@ -93,6 +93,13 @@ public class TestGraphRAGFusekiUIServerRuntime {
             JsonObject configBody = JSON.parse(config.body());
             assertEquals(true, configBody.get("enabled").getAsBoolean().value());
             assertTrue(configBody.get("modes").getAsArray().size() >= 3);
+            assertTrue(configBody.get("modes").getAsArray().stream()
+                .anyMatch(value -> "drift".equals(value.getAsString().value())));
+            JsonObject driftLimits = configBody.get("driftLimits").getAsObject();
+            assertTrue(driftLimits.get("communityTopK").getAsNumber().value().intValue() > 0);
+            assertTrue(driftLimits.get("maxFollowUps").getAsNumber().value().intValue() > 0);
+            assertTrue(driftLimits.get("contextTokenBudget").getAsNumber().value().intValue() > 0);
+            assertTrue(driftLimits.get("localTopK").getAsNumber().value().intValue() > 0);
 
             HttpResponse<String> context = get(server, "/ds/graphrag/context?q=scrooge&mode=local&topK=1");
             assertEquals(200, context.statusCode());
@@ -111,7 +118,7 @@ public class TestGraphRAGFusekiUIServerRuntime {
     public void disabledGraphRagKeepsUiAvailableButHidesEndpoints() throws Exception {
         Path corpus = copyCorpus();
         GraphRAGFusekiUIServer.ServerBootstrap bootstrap = GraphRAGFusekiUIServer.prepare(
-                new GraphRAGFusekiUIServer.Settings(corpus, 0, "ds", false));
+            new GraphRAGFusekiUIServer.Settings(corpus, 0, "ds", false, null));
 
         FusekiServer server = bootstrap.server();
         try {

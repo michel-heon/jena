@@ -1,0 +1,49 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements. See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership. The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License. You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+@prefix grag: <http://ormynet.com/ns/msft-graphrag#> .
+@prefix corpus: <https://jena.apache.org/graphrag/integration/corpus/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+
+corpus:document-import a grag:Document ;
+    grag:id "document-import" ;
+    grag:title "Importer integration fixture" .
+
+corpus:chunk-import a grag:Chunk ;
+    grag:id "chunk-import" ;
+    grag:n_tokens 8 ;
+    grag:text "Alpha collaborates with Beta." ;
+    grag:part_of corpus:document-import .
+
+corpus:alpha a grag:Entity ;
+    grag:id "entity-alpha" ;
+    grag:name "Alpha" ;
+    grag:has_entity corpus:chunk-import ;
+    dcterms:source "integration fixture" .
+
+corpus:beta a grag:Entity ;
+    grag:id "entity-beta" ;
+    grag:name "Beta" .
+
+corpus:related_to_alpha_beta a grag:related_to ;
+    grag:id "relationship-alpha-beta" ;
+    grag:description "Alpha collaborates with Beta." ;
+    grag:weight 1.0 .
+
+corpus:alpha corpus:related_to_alpha_beta corpus:beta .

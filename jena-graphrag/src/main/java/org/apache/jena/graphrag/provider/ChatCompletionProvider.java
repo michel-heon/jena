@@ -43,4 +43,14 @@ public interface ChatCompletionProvider {
      * @return the generated answer text; never {@code null}
      */
     String complete(String question, List<String> contextPassages);
+
+    /**
+     * Generates a completion with an optional system prompt.
+     *
+     * @param systemPrompt optional provider instruction; never {@code null}
+     * @return the generated answer text; never {@code null}
+     */
+    default String complete(String question, List<String> contextPassages, String systemPrompt) {
+        return complete(question, contextPassages);
+    }
 }

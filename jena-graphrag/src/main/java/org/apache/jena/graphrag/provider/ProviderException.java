@@ -21,14 +21,62 @@
 
 package org.apache.jena.graphrag.provider;
 
+import java.net.http.HttpTimeoutException;
+import java.util.Locale;
+
 /** Unchecked failure raised by a GraphRAG provider. */
 public class ProviderException extends RuntimeException {
+    public enum Category { AUTHENTICATION, TIMEOUT, UNAVAILABLE }
+
+    private final Category category;
 
     public ProviderException(String message) {
-        super(message);
+        this(Category.UNAVAILABLE, message);
     }
 
     public ProviderException(String message, Throwable cause) {
+        this(Category.UNAVAILABLE, message, cause);
+    }
+
+    public ProviderException(Category category, String message) {
+        super(message);
+        this.category = category;
+    }
+
+    public ProviderException(Category category, String message, Throwable cause) {
         super(message, cause);
+        this.category = category;
+    }
+
+    public Category category() {
+        return category;
+    }
+
+    /** Converts an implementation failure to a category-safe provider exception. */
+    public static ProviderException from(Throwable cause) {
+        String details = details(cause);
+        if ( details.contains("401") || details.contains("403") || details.contains("unauthorized") || details.contains("forbidden") )
+            return new ProviderException(Category.AUTHENTICATION, "Provider authentication failed", cause);
+        if ( hasTimeout(cause) || details.contains("timed out") || details.contains("timeout") )
+            return new ProviderException(Category.TIMEOUT, "Provider request timed out", cause);
+        return new ProviderException(Category.UNAVAILABLE, "Provider request failed", cause);
+    }
+
+    private static boolean hasTimeout(Throwable cause) {
+        for ( Throwable current = cause; current != null; current = current.getCause() ) {
+            if ( current instanceof HttpTimeoutException || current instanceof java.net.SocketTimeoutException
+                    || current instanceof java.util.concurrent.TimeoutException )
+                return true;
+        }
+        return false;
+    }
+
+    private static String details(Throwable cause) {
+        StringBuilder details = new StringBuilder();
+        for ( Throwable current = cause; current != null; current = current.getCause() ) {
+            if ( current.getMessage() != null )
+                details.append(current.getMessage()).append(' ');
+        }
+        return details.toString().toLowerCase(Locale.ROOT);
     }
 }

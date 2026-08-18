@@ -50,7 +50,7 @@ import org.apache.jena.web.HttpSC;
  */
 public final class GraphRAGContextAction extends ActionREST {
 
-    private final GraphRAGContextService contextService = new GraphRAGContextService();
+    private final GraphRAGContextService contextService;
     private final DatasetGraph datasetGraph;
     private final GraphRAGConfiguration configuration;
 
@@ -70,8 +70,14 @@ public final class GraphRAGContextAction extends ActionREST {
      * @param configuration request defaults and {@code topK} limits; must not be {@code null}
      */
     GraphRAGContextAction(DatasetGraph datasetGraph, GraphRAGConfiguration configuration) {
+        this(datasetGraph, configuration, new GraphRAGContextService());
+    }
+
+    GraphRAGContextAction(DatasetGraph datasetGraph, GraphRAGConfiguration configuration,
+                          GraphRAGContextService contextService) {
         this.datasetGraph = Objects.requireNonNull(datasetGraph);
         this.configuration = Objects.requireNonNull(configuration);
+        this.contextService = Objects.requireNonNull(contextService);
     }
 
     @Override
@@ -108,8 +114,15 @@ public final class GraphRAGContextAction extends ActionREST {
 
         datasetGraph.begin(ReadWrite.READ);
         try {
-            GraphRAGContext context = contextService.retrieve(datasetGraph, mode, query, topK);
+                int effectiveTopK = GraphRAGContextService.DRIFT_MODE.equals(mode)
+                        ? Math.min(topK, configuration.driftCommunityTopK()) : topK;
+            GraphRAGContext context = contextService.retrieve(datasetGraph, mode, query, effectiveTopK);
+            if ( GraphRAGContextService.DRIFT_MODE.equals(mode) )
+                context = GraphRAGContextService.boundDriftContext(context,
+                                            configuration.driftContextTokenBudget());
             writeJson(action, context);
+        } catch (IllegalArgumentException ex) {
+            writeError(action, ex.getMessage());
         } finally {
             datasetGraph.end();
         }

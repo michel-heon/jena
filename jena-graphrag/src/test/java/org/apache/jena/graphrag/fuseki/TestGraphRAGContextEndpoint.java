@@ -36,10 +36,13 @@ import org.apache.jena.atlas.json.JSON;
 import org.apache.jena.atlas.json.JsonArray;
 import org.apache.jena.atlas.json.JsonObject;
 import org.apache.jena.fuseki.main.FusekiServer;
-import org.apache.jena.fuseki.main.sys.FusekiModule;
+import org.apache.jena.fuseki.main.sys.FusekiAutoModule;
 import org.apache.jena.fuseki.main.sys.FusekiModules;
 import org.apache.jena.graphrag.GraphRAGImporter;
 import org.apache.jena.graphrag.index.GraphRAGTextDatasetFactory;
+import org.apache.jena.graphrag.index.LuceneVectorIndex;
+import org.apache.jena.graphrag.retrieval.CommunityReportVectorSearchService;
+import org.apache.jena.graphrag.retrieval.GraphRAGContextService;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.query.QueryExecution;
@@ -50,6 +53,7 @@ import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.vocabulary.GRAG;
 import org.apache.jena.vocabulary.RDF;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.junit.jupiter.api.Test;
 
@@ -60,7 +64,7 @@ public class TestGraphRAGContextEndpoint {
 
     @Test
     public void module_isDiscoverableThroughJavaSPI() {
-        boolean found = ServiceLoader.load(FusekiModule.class).stream()
+        boolean found = ServiceLoader.load(FusekiAutoModule.class).stream()
                 .anyMatch(provider -> provider.type().equals(GraphRAGModule.class));
         assertTrue(found);
     }
@@ -169,16 +173,56 @@ public class TestGraphRAGContextEndpoint {
     }
 
     @Test
-    public void invalidModeReturnsBadRequest() throws Exception {
+    public void driftWithoutConfiguredCommunityIndexReturnsBadRequest() throws Exception {
         FusekiServer server = server(dataset(), true);
         try {
             HttpResponse<String> response = get(server, "?q=scrooge&mode=drift");
             assertEquals(400, response.statusCode());
             assertTrue(response.headers().firstValue("content-type").orElse("").contains("application/json"));
             JsonObject body = JSON.parse(response.body());
-            assertEquals("mode invalide: drift", body.get("error").getAsString().value());
+            assertEquals("mode drift requiert un index vectoriel de communautes configure",
+                    body.get("error").getAsString().value());
         } finally {
             server.stop();
+        }
+    }
+
+    @Test
+    public void driftMode_appliesConfiguredPrimerAndContextBudgetLimits() throws Exception {
+        Dataset dataset = DatasetFactory.createTxnMem();
+        dataset.begin(ReadWrite.WRITE);
+        try {
+            addCommunity(dataset, "urn:community:one", "One", "one two three four", "report one");
+            addCommunity(dataset, "urn:community:two", "Two", "five six seven eight", "report two");
+            dataset.commit();
+        } finally {
+            dataset.end();
+        }
+        String communityTopK = setProperty(GraphRAGConfiguration.DRIFT_COMMUNITY_TOP_K_PROPERTY, "1");
+        String contextBudget = setProperty(GraphRAGConfiguration.DRIFT_CONTEXT_TOKEN_BUDGET_PROPERTY, "3");
+        try (LuceneVectorIndex communityIndex = new LuceneVectorIndex(new ByteBuffersDirectory(), 2,
+                VectorSimilarityFunction.EUCLIDEAN)) {
+            communityIndex.index("urn:community:one", new float[] { 1.0f, 0.0f });
+            communityIndex.index("urn:community:two", new float[] { 1.0f, 0.0f });
+            CommunityReportVectorSearchService communitySearch = new CommunityReportVectorSearchService(
+                    communityIndex, (text, dimension) -> new float[] { 1.0f, 0.0f }, 2);
+            GraphRAGContextService contextService = new GraphRAGContextService(null, communitySearch);
+            GraphRAGModule module = new GraphRAGModule(GraphRAGSearchAction::new, null,
+                    (datasetGraph, configuration) -> new GraphRAGContextAction(datasetGraph, configuration, contextService));
+            FusekiServer server = server(dataset, true, module);
+            try {
+                JsonObject body = JSON.parse(get(server, "?q=community&mode=drift&topK=3").body());
+                JsonArray results = body.get("results").getAsArray();
+
+                assertEquals(1, results.size());
+                assertEquals(3, results.getFirst().getAsObject().get("sourceText").getAsString().value()
+                        .split("\\s+").length);
+            } finally {
+                server.stop();
+            }
+        } finally {
+            restoreProperty(GraphRAGConfiguration.DRIFT_COMMUNITY_TOP_K_PROPERTY, communityTopK);
+            restoreProperty(GraphRAGConfiguration.DRIFT_CONTEXT_TOKEN_BUDGET_PROPERTY, contextBudget);
         }
     }
 
@@ -224,9 +268,34 @@ public class TestGraphRAGContextEndpoint {
             assertTrue(task.hasKey("createdAt"));
             assertTrue(task.hasKey("startedAt"));
             assertTrue(task.hasKey("completedAt"));
+            JsonObject progress = task.get("progress").getAsObject();
+            assertEquals(0, progress.get("totalChunks").getAsNumber().value().intValue());
+            assertEquals(0, progress.get("chunksIndexed").getAsNumber().value().intValue());
+            assertEquals(100, progress.get("percentComplete").getAsNumber().value().intValue());
         } finally {
             server.stop();
         }
+    }
+
+    @Test
+    public void taskStatusJsonExposesRunningAndFailedProgressWithoutSensitiveDetails() {
+        GraphRAGTaskService taskService = new GraphRAGTaskService(2, 10);
+        GraphRAGTask running = taskService.markRunning(taskService.createTask().taskId());
+        taskService.setTotalChunks(running.taskId(), 2);
+        taskService.incrementChunksIndexed(running.taskId());
+
+        JsonObject runningJson = GraphRAGStatusAction.taskJson(taskService.find(running.taskId()).orElseThrow()).getAsObject();
+        JsonObject runningProgress = runningJson.get("progress").getAsObject();
+        assertEquals("running", runningJson.get("status").getAsString().value());
+        assertEquals(2, runningProgress.get("totalChunks").getAsNumber().value().intValue());
+        assertEquals(1, runningProgress.get("chunksIndexed").getAsNumber().value().intValue());
+        assertEquals(50, runningProgress.get("percentComplete").getAsNumber().value().intValue());
+
+        GraphRAGTask failed = taskService.markFailed(running.taskId(), "echec indexation GraphRAG");
+        JsonObject failedJson = GraphRAGStatusAction.taskJson(failed).getAsObject();
+        assertEquals("failed", failedJson.get("status").getAsString().value());
+        assertEquals(50, failedJson.get("progress").getAsObject().get("percentComplete").getAsNumber().value().intValue());
+        assertTrue(!failedJson.toString().contains("apiKey"));
     }
 
     @Test
@@ -293,6 +362,9 @@ public class TestGraphRAGContextEndpoint {
             JsonObject body = JSON.parse(response.body());
             assertEquals("local", body.get("defaultMode").getAsString().value());
             assertTrue(body.get("modes").getAsArray().size() >= 3);
+                assertTrue(body.get("modes").getAsArray().stream()
+                    .anyMatch(value -> "drift".equals(value.getAsString().value())));
+                assertTrue(body.get("driftLimits").getAsObject().get("maxFollowUps").getAsNumber().value().intValue() > 0);
             assertTrue(body.get("limits").getAsObject().get("maxIndexContentLength").getAsNumber().value().intValue() > 0);
             assertEquals("***", body.get("maskedProperties").getAsObject()
                     .get("jena.graphrag.apiKey").getAsString().value());
@@ -304,6 +376,10 @@ public class TestGraphRAGContextEndpoint {
     }
 
     private static FusekiServer server(Dataset dataset, boolean enabled) {
+        return server(dataset, enabled, new GraphRAGModule());
+    }
+
+    private static FusekiServer server(Dataset dataset, boolean enabled, GraphRAGModule module) {
         Model config = ModelFactory.createDefaultModel();
         if ( enabled ) {
             config.createResource("urn:graphrag:test")
@@ -313,7 +389,7 @@ public class TestGraphRAGContextEndpoint {
                 .port(0)
                 .add("/ds", dataset)
                 .parseConfig(config)
-                .fusekiModules(FusekiModules.create(new GraphRAGModule()))
+                .fusekiModules(FusekiModules.create(module))
                 .build()
                 .start();
     }
@@ -429,6 +505,19 @@ public class TestGraphRAGContextEndpoint {
     private static HttpResponse<String> get(FusekiServer server, String query) throws Exception {
         HttpRequest request = HttpRequest.newBuilder(URI.create(endpoint(server) + query)).GET().build();
         return HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private static String setProperty(String key, String value) {
+        String previous = System.getProperty(key);
+        System.setProperty(key, value);
+        return previous;
+    }
+
+    private static void restoreProperty(String key, String previous) {
+        if ( previous == null )
+            System.clearProperty(key);
+        else
+            System.setProperty(key, previous);
     }
 
     private static HttpResponse<String> getOperation(FusekiServer server, String operation, String query) throws Exception {

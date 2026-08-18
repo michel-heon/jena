@@ -47,6 +47,16 @@ hs_err_*
 # Fuseki file area
 run/
 
+# Local GraphRAG provider credentials
+jena-graphrag-integration-tests/env/.env
+jena-graphrag-integration-tests/env/.env.user
+jena-graphrag-integration-tests/env/generated/
+jena-graphrag-tutorial/env/.env
+jena-graphrag-tutorial/env/.env.user
+jena-graphrag-tutorial/env/generated/
+jena-graphrag-tutorial/data/pdf-corpus.ttl
+
 # Benchmark JSON results
 jena-benchmarks/jena-benchmarks-jmh/*.json
 
+jena-graphrag-integration-tests/docs/images/9-Types-of-API-Testing.gif:Zone.Identifier

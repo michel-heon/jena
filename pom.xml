@@ -244,8 +244,12 @@
 
     <profile>
       <id>graphrag</id>
+      <!-- AI contributors: ADR 602 defines the root Makefile as the public orchestrator
+           for GraphRAG integration tests; keep Maven focused on building and running JUnit. -->
       <modules>
         <module>jena-graphrag</module>
+        <module>jena-graphrag-tutorial</module>
+        <module>jena-graphrag-integration-tests</module>
       </modules>
     </profile>
 

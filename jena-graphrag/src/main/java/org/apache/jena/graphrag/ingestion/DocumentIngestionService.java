@@ -113,6 +113,25 @@ public class DocumentIngestionService {
         return vectorizationService.vectorize(dataset);
     }
 
+    /**
+     * Ingests a PDF, then enriches its chunks into GraphRAG entities, relationships, and communities.
+     * <p>
+     * Enrichment is explicit because its concrete extractors may use external providers.
+     *
+     * @param pdfPath path to the PDF file (must be readable)
+     * @param dataset target Jena dataset (must support transactions)
+     * @param extractionService service used to create semantic graph resources
+     * @return summary of the chunks and semantic graph resources processed
+     */
+    public ChunkExtractionService.Result ingestAndExtract(
+            Path pdfPath, Dataset dataset, ChunkExtractionService extractionService) {
+        if (extractionService == null)
+            throw new IllegalArgumentException("extractionService must not be null");
+
+        ingest(pdfPath, dataset);
+        return extractionService.enrich(dataset);
+    }
+
     private Model toModel(Path pdfPath, String sourceHash, List<TextChunker.TextChunk> chunks) {
         Model model = ModelFactory.createDefaultModel();
         String hashPrefix = sourceHash.substring(0, 32);

@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,11 +42,17 @@ import org.apache.jena.atlas.json.JsonException;
 import org.apache.jena.atlas.json.JsonObject;
 import org.apache.jena.atlas.json.JsonValue;
 import org.apache.jena.fuseki.main.FusekiServer;
-import org.apache.jena.fuseki.main.sys.FusekiModule;
+import org.apache.jena.fuseki.main.sys.FusekiAutoModule;
+import org.apache.jena.graphrag.index.ChunkVectorIndexer;
+import org.apache.jena.graphrag.index.CommunityReportVectorIndexer;
 import org.apache.jena.graphrag.index.GraphRAGAssembler;
 import org.apache.jena.graphrag.index.GraphRAGAssemblerVocab;
 import org.apache.jena.graphrag.index.GraphRAGIndex;
+import org.apache.jena.graphrag.ingestion.ChunkVectorizationService;
+import org.apache.jena.graphrag.ingestion.CommunityReportVectorizationService;
 import org.apache.jena.graphrag.provider.MockChatCompletionProvider;
+import org.apache.jena.graphrag.retrieval.GraphRAGContextService;
+import org.apache.jena.graphrag.retrieval.CommunityReportVectorSearchService;
 import org.apache.jena.graphrag.retrieval.GraphRAGSearchService;
 import org.apache.jena.fuseki.servlets.ActionREST;
 import org.apache.jena.fuseki.servlets.HttpAction;
@@ -78,28 +83,36 @@ import org.apache.jena.web.HttpSC;
  * model contains {@code grag:enableGraphRAG true}. The current processors expose
  * context, hybrid search and Phase 4 operator endpoints.
  */
-public final class GraphRAGModule implements FusekiModule {
+public final class GraphRAGModule implements FusekiAutoModule {
 
     /** Namespace for GraphRAG Fuseki configuration terms such as {@code enableGraphRAG}. */
     public static final String CONFIG_NS = GraphRAGAssemblerVocab.uri;
 
     private final BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGSearchAction> searchActionFactory;
     private final BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGAnswerAction> answerActionFactory;
+    private final BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGContextAction> contextActionFactory;
     private final List<GraphRAGIndex> configuredIndexes = new ArrayList<>();
 
     /** Constructor used by Java SPI; configuration remains opt-in. */
     public GraphRAGModule() {
-        this(GraphRAGSearchAction::new, null);
+        this(GraphRAGSearchAction::new, null, null);
     }
 
     GraphRAGModule(BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGSearchAction> searchActionFactory) {
-        this(searchActionFactory, null);
+        this(searchActionFactory, null, null);
     }
 
     GraphRAGModule(BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGSearchAction> searchActionFactory,
                    BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGAnswerAction> answerActionFactory) {
+        this(searchActionFactory, answerActionFactory, null);
+    }
+
+    GraphRAGModule(BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGSearchAction> searchActionFactory,
+                   BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGAnswerAction> answerActionFactory,
+                   BiFunction<DatasetGraph, GraphRAGConfiguration, GraphRAGContextAction> contextActionFactory) {
         this.searchActionFactory = Objects.requireNonNull(searchActionFactory);
         this.answerActionFactory = answerActionFactory;
+        this.contextActionFactory = contextActionFactory;
     }
 
     @Override
@@ -119,8 +132,8 @@ public final class GraphRAGModule implements FusekiModule {
             GraphRAGTaskService taskService = new GraphRAGTaskService(configuration.maxActiveTasks(),
                     configuration.maxRetainedCompletedTasks());
             GraphRAGIndexingService indexingService = new GraphRAGIndexingService(indexingDataset(datasetGraph), taskService,
-                configuration);
-            builder.addProcessor(name + "/graphrag/context", new GraphRAGContextAction(datasetGraph, configuration));
+                configuration, configuredIndex());
+            builder.addProcessor(name + "/graphrag/context", contextAction(datasetGraph, configuration));
             builder.addProcessor(name + "/graphrag/search", searchAction(datasetGraph, configuration));
             builder.addProcessor(name + "/graphrag/answer", answerActionFactory == null
                     ? answerAction(datasetGraph, configuration)
@@ -179,7 +192,25 @@ public final class GraphRAGModule implements FusekiModule {
         GraphRAGSearchService searchService = new GraphRAGSearchService(index.textIndex(), index.vectorIndex(),
             index.embeddingProvider(), index.vectorDimension());
         DatasetGraph searchDatasetGraph = searchService.attachTextIndex(datasetGraph);
-        return new GraphRAGAnswerAction(searchDatasetGraph, configuration, searchService, index.chatCompletionProvider());
+        CommunityReportVectorSearchService communitySearchService = new CommunityReportVectorSearchService(
+            index.communityVectorIndex(), index.embeddingProvider(), index.vectorDimension());
+        return new GraphRAGAnswerAction(searchDatasetGraph, configuration, searchService, index.chatCompletionProvider(),
+            new GraphRAGContextService(searchService, communitySearchService));
+    }
+
+    private synchronized GraphRAGContextAction contextAction(DatasetGraph datasetGraph, GraphRAGConfiguration configuration) {
+        if ( contextActionFactory != null )
+            return contextActionFactory.apply(datasetGraph, configuration);
+        if ( configuredIndexes.isEmpty() )
+            return new GraphRAGContextAction(datasetGraph, configuration);
+        GraphRAGIndex index = configuredIndexes.getFirst();
+        GraphRAGSearchService searchService = new GraphRAGSearchService(index.textIndex(), index.vectorIndex(),
+                index.embeddingProvider(), index.vectorDimension());
+        DatasetGraph searchDatasetGraph = searchService.attachTextIndex(datasetGraph);
+        CommunityReportVectorSearchService communitySearchService = new CommunityReportVectorSearchService(
+            index.communityVectorIndex(), index.embeddingProvider(), index.vectorDimension());
+        return new GraphRAGContextAction(searchDatasetGraph, configuration,
+            new GraphRAGContextService(searchService, communitySearchService));
     }
 
     private synchronized GraphRAGSearchAction searchAction(DatasetGraph datasetGraph, GraphRAGConfiguration configuration) {
@@ -198,6 +229,10 @@ public final class GraphRAGModule implements FusekiModule {
             return base;
         TextIndex textIndex = configuredIndexes.getFirst().textIndex();
         return TextDatasetFactory.create(base, textIndex, true);
+    }
+
+    private synchronized GraphRAGIndex configuredIndex() {
+        return configuredIndexes.isEmpty() ? null : configuredIndexes.getFirst();
     }
 }
 
@@ -362,6 +397,11 @@ final class GraphRAGStatusAction extends ActionREST {
             builder.pair("completedAt", task.completedAt().toString());
         if ( task.error() != null )
             builder.key("error").startObject().pair("message", task.error()).finishObject();
+        builder.key("progress").startObject()
+               .pair("totalChunks", task.progress().totalChunks())
+               .pair("chunksIndexed", task.progress().chunksIndexed())
+               .pair("percentComplete", task.progress().percentComplete(task.status()))
+               .finishObject();
         builder.finishObject();
         return builder.build();
     }
@@ -393,11 +433,18 @@ final class GraphRAGConfigAction extends ActionREST {
                .value("basic")
                .value("local")
                .value("global")
+               .value(GraphRAGContextService.DRIFT_MODE)
                .finishArray()
                .pair("defaultMode", configuration.defaultMode())
                .pair("defaultTopK", configuration.defaultTopK())
                .pair("maxTopK", configuration.maxTopK())
                .pair("hybridAlpha", configuration.hybridAlpha())
+               .key("driftLimits").startObject()
+               .pair("communityTopK", configuration.driftCommunityTopK())
+               .pair("maxFollowUps", configuration.driftMaxFollowUps())
+               .pair("contextTokenBudget", configuration.driftContextTokenBudget())
+               .pair("localTopK", configuration.driftLocalTopK())
+               .finishObject()
                .key("limits").startObject()
                .pair("maxIndexContentLength", configuration.maxIndexContentLength())
                .pair("maxActiveTasks", configuration.maxActiveTasks())
@@ -446,19 +493,36 @@ final class GraphRAGIndexingService {
     private final Dataset dataset;
     private final GraphRAGTaskService taskService;
     private final GraphRAGConfiguration configuration;
+    private final GraphRAGIndex graphRAGIndex;
 
     GraphRAGIndexingService(Dataset dataset, GraphRAGTaskService taskService,
                             GraphRAGConfiguration configuration) {
+        this(dataset, taskService, configuration, null);
+    }
+
+    GraphRAGIndexingService(Dataset dataset, GraphRAGTaskService taskService,
+                            GraphRAGConfiguration configuration, GraphRAGIndex graphRAGIndex) {
         this.dataset = Objects.requireNonNull(dataset);
         this.taskService = Objects.requireNonNull(taskService);
         this.configuration = Objects.requireNonNull(configuration);
+        this.graphRAGIndex = graphRAGIndex;
     }
 
     GraphRAGTask submit(GraphRAGIndexRequest request) {
         validate(request);
         GraphRAGTask task = taskService.createTask();
+        taskService.setTotalChunks(task.taskId(), plannedChunkVectorizations());
         CompletableFuture.runAsync(() -> execute(task.taskId(), request));
         return task;
+    }
+
+    private int plannedChunkVectorizations() {
+        if ( graphRAGIndex == null )
+            return 0;
+        ChunkVectorIndexer vectorIndexer = new ChunkVectorIndexer(graphRAGIndex.vectorIndex(),
+                graphRAGIndex.embeddingProvider(), graphRAGIndex.vectorDimension());
+        // The submitted request always creates one new, task-specific chunk.
+        return new ChunkVectorizationService(vectorIndexer).pendingChunkCount(dataset) + 1;
     }
 
     private void validate(GraphRAGIndexRequest request) {
@@ -505,6 +569,19 @@ final class GraphRAGIndexingService {
                 dataset.abort();
             dataset.end();
         }
+        vectorizeChunks(taskId);
+    }
+
+    private void vectorizeChunks(String taskId) {
+        if ( graphRAGIndex == null )
+            return;
+        ChunkVectorIndexer vectorIndexer = new ChunkVectorIndexer(graphRAGIndex.vectorIndex(),
+                graphRAGIndex.embeddingProvider(), graphRAGIndex.vectorDimension());
+        ChunkVectorizationService vectorizationService = new ChunkVectorizationService(vectorIndexer);
+        vectorizationService.vectorize(dataset, ignored -> taskService.incrementChunksIndexed(taskId));
+        CommunityReportVectorIndexer communityVectorIndexer = new CommunityReportVectorIndexer(
+                graphRAGIndex.communityVectorIndex(), graphRAGIndex.embeddingProvider(), graphRAGIndex.vectorDimension());
+        new CommunityReportVectorizationService(communityVectorIndexer).vectorize(dataset);
     }
 }
 

@@ -72,6 +72,8 @@ public final class GraphRAGAssemblerVocab {
     public static final Property timeoutSeconds = model.createProperty(uri + "timeoutSeconds");
     /** Maximum estimated input tokens per provider request. */
     public static final Property maxTokensPerRequest = model.createProperty(uri + "maxTokensPerRequest");
+    /** Name of the environment variable containing an optional chat system prompt. */
+    public static final Property systemPromptEnv = model.createProperty(uri + "systemPromptEnv");
 
     private GraphRAGAssemblerVocab() {}
 }

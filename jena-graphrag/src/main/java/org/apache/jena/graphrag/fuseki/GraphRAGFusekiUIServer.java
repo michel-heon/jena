@@ -24,6 +24,7 @@ package org.apache.jena.graphrag.fuseki;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 import org.apache.jena.fuseki.Fuseki;
 import org.apache.jena.fuseki.main.FusekiServer;
@@ -31,10 +32,13 @@ import org.apache.jena.fuseki.main.sys.FusekiModules;
 import org.apache.jena.fuseki.mgt.ActionDatasets;
 import org.apache.jena.fuseki.mod.admin.ActionServerStatus;
 import org.apache.jena.graphrag.GraphRAGImporter;
+import org.apache.jena.graphrag.index.GraphRAGAssemblerVocab;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
+import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.vocabulary.RDF;
 
 /**
  * Foreground Fuseki server in full UI mode (Fuseki web interface + SPARQL Playground).
@@ -61,7 +65,7 @@ public final class GraphRAGFusekiUIServer {
     /**
      * Starts a Fuseki server with the embedded web UI enabled.
      *
-     * @param args {@code <corpus> <port> <dataset> <true|false>}
+    * @param args {@code <corpus> <port> <dataset> <true|false> [<real-provider-index-directory>]}
      * @throws IllegalArgumentException if any argument is invalid
      * @throws IllegalStateException    if {@code jena-fuseki-ui} is not on the classpath
      */
@@ -94,10 +98,12 @@ public final class GraphRAGFusekiUIServer {
         long tripleCount = GraphRAGImporter.load(settings.corpus(), dataset);
 
         Model config = ModelFactory.createDefaultModel();
+        Resource service = config.createResource("urn:graphrag:ui");
         if ( settings.enabled() ) {
-            config.createResource("urn:graphrag:ui")
-                  .addLiteral(config.createProperty(GraphRAGModule.CONFIG_NS + "enableGraphRAG"), true);
+            service.addLiteral(config.createProperty(GraphRAGModule.CONFIG_NS + "enableGraphRAG"), true);
         }
+        if ( settings.realProviderIndexDirectory() != null )
+            configureRealProviders(config, service, settings.realProviderIndexDirectory(), System.getenv());
 
         FusekiServer server = FusekiServer.create()
                 .port(settings.port())
@@ -117,12 +123,55 @@ public final class GraphRAGFusekiUIServer {
 
     record ServerBootstrap(FusekiServer server, long tripleCount) {}
 
-    record Settings(Path corpus, int port, String datasetName, boolean enabled) {
+    private static void configureRealProviders(Model config, Resource service, Path indexDirectory,
+                                               Map<String, String> environment) {
+        String embeddingModel = requireEnvironment(environment, "GRAPHRAG_EMBEDDING_MODEL");
+        String chatModel = requireEnvironment(environment, "GRAPHRAG_CHAT_MODEL");
+        int embeddingDimension = Integer.parseInt(requireEnvironment(environment, "GRAPHRAG_EMBEDDING_DIMENSION"));
+        requireEnvironment(environment, "GRAPHRAG_EMBEDDING_API_URL");
+        requireEnvironment(environment, "GRAPHRAG_EMBEDDING_API_KEY");
+        requireEnvironment(environment, "OPENAI_API_URL");
+        requireEnvironment(environment, "OPENAI_API_KEY");
+        if ( environment.containsKey("GRAPHRAG_SYSTEM_PROMPT") && !environment.get("GRAPHRAG_SYSTEM_PROMPT").isBlank() )
+            service.addLiteral(GraphRAGAssemblerVocab.systemPromptEnv, "GRAPHRAG_SYSTEM_PROMPT");
+
+        Resource index = config.createResource("urn:graphrag:ui:real:index")
+                .addProperty(RDF.type, GraphRAGAssemblerVocab.GraphRAGIndex)
+                .addProperty(GraphRAGAssemblerVocab.textIndexDir, indexDirectory.resolve("text").toString())
+                .addProperty(GraphRAGAssemblerVocab.vectorIndexDir, indexDirectory.resolve("vector").toString())
+                .addLiteral(GraphRAGAssemblerVocab.vectorDimension, embeddingDimension);
+        index.addProperty(GraphRAGAssemblerVocab.embeddingProvider,
+                provider(config, GraphRAGAssemblerVocab.HttpEmbeddingProvider, "GRAPHRAG_EMBEDDING_API_URL",
+                         "GRAPHRAG_EMBEDDING_API_KEY", embeddingModel));
+        index.addProperty(GraphRAGAssemblerVocab.chatProvider,
+                provider(config, GraphRAGAssemblerVocab.HttpChatCompletionProvider, "OPENAI_API_URL",
+                         "OPENAI_API_KEY", chatModel));
+        service.addProperty(GraphRAGAssemblerVocab.graphragIndex, index);
+    }
+
+    private static Resource provider(Model config, Resource type, String endpointEnvironment,
+                                     String apiKeyEnvironment, String modelName) {
+        return config.createResource().addProperty(RDF.type, type)
+                .addLiteral(GraphRAGAssemblerVocab.allowExternalCalls, true)
+                .addLiteral(GraphRAGAssemblerVocab.endpointEnv, endpointEnvironment)
+                .addLiteral(GraphRAGAssemblerVocab.apiKeyEnv, apiKeyEnvironment)
+                .addLiteral(GraphRAGAssemblerVocab.modelName, modelName)
+                .addLiteral(GraphRAGAssemblerVocab.timeoutSeconds, 60);
+    }
+
+    private static String requireEnvironment(Map<String, String> environment, String name) {
+        String value = environment.get(name);
+        if ( value == null || value.isBlank() )
+            throw new IllegalArgumentException("Variable de fournisseur requise absente: " + name);
+        return value;
+    }
+
+    record Settings(Path corpus, int port, String datasetName, boolean enabled, Path realProviderIndexDirectory) {
 
         static Settings parse(String[] args) {
-            if ( args.length != 4 )
+            if ( args.length != 4 && args.length != 5 )
                 throw new IllegalArgumentException(
-                        "Usage: GraphRAGFusekiUIServer <corpus> <port> <dataset> <true|false>");
+                        "Usage: GraphRAGFusekiUIServer <corpus> <port> <dataset> <true|false> [<real-provider-index-directory>]");
             int port;
             try {
                 port = Integer.parseInt(args[1]);
@@ -135,7 +184,10 @@ public final class GraphRAGFusekiUIServer {
                 throw new IllegalArgumentException("Nom de dataset invalide: " + args[2]);
             if ( !"true".equals(args[3]) && !"false".equals(args[3]) )
                 throw new IllegalArgumentException("Activation invalide: " + args[3]);
-            return new Settings(Path.of(args[0]), port, args[2], Boolean.parseBoolean(args[3]));
+            if ( args.length == 5 && !Boolean.parseBoolean(args[3]) )
+                throw new IllegalArgumentException("Les fournisseurs reels exigent GraphRAG actif");
+            return new Settings(Path.of(args[0]), port, args[2], Boolean.parseBoolean(args[3]),
+                                args.length == 5 ? Path.of(args[4]) : null);
         }
     }
 }
