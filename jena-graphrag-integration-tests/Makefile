@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-.PHONY: bootstrap-real-providers disabled-graphrag-smoke exhaustive-smoke help real-providers real-providers-smoke report smoke ultimate-pdf-corpus-smoke
+.PHONY: bootstrap-real-providers disabled-graphrag-smoke exhaustive-smoke help real-providers real-providers-smoke report smoke tutorial-mode-guards ultimate-pdf-corpus-smoke
 
 PLAYWRIGHT_REPORT_PORT ?= 9323
 
@@ -33,6 +33,18 @@ real-providers-smoke: bootstrap-real-providers ## Run the real-provider Fuseki U
 
 ultimate-pdf-corpus-smoke: bootstrap-real-providers ## Ingest all PDF corpus files and run five cited real-provider chats
 	@GRAPHRAG_SMOKE_REAL_PROVIDERS=true GRAPHRAG_SMOKE_ULTIMATE=true ./scripts/graphrag-integration-fuseki-smoke.sh
+
+tutorial-mode-guards: ## Verify local and remote Fuseki target safety guards
+	@set -eu; \
+	if output=$$($(MAKE) -C ../jena-graphrag-tutorial FUSEKI_MANAGED_LOCALLY=false fuseki-start-basic 2>&1); then \
+		echo 'Expected local Fuseki target to be rejected in remote mode.' >&2; exit 1; \
+	fi; \
+	case "$$output" in *'set FUSEKI_MANAGED_LOCALLY=true'*) ;; *) printf '%s\n' "$$output" >&2; exit 1 ;; esac; \
+	if output=$$($(MAKE) -C ../jena-graphrag-tutorial FUSEKI_MANAGED_LOCALLY=true fuseki-dataset-create 2>&1); then \
+		echo 'Expected remote dataset creation to be rejected in local mode.' >&2; exit 1; \
+	fi; \
+	case "$$output" in *'set FUSEKI_MANAGED_LOCALLY=false'*) ;; *) printf '%s\n' "$$output" >&2; exit 1 ;; esac; \
+	echo 'Fuseki local/remote safety guards verified.'
 
 disabled-graphrag-smoke: ## Run the Fuseki UI Playwright smoke suite with GraphRAG disabled
 	@GRAPHRAG_SMOKE_DISABLE_GRAPH_RAG=true ./scripts/graphrag-integration-fuseki-smoke.sh
