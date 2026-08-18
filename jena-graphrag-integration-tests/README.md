@@ -143,6 +143,20 @@ mvn -Pgraphrag -pl jena-graphrag-integration-tests -Dtest=TestGraphRAGFusekiCont
 
 The same command includes the tranche-8 indexing progress contract.
 
+To execute the tranche-9 enriched-corpus qualification with real providers:
+
+```bash
+make -C jena-graphrag-integration-tests real-providers
+```
+
+The opt-in suite loads the versioned `citation-graph.ttl` fixture, indexes a
+new chunk with the configured embedding provider, and qualifies `basic`,
+`local`, `global`, and `drift` context and answer citations. Its second
+scenario overrides the DRIFT limits to `communityTopK=1`, `maxFollowUps=1`,
+`contextTokenBudget=64`, and `localTopK=1`, verifies the published configuration
+and observed response bounds, then restores the JVM properties. It uses real
+embedding and chat providers, can consume quota, and never prints their values.
+
 To execute the tranche-4 real-provider qualification:
 
 ```bash
