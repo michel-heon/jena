@@ -141,6 +141,7 @@ Le répertoire source consulté le 2026-08-08 ne contient aucun ADR-001. Aucun d
 | [600](./600-DEVOPS-bootstrap-configuration-fournisseurs-reels.md) | Bootstrap de configuration des fournisseurs externes | Accepte | 2026-08-10 | DevOps |
 | [601](./601-DEVOPS-nomenclature-scripts.md) | Nomenclature des cibles et scripts d'intégration GraphRAG | Accepté | 2026-08-08 | DevOps |
 | [602](./602-DEVOPS-makefile-orchestrateur.md) | Makefile racine comme orchestrateur des tests d'intégration GraphRAG | Accepté | 2026-08-08 | DevOps |
+| [603](./603-DEVOPS-nomenclature-tags-git.md) | Nomenclature des tags Git du fork jena-graphrag | Proposé | 2026-09-02 | DevOps |
 | [608](./608-DEVOPS-non-duplication-fonctionnelle-transversale.md) | Non-duplication fonctionnelle dans la qualification GraphRAG | Accepté | 2026-08-08 | DevOps |
 
 ### TEST - Stratégie et qualification (700-799)
@@ -159,12 +160,12 @@ Le répertoire source consulté le 2026-08-08 ne contient aucun ADR-001. Aucun d
 
 | Indicateur | Valeur |
 |------------|--------|
-| **Total** | 15 |
+| **Total** | 16 |
 | **Acceptés** | 14 |
-| **Proposés** | 1 |
+| **Proposés** | 2 |
 | **Brouillons** | 0 |
 | **Dépréciés ou supersédés** | 0 |
-| **Par domaine** | META : 3, ARCH : 1, DATA : 4, API : 1, DEVOPS : 4, TEST : 1, DOC : 1 |
+| **Par domaine** | META : 3, ARCH : 1, DATA : 4, API : 1, DEVOPS : 5, TEST : 1, DOC : 1 |
 
 ## Numérotation
 
@@ -176,7 +177,7 @@ Le répertoire source consulté le 2026-08-08 ne contient aucun ADR-001. Aucun d
 | `SEC` | 300-399 | Sécurité et isolation | 300 |
 | `DATA` | 400-499 | Corpus, fixtures et index | 404 |
 | `API` | 500-599 | Contrats HTTP, Fuseki et SPARQL | 501 |
-| `DEVOPS` | 600-699 | CI et automatisation | 603 |
+| `DEVOPS` | 600-699 | CI et automatisation | 604 |
 | `TEST` | 700-799 | Stratégie et qualification | 701 |
 | `BIZ` | 800-899 | Critères produit et livraison | 800 |
 | `DOC` | 900-999 | Documentation | 901 |
@@ -203,4 +204,4 @@ Le répertoire source consulté le 2026-08-08 ne contient aucun ADR-001. Aucun d
 - [Documentation Apache Jena](https://jena.apache.org/documentation/)
 - [Architecture Decision Records](https://adr.github.io/)
 
-_Dernière mise à jour : 2026-08-12_
+_Dernière mise à jour : 2026-09-02_
