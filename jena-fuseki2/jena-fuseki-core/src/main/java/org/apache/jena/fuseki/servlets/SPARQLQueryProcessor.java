@@ -44,6 +44,7 @@ import org.apache.jena.atlas.web.ContentType;
 import org.apache.jena.fuseki.Fuseki;
 import org.apache.jena.fuseki.system.FusekiNetLib;
 import org.apache.jena.graph.Graph;
+import org.apache.jena.http.HttpMethod;
 import org.apache.jena.query.*;
 import org.apache.jena.riot.web.HttpNames;
 import org.apache.jena.sparql.core.DatasetGraph;
@@ -72,7 +73,8 @@ public abstract class SPARQLQueryProcessor extends ActionService
 
     @Override
     public void execOptions(HttpAction action) {
-        ActionLib.doOptionsGetPost(action);
+        ActionLib.setCommonHeadersForOptions(action);
+        action.setResponseHeader(HttpNames.hAllow, "HEAD,GET,QUERY,POST,OPTIONS");
         ServletOps.success(action);
     }
 
@@ -84,6 +86,10 @@ public abstract class SPARQLQueryProcessor extends ActionService
     }
 
     @Override public void execPost(HttpAction action) {
+        executeLifecycle(action);
+    }
+
+    @Override public void execQuery(HttpAction action) {
         executeLifecycle(action);
     }
 
@@ -116,13 +122,17 @@ public abstract class SPARQLQueryProcessor extends ActionService
     public void validate(HttpAction action) {
         String method = uppercase(action.getRequestMethod());
 
-        if ( HttpNames.METHOD_OPTIONS.equals(method) )
+        if ( HttpMethod.METHOD_OPTIONS.equals(method) )
             return;
 
-        if ( !HttpNames.METHOD_POST.equals(method) && !HttpNames.METHOD_GET.equals(method) )
-            ServletOps.errorMethodNotAllowed("Not a GET or POST request");
+        switch(method) {
+            case HttpMethod.METHOD_POST, HttpMethod.METHOD_GET,HttpMethod.METHOD_QUERY -> {}
+            default -> {
+                ServletOps.errorMethodNotAllowed("Not a GET, POST or QUERY request");
+            }
+        }
 
-        if ( HttpNames.METHOD_GET.equals(method) && action.getRequestQueryString() == null ) {
+        if ( HttpMethod.METHOD_GET.equals(method) && action.getRequestQueryString() == null ) {
             ServletOps.warning(action, "Service Description / SPARQL Query / " + action.getRequestRequestURI());
             ServletOps.errorNotFound("Service Description: " + action.getRequestRequestURI());
         }
@@ -135,7 +145,7 @@ public abstract class SPARQLQueryProcessor extends ActionService
         } catch (ActionErrorException ex) {
             throw ex;
         }
-        // Query not yet parsed.
+        // Query has not yet been parsed.
     }
 
     /**
@@ -154,8 +164,6 @@ public abstract class SPARQLQueryProcessor extends ActionService
         ContentType ct = FusekiNetLib.getContentType(request);
         boolean mustHaveQueryParam = true;
         if ( ct != null ) {
-            String incoming = ct.getContentTypeStr();
-
             if ( matchContentType(ctSPARQLQuery, ct) ) {
                 mustHaveQueryParam = false;
                 // Drop through.
@@ -163,7 +171,7 @@ public abstract class SPARQLQueryProcessor extends ActionService
                 // Nothing specific to do
             }
             else
-                ServletOps.error(HttpSC.UNSUPPORTED_MEDIA_TYPE_415, "Unsupported: " + incoming);
+                ServletOps.error(HttpSC.UNSUPPORTED_MEDIA_TYPE_415, "Unsupported: " + ct);
         }
 
         // GET/POST of a form at this point.
@@ -198,7 +206,7 @@ public abstract class SPARQLQueryProcessor extends ActionService
     @Override
     public final void execute(HttpAction action) {
         // GET
-        if ( action.getRequestMethod().equals(HttpNames.METHOD_GET) ) {
+        if ( action.getRequestMethod().equals(HttpMethod.METHOD_GET) ) {
             executeWithParameter(action);
             return;
         }

@@ -26,7 +26,7 @@ import org.apache.jena.fuseki.main.runner.FusekiRunner;
 
 /**
  * Fuseki command that runs a Fuseki server with all function except with UI.
- * Shiro must be configured using the command line {@code --shiro=...}
+ * Shiro is configured using the command line {@code --shiro=...}
  * or using environment {@code FUSEKI_SHIRO}.
  * <p>
  * Use {@code --conf=} for multiple datasets and specific service names.
@@ -44,4 +44,3 @@ public class FusekiServerPlainCmd {
         RunFuseki.run(args, FusekiRunner::execServerPlain);
     }
 }
-

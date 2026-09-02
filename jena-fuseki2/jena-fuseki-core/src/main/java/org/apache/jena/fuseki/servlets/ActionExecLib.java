@@ -35,6 +35,7 @@ import org.apache.jena.atlas.web.HttpException;
 import org.apache.jena.fuseki.Fuseki;
 import org.apache.jena.fuseki.server.*;
 import org.apache.jena.fuseki.system.ActionCategory;
+import org.apache.jena.http.HttpMethod;
 import org.apache.jena.query.QueryCancelledException;
 import org.apache.jena.query.QueryDeniedException;
 import org.apache.jena.riot.web.HttpNames;
@@ -84,9 +85,7 @@ public class ActionExecLib {
      * for special case like {@link SPARQL_QueryGeneral} which directly holds the {@link ActionProcessor}
      * and {@link ServletProcessor} for administration actions.
      * <p>For execution choosing the processor from the data access point
-     * See {@link #execAction(HttpAction, Supplier)}
-     *
-     * @returns false if the ActionProcessor is not found.
+     * See {@link #execAction(HttpAction, Supplier)}.
      */
     public static void execAction(HttpAction action, ActionProcessor processor) {
         boolean b = execAction(action, ()->processor);
@@ -109,8 +108,8 @@ public class ActionExecLib {
      * servlet directly outside the Fuseki dispatch process ({@link ServletAction}
      * for special case like {@link SPARQL_QueryGeneral} which directly holds the {@link ActionProcessor}
      * and {@link ServletProcessor} for administration actions.
-     *
-     * @returns false if the ActionProcessor is not found.
+     * <p>
+     * Return false if the ActionProcessor is not found.
      */
     public static boolean execAction(HttpAction action, Supplier<ActionProcessor> processorSelector) {
         try {
@@ -333,7 +332,7 @@ public class ActionExecLib {
         ActionLib.setCommonHeaders(action);
         String method = action.getRequestMethod();
         // All GET and HEAD operations are sensitive to conneg so ...
-        if ( HttpNames.METHOD_GET.equalsIgnoreCase(method) || HttpNames.METHOD_HEAD.equalsIgnoreCase(method) )
+        if ( HttpMethod.METHOD_GET.equalsIgnoreCase(method) || HttpMethod.METHOD_HEAD.equalsIgnoreCase(method) )
             ServletBase.setVaryHeader(action.getResponse());
     }
 

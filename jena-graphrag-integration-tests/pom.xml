@@ -60,6 +60,20 @@
     </dependency>
   </dependencies>
 
+  <build>
+    <testResources>
+      <testResource>
+        <directory>src/test/resources</directory>
+      </testResource>
+      <testResource>
+        <directory>${project.basedir}/../jena-graphrag-tutorial/src/main/resources</directory>
+        <includes>
+          <include>corpus/ingestion/pdf/**</include>
+        </includes>
+      </testResource>
+    </testResources>
+  </build>
+
   <profiles>
     <profile>
       <id>graphrag-real-providers</id>

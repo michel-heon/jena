@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Node
         uses: actions/setup-node@v6.4.0
@@ -69,7 +69,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Node
         uses: actions/setup-node@v6.4.0
@@ -78,7 +78,7 @@ jobs:
           node-version: 'lts/*'
 
       - name: Test (E2E)
-        uses: cypress-io/github-action@v7.3.0
+        uses: cypress-io/github-action@v7.4.0
         env:
           BASE_URL: http://localhost:8080/
           FUSEKI_URL: http://localhost:3030/

@@ -22,11 +22,7 @@
 package org.apache.jena.http;
 
 import static org.apache.jena.http.HttpLib.*;
-import static org.apache.jena.http.Push.PATCH;
-import static org.apache.jena.http.Push.POST;
-import static org.apache.jena.http.Push.PUT;
-import static org.apache.jena.riot.web.HttpNames.METHOD_HEAD;
-import static org.apache.jena.riot.web.HttpNames.METHOD_OPTIONS;
+import static org.apache.jena.http.HttpMethod.*;
 
 import java.io.InputStream;
 import java.net.Authenticator;
@@ -270,6 +266,7 @@ public class HttpOp {
     }
 
     // ---- POST stream response.
+    // The URL may have a query string.
 
     /** POST - the application MUST close the InputStream.*/
     public static TypedInputStream httpPostStream(String url) {
@@ -291,7 +288,7 @@ public class HttpOp {
         return execPostStream(httpClient, url, acceptHeader);
     }
 
-    /** POST(URL) -> InputStream+Content-Type. The application MUST close the InputStream. */
+    /** POST(URL), no body -> InputStream+Content-Type. The application MUST close the InputStream. */
     private static TypedInputStream execPostStream(HttpClient httpClient, String url, String acceptHeader) {
         return execPostStream(httpClient, url, null, null, acceptHeader);
     }
@@ -323,15 +320,19 @@ public class HttpOp {
         return execPostStream(httpClient, url, contentType, bodyContent, acceptHeader);
     }
 
-    /** POST(URL), with a body -> InputStream+Content-Type. The application MUST close the InputStream. */
     private static TypedInputStream execPostStream(HttpClient httpClient, String url, String contentType, BodyPublisher bodyPublisher, String acceptHeader) {
+        return execStream(httpClient, url, HttpMethod.POST, contentType, bodyPublisher, acceptHeader);
+    }
+
+    /** QUERY/POST/PATCH(URL), with a body -> InputStream+Content-Type. The application MUST close the InputStream. */
+    private static TypedInputStream execStream(HttpClient httpClient, String url, HttpMethod method, String contentType, BodyPublisher bodyPublisher, String acceptHeader) {
         acceptHeader = HttpLib.dft(acceptHeader, "*/");
         if ( bodyPublisher == null )
             bodyPublisher = BodyPublishers.noBody();
         HttpRequest.Builder builder = HttpLib.requestBuilderFor(url).uri(toRequestURI(url));
         HttpLib.contentTypeHeader(builder, contentType);
         HttpLib.acceptHeader(builder, acceptHeader);
-        HttpRequest request = builder.POST(bodyPublisher).build();
+        HttpRequest request = builder.method(method.method(), bodyPublisher).build();
         HttpResponse<InputStream> response = HttpLib.execute(httpClient, request);
         return HttpLib.handleResponseTypedInputStream(response);
     }
@@ -354,6 +355,26 @@ public class HttpOp {
         execPushData(httpClient, PUT, url, contentType, body);
     }
 
+    // ---- QUERY
+
+    /** QUERY
+     *
+     */
+    /** Perform an HTTP QUERY to a URL. No body. The application MUST close the InputStream. */
+    public static TypedInputStream httpQueryStream(String url, String acceptHeader) {
+        return httpQueryStream(HttpEnv.getHttpClient(url), url, null, null, acceptHeader);
+    }
+
+    /** QUERY (HTTP method), with a HTTP body - the application MUST close the InputStream.*/
+    public static TypedInputStream httpQueryStream(String url, String contentType, BodyPublisher bodyPublisher, String acceptHeader) {
+        return httpQueryStream(HttpEnv.getHttpClient(url), url, contentType, bodyPublisher, acceptHeader);
+    }
+
+    /** QUERY (HTTP method), with a HTTP body - the application MUST close the InputStream.*/
+    public static TypedInputStream httpQueryStream(HttpClient httpClient, String url, String contentType, BodyPublisher bodyPublisher, String acceptHeader) {
+        return execStream(httpClient, url, HttpMethod.QUERY, contentType, bodyPublisher, acceptHeader);
+    }
+
     // ---- PATCH
 
     /** PATCH
@@ -370,12 +391,12 @@ public class HttpOp {
      * @see BodyPublishers#ofString
      */
     public static void httpPatch(HttpClient httpClient, String url, String contentType, BodyPublisher body) {
-        execPushData(httpClient, PATCH, url, contentType, body);
+        execPushData(httpClient, PATCH,  url, contentType, body);
     }
 
     /** Push data. POST, PUT, PATCH request with no response body data. */
-    private static void execPushData(HttpClient httpClient, Push style, String url, String contentType, BodyPublisher body) {
-        HttpLib.httpPushData(httpClient, style, url, setContentTypeHeader(contentType), body);
+    private static void execPushData(HttpClient httpClient, HttpMethod method, String url, String contentType, BodyPublisher body) {
+        HttpLib.httpPushData(httpClient, method, url, setContentTypeHeader(contentType), body);
     }
 
     // ---- DELETE
@@ -408,7 +429,7 @@ public class HttpOp {
     public static String httpOptions(HttpClient httpClient, String url) {
         // Need to access the response headers
         HttpRequest.Builder builder =
-                HttpLib.requestBuilderFor(url).uri(toRequestURI(url)).method(METHOD_OPTIONS, BodyPublishers.noBody());
+                HttpLib.requestBuilderFor(url).uri(toRequestURI(url)).method(OPTIONS.method(), BodyPublishers.noBody());
         HttpRequest request = builder.build();
         HttpResponse<InputStream> response = execute(httpClient, request);
         String allowValue = HttpLib.responseHeader(response, HttpNames.hAllow);
@@ -452,7 +473,7 @@ public class HttpOp {
      */
     public static String httpHead(HttpClient httpClient, String url, String acceptHeader) {
         HttpRequest.Builder builder =
-                HttpLib.requestBuilderFor(url).uri(toRequestURI(url)).method(METHOD_HEAD, BodyPublishers.noBody());
+                HttpLib.requestBuilderFor(url).uri(toRequestURI(url)).method(HEAD.method(), BodyPublishers.noBody());
         HttpLib.acceptHeader(builder, acceptHeader);
         HttpRequest request = builder.build();
         HttpResponse<InputStream> response = execute(httpClient, request);
