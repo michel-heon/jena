@@ -19,32 +19,24 @@
  *   SPDX-License-Identifier: Apache-2.0
  */
 
-package org.apache.jena.sparql.path ;
+package org.apache.jena.fuseki.main.cmds;
 
-import org.apache.jena.sparql.util.NodeIsomorphismMap ;
+import org.apache.jena.fuseki.main.FusekiMain;
+import org.apache.jena.fuseki.main.runner.FusekiRunner;
 
-public class P_ZeroOrOne extends P_Path1 {
-    public P_ZeroOrOne(Path path) {
-        super(path) ;
-    }
-
-    @Override
-    public boolean equalTo(Path path2, NodeIsomorphismMap isoMap) {
-        if ( path2 instanceof P_ZeroOrOne other )
-            return getSubPath().equalTo(other.getSubPath(), isoMap) ;
-        return false ;
-    }
-
-    @Override
-    public int hashCode() {
-        return hashZeroOrOne ^ getSubPath().hashCode() ;
-    }
-
-    @Override
-    public boolean hasZeroLengthComponent() { return true; }
-
-    @Override
-    public void visit(PathVisitor visitor) {
-        visitor.visit(this) ;
+/** Fuseki command that runs a minimal Fuseki server. No addition modules, no UI.
+ * <p>
+ * Use {@code --conf=} for multiple datasets and specific service names.
+ * <p>
+ * The command line dataset setup only supports a single dataset.
+ */
+public class FusekiServerBasicCmd {
+    /**
+     * Build and run, a server based on command line syntax. This operation does not
+     * return. See {@link FusekiMain#build} to build a server using command line
+     * syntax but not start it.
+     */
+    static public void main(String... args) {
+        RunFuseki.run(args, FusekiRunner::execBasic);
     }
 }

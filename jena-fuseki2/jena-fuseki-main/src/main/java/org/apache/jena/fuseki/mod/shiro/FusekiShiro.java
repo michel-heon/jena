@@ -38,8 +38,9 @@ import org.slf4j.LoggerFactory;
     public static final Logger shiroLog = LoggerFactory.getLogger(Fuseki.PATH + ".Shiro");
 
     static void shiroEnvironment(ServletContext servletContext, List<String> possibleShiroIniFiles) {
-        // Shiro environment initialization, done here because we don't have webapp listeners.
-        EnvironmentLoaderListener shiroListener = new ShiroEnvironmentLoaderListener(possibleShiroIniFiles);
+        // Shiro environment initialization, done here because
+        // we don't have webapp listeners.
+        EnvironmentLoaderListener shiroListener = new FusekiShiroEnvironmentLoaderListener(possibleShiroIniFiles);
         // Silence these - handle the errors ourselves.
         LogCtl.disable(org.apache.shiro.web.env.IniWebEnvironment.class);
         LogCtl.disable(org.apache.shiro.web.env.EnvironmentLoader.class);
@@ -83,6 +84,9 @@ import org.slf4j.LoggerFactory;
         return null;
     }
 
+    /**
+     * Ensure a filename is formatted the way SHiro wants it.
+     */
     public static String withResourcePrefix(String shiroFileName) {
         if ( shiroFileName.startsWith(fileShiroPrefix) )
             return shiroFileName;
@@ -90,6 +94,9 @@ import org.slf4j.LoggerFactory;
         return fileShiroPrefix+shiroFileName;
     }
 
+    /**
+     * Reverse formatting a file mae. See {@link #withResourcePrefix}.
+     */
     public static String removeResourcePrefix(String shiroFileResource) {
         if ( shiroFileResource.startsWith(fileShiroPrefix) ) {
             // Shiro format resource name.

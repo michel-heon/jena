@@ -34,13 +34,27 @@ import org.apache.shiro.web.env.WebEnvironment;
  * locations for a {@code shiro.ini} file. It will return the first found in a list
  * of possible file names.
  */
-class ShiroEnvironmentLoaderListener extends EnvironmentLoaderListener{
+class FusekiShiroEnvironmentLoaderListener extends EnvironmentLoaderListener{
 
     private List<String> locations;
 
-    /*package*/ ShiroEnvironmentLoaderListener(List<String> locations) {
+    /*package*/ FusekiShiroEnvironmentLoaderListener(List<String> locations) {
         this.locations = locations;
     }
+
+    // Public lifecycle
+//    @Override
+//    public WebEnvironment createEnvironment(ServletContext sc) {
+//        return super.createEnvironment(sc);
+//    }
+//    @Override
+//    public WebEnvironment initEnvironment(ServletContext servletContext) throws IllegalStateException {
+//        return super.initEnvironment(servletContext);
+//    }
+//    @Override
+//    public void destroyEnvironment(ServletContext sc) {
+//        super.destroyEnvironment(sc);
+//    }
 
     /**
      * When given multiple locations for the shiro.ini file, and
@@ -51,8 +65,10 @@ class ShiroEnvironmentLoaderListener extends EnvironmentLoaderListener{
      */
     @Override
     protected void customizeEnvironment(WebEnvironment environment) {
-        if ( locations == null )
+        if ( locations == null ) {
+            super.customizeEnvironment(environment);
             return;
+        }
 
         // Look for shiro.ini
         if ( environment instanceof ResourceBasedWebEnvironment ) {
@@ -74,4 +90,10 @@ class ShiroEnvironmentLoaderListener extends EnvironmentLoaderListener{
             env.setConfigLocations(configLocationsHere);
         }
     }
+
+    // customizeEnvironment/finalizeEnvironment pair
+//    @Override
+//    protected void finalizeEnvironment(WebEnvironment environment) {
+//        super.finalizeEnvironment(environment);
+//    }
 }
