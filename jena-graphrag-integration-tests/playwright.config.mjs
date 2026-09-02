@@ -31,8 +31,8 @@ export default defineConfig({
   outputDir: 'target/playwright/results',
   use: {
     baseURL,
-    trace: 'retain-on-failure',
-    screenshot: 'only-on-failure',
-    video: 'retain-on-failure'
+    trace: process.env.PLAYWRIGHT_TRACE ?? 'retain-on-failure',
+    screenshot: process.env.PLAYWRIGHT_SCREENSHOT ?? 'only-on-failure',
+    video: process.env.PLAYWRIGHT_VIDEO ?? 'retain-on-failure'
   }
 });

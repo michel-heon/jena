@@ -120,7 +120,9 @@ Le scénario positif de `/graphrag/answer` appartient à la cible chat : il exig
 
 - les dépendances Node sont installées depuis le lockfile avec la commande reproductible du gestionnaire retenu ;
 - la version de Playwright et le navigateur sont pilotés par le module ;
-- les traces, captures et vidéos suivent la politique « uniquement à l'échec » définie dans la configuration ;
+- les traces, captures et vidéos suivent par défaut la politique « uniquement à l'échec » définie dans la configuration ;
+- une exécution de qualification peut les activer explicitement avec `PLAYWRIGHT_TRACE=on`, `PLAYWRIGHT_SCREENSHOT=on` et `PLAYWRIGHT_VIDEO=on`, sans modifier la configuration versionnée ni la politique par défaut ;
+- les valeurs de ces variables restent celles acceptées par Playwright ; les artefacts ainsi produits sont locaux, inspectés avant partage et expurgés de toute donnée sensible ;
 - la cible ne crée pas une UI GraphRAG inexistante et ne teste que l'UI effectivement livrée.
 
 ## Alternatives
