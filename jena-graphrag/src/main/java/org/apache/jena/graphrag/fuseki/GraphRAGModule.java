@@ -22,9 +22,12 @@
 package org.apache.jena.graphrag.fuseki;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,6 +38,7 @@ import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
 
+import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.jena.assembler.Assembler;
 import org.apache.jena.atlas.json.JSON;
 import org.apache.jena.atlas.json.JsonBuilder;
@@ -50,6 +54,10 @@ import org.apache.jena.graphrag.index.GraphRAGAssemblerVocab;
 import org.apache.jena.graphrag.index.GraphRAGIndex;
 import org.apache.jena.graphrag.ingestion.ChunkVectorizationService;
 import org.apache.jena.graphrag.ingestion.CommunityReportVectorizationService;
+import org.apache.jena.graphrag.ingestion.DocumentIngestionConfig;
+import org.apache.jena.graphrag.ingestion.DocumentIngestionService;
+import org.apache.jena.graphrag.ingestion.ErrorKind;
+import org.apache.jena.graphrag.ingestion.IngestionException;
 import org.apache.jena.graphrag.provider.MockChatCompletionProvider;
 import org.apache.jena.graphrag.retrieval.GraphRAGContextService;
 import org.apache.jena.graphrag.retrieval.CommunityReportVectorSearchService;
@@ -138,6 +146,7 @@ public final class GraphRAGModule implements FusekiAutoModule {
             builder.addProcessor(name + "/graphrag/answer", answerActionFactory == null
                     ? answerAction(datasetGraph, configuration)
                     : answerActionFactory.apply(datasetGraph, configuration));
+            builder.addProcessor(name + "/graphrag/upload", new GraphRAGUploadAction(datasetGraph));
             builder.addProcessor(name + "/graphrag/index", new GraphRAGIndexAction(indexingService, configuration));
             builder.addProcessor(name + "/graphrag/status", new GraphRAGStatusAction(datasetGraph, taskService));
             builder.addProcessor(name + "/graphrag/config", new GraphRAGConfigAction(configuration));
@@ -290,6 +299,131 @@ final class GraphRAGIndexAction extends ActionREST {
         if ( string.isBlank() )
             throw new GraphRAGBadRequestException("invalid_request", "champ JSON vide: " + field);
         return string;
+    }
+
+    @Override protected void doGet(HttpAction action)     { ServletOps.errorMethodNotAllowed("GET"); }
+    @Override protected void doHead(HttpAction action)    { ServletOps.errorMethodNotAllowed("HEAD"); }
+    @Override protected void doPut(HttpAction action)     { ServletOps.errorMethodNotAllowed("PUT"); }
+    @Override protected void doDelete(HttpAction action)  { ServletOps.errorMethodNotAllowed("DELETE"); }
+    @Override protected void doPatch(HttpAction action)   { ServletOps.errorMethodNotAllowed("PATCH"); }
+    @Override protected void doOptions(HttpAction action) { ServletOps.errorMethodNotAllowed("OPTIONS"); }
+}
+
+final class GraphRAGUploadAction extends ActionREST {
+    private static final String PDF_CONTENT_TYPE = "application/pdf";
+
+    private final Dataset dataset;
+    private final DocumentIngestionConfig ingestionConfig;
+
+    GraphRAGUploadAction(DatasetGraph datasetGraph) {
+        this.dataset = DatasetFactory.wrap(Objects.requireNonNull(datasetGraph));
+        this.ingestionConfig = DocumentIngestionConfig.fromSystemProperties();
+    }
+
+    @Override
+    public void validate(HttpAction action) {}
+
+    @Override
+    protected void doPost(HttpAction action) {
+        if ( !isPdfRequest(action) ) {
+            GraphRAGHttpJson.writeError(action, HttpSC.BAD_REQUEST_400, "invalid_content_type",
+                    "content type requis: " + PDF_CONTENT_TYPE);
+            return;
+        }
+        long declaredLength = action.getRequestContentLengthLong();
+        if ( declaredLength == 0 ) {
+            GraphRAGHttpJson.writeError(action, HttpSC.BAD_REQUEST_400, "missing_file", "corps PDF requis");
+            return;
+        }
+        if ( declaredLength > ingestionConfig.maxFileSizeBytes() ) {
+            GraphRAGHttpJson.writeError(action, HttpSC.PAYLOAD_TOO_LARGE_413, "file_too_large",
+                    "PDF trop volumineux: maximum " + ingestionConfig.maxFileSizeBytes() + " octets");
+            return;
+        }
+
+        Path temporaryPdf = null;
+        try {
+            temporaryPdf = Files.createTempFile("jena-graphrag-upload-", ".pdf");
+            long copied = copyBounded(action.getRequestInputStream(), temporaryPdf, ingestionConfig.maxFileSizeBytes());
+            if ( copied < 0 ) {
+                GraphRAGHttpJson.writeError(action, HttpSC.PAYLOAD_TOO_LARGE_413, "file_too_large",
+                        "PDF trop volumineux: maximum " + ingestionConfig.maxFileSizeBytes() + " octets");
+                return;
+            }
+            if ( copied == 0 ) {
+                GraphRAGHttpJson.writeError(action, HttpSC.BAD_REQUEST_400, "missing_file", "corps PDF requis");
+                return;
+            }
+
+            long triplesBefore = tripleCount();
+            new DocumentIngestionService(ingestionConfig).ingest(temporaryPdf, dataset);
+            long triplesCreated = tripleCount() - triplesBefore;
+                 String documentUri = documentUri(temporaryPdf);
+            JsonBuilder builder = new JsonBuilder();
+            builder.startObject()
+                   .pair("status", "ingested")
+                     .pair("documentUri", documentUri)
+                   .pair("triplesCreated", triplesCreated)
+                   .finishObject();
+            GraphRAGHttpJson.writeJson(action, builder.build(), HttpSC.OK_200);
+        } catch (GraphRAGBadRequestException ex) {
+            GraphRAGHttpJson.writeError(action, HttpSC.BAD_REQUEST_400, ex.code(), ex.getMessage());
+        } catch (IngestionException ex) {
+            GraphRAGHttpJson.writeError(action, HttpSC.BAD_REQUEST_400, errorCode(ex), "PDF invalide");
+        } catch (IOException ex) {
+            GraphRAGHttpJson.writeError(action, HttpSC.BAD_REQUEST_400, "invalid_upload", "upload PDF invalide");
+        } finally {
+            if ( temporaryPdf != null ) {
+                try {
+                    Files.deleteIfExists(temporaryPdf);
+                } catch (IOException ex) {
+                    // The temporary file contains untrusted input and must not affect the response.
+                }
+            }
+        }
+    }
+
+    /** Returns bytes copied, or -1 when the body exceeds {@code maxBytes}. */
+    private static long copyBounded(InputStream input, Path target, long maxBytes) throws IOException {
+        long total = 0;
+        byte[] buffer = new byte[8192];
+        try (OutputStream output = Files.newOutputStream(target)) {
+            int read;
+            while ( (read = input.read(buffer)) != -1 ) {
+                total += read;
+                if ( total > maxBytes )
+                    return -1;
+                output.write(buffer, 0, read);
+            }
+        }
+        return total;
+    }
+
+    private String documentUri(Path pdf) throws IOException {
+        try (InputStream input = Files.newInputStream(pdf)) {
+            return ingestionConfig.baseUri() + "doc-" + DigestUtils.sha256Hex(input).substring(0, 32);
+        }
+    }
+
+    private boolean isPdfRequest(HttpAction action) {
+        String contentType = action.getRequestContentType();
+        if ( contentType == null )
+            return false;
+        String mediaType = contentType.split(";", 2)[0].trim();
+        return PDF_CONTENT_TYPE.equalsIgnoreCase(mediaType);
+    }
+
+    private long tripleCount() {
+        dataset.begin(ReadWrite.READ);
+        try {
+            return dataset.getDefaultModel().size();
+        } finally {
+            dataset.end();
+        }
+    }
+
+    private static String errorCode(IngestionException exception) {
+        return exception.getKind() == ErrorKind.FILE_TOO_LARGE ? "file_too_large" : "invalid_pdf";
     }
 
     @Override protected void doGet(HttpAction action)     { ServletOps.errorMethodNotAllowed("GET"); }
