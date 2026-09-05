@@ -63,7 +63,22 @@ public class TestHttpProviders {
             assertArrayEquals(new float[] { 0.25f, 0.75f }, provider.embed("hello world", 2));
             assertEquals("Bearer " + API_KEY, server.authorization());
             assertEquals("embedding-model", server.requestBody().get("model").getAsString().value());
+            assertEquals(2, server.requestBody().get("dimensions").getAsNumber().value().intValue());
             assertEquals("hello world", server.requestBody().get("input").getAsArray().get(0).getAsString().value());
+        }
+    }
+
+    @Test
+    public void embeddingProvider_normalizesAzureStyleEndpointAndPreservesQueryParameters() throws Exception {
+        try (TestServer server = TestServer.responding(200, "{\"data\":[{\"embedding\":[0.25,0.75]}]}")) {
+            URI azureStyleEndpoint = URI.create(server.uri().toString()
+                    + "/embeddings?api-version=2024-06-01");
+            HttpEmbeddingProvider provider = new HttpEmbeddingProvider(configuration(Duration.ofSeconds(2), 10),
+                    azureStyleEndpoint, "embedding-model", API_KEY);
+
+            assertArrayEquals(new float[] { 0.25f, 0.75f }, provider.embed("hello world", 2));
+            assertEquals("/provider/embeddings", server.requestPath());
+            assertEquals("api-version=2024-06-01", server.requestQuery());
         }
     }
 
@@ -271,6 +286,8 @@ public class TestHttpProviders {
         private final HttpServer server;
         private volatile String authorization;
         private volatile String apiKey;
+        private volatile String requestPath;
+        private volatile String requestQuery;
         private volatile JsonObject requestBody;
 
         static TestServer responding(int status, String responseBody) throws IOException {
@@ -294,6 +311,8 @@ public class TestHttpProviders {
             server.createContext("/provider", exchange -> {
                 authorization = exchange.getRequestHeaders().getFirst("Authorization");
                 apiKey = exchange.getRequestHeaders().getFirst("api-key");
+                requestPath = exchange.getRequestURI().getPath();
+                requestQuery = exchange.getRequestURI().getRawQuery();
                 requestBody = JSON.parse(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
                 handler.handle(exchange);
             });
@@ -310,6 +329,14 @@ public class TestHttpProviders {
 
         String apiKey() {
             return apiKey;
+        }
+
+        String requestPath() {
+            return requestPath;
+        }
+
+        String requestQuery() {
+            return requestQuery;
         }
 
         JsonObject requestBody() {

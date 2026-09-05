@@ -67,6 +67,24 @@ public class TestGraphRAGIndexingService {
     }
 
     @Test
+    public void indexingFailure_keepsGenericPublicTaskError() throws Exception {
+        Dataset dataset = DatasetFactory.createTxnMem();
+        GraphRAGAssembler.init();
+        try (GraphRAGIndex graphRAGIndex = (GraphRAGIndex) Assembler.general().open(indexSpec())) {
+            graphRAGIndex.close();
+            GraphRAGTaskService taskService = new GraphRAGTaskService(1, 10);
+            GraphRAGIndexingService service = new GraphRAGIndexingService(dataset, taskService,
+                    new GraphRAGConfiguration("local", 5, 100, 0.5), graphRAGIndex);
+
+            GraphRAGTask task = service.submit(new GraphRAGIndexRequest("Test", "Indexed GraphRAG content", "urn:test:source"));
+            GraphRAGTask failedTask = awaitCompletion(taskService, task.taskId());
+
+            assertEquals(GraphRAGTaskStatus.FAILED, failedTask.status());
+            assertEquals("echec indexation GraphRAG", failedTask.error());
+        }
+    }
+
+    @Test
     public void configuredIndex_vectorizesExistingCommunityReportsDuringIndexingTask() throws Exception {
         Dataset dataset = DatasetFactory.createTxnMem();
         dataset.begin(org.apache.jena.query.ReadWrite.WRITE);

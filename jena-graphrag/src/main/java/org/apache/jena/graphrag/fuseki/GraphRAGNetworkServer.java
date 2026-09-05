@@ -21,15 +21,23 @@
 
 package org.apache.jena.graphrag.fuseki;
 
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import org.apache.jena.fuseki.Fuseki;
 import org.apache.jena.fuseki.main.FusekiServer;
 import org.apache.jena.fuseki.main.sys.FusekiModules;
+import org.apache.jena.fuseki.mgt.ActionDatasets;
+import org.apache.jena.fuseki.mod.admin.ActionServerStatus;
 
 /**
  * Foreground Fuseki server launched from a TTL assembler while explicitly wiring
- * the GraphRAG Fuseki module.
+ * the GraphRAG Fuseki module and the embedded Fuseki web interface.
+ *
+ * <p>The assembler retains responsibility for persistent datasets and HTTP GraphRAG
+ * providers. This class adds only the web resources and management routes required
+ * to make those services accessible from the standard Fuseki UI.</p>
  */
 public final class GraphRAGNetworkServer {
 
@@ -45,18 +53,32 @@ public final class GraphRAGNetworkServer {
             throw new IllegalArgumentException("Usage: GraphRAGNetworkServer <assembler.ttl>");
 
         Path assembler = Path.of(args[0]);
-        if ( !Files.isRegularFile(assembler) )
-            throw new IllegalArgumentException("Assembleur introuvable: " + assembler);
-
-        FusekiServer server = FusekiServer.create()
-                .parseConfigFile(assembler.toString())
-                .fusekiModules(FusekiModules.create(new GraphRAGModule()))
-                .enablePing(true)
-                .build();
+        FusekiServer server = prepare(assembler);
 
         Runtime.getRuntime().addShutdownHook(new Thread(server::stop, "graphrag-network-stop"));
         server.start();
         System.out.printf("Fuseki network: http://localhost:%d/%n", server.getPort());
         server.join();
+    }
+
+    static FusekiServer prepare(Path assembler) {
+        if ( !Files.isRegularFile(assembler) )
+            throw new IllegalArgumentException("Assembleur introuvable: " + assembler);
+
+        URL webappUrl = GraphRAGNetworkServer.class.getResource("/webapp");
+        if ( webappUrl == null )
+            throw new IllegalStateException(
+                    "Fuseki UI introuvable sur le classpath — ajoutez jena-fuseki-ui comme dependance runtime.");
+
+        return FusekiServer.create()
+                .parseConfigFile(assembler.toString())
+                .fusekiModules(FusekiModules.create(new GraphRAGModule()))
+                .enablePing(true)
+                .enableStats(true)
+                .enableTasks(true)
+                .addServlet(Fuseki.serverFunctionPath("/datasets/*"), new ActionDatasets())
+                .addServlet(Fuseki.serverFunctionPath("/server"), new ActionServerStatus())
+                .staticFileBase(webappUrl.toString())
+                .build();
     }
 }

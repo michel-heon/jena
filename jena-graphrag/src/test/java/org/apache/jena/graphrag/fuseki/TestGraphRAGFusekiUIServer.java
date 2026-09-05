@@ -30,6 +30,8 @@ import java.net.URL;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import org.apache.jena.fuseki.main.FusekiServer;
 import org.apache.jena.fuseki.main.sys.FusekiModules;
@@ -79,6 +81,36 @@ public class TestGraphRAGFusekiUIServer {
                     "La réponse doit être une page HTML Fuseki");
         } finally {
             server.stop();
+        }
+    }
+
+    @Test
+    @DisabledIf("webappUnavailable")
+    public void root_returns200_in_network_mode() throws Exception {
+        Path assembler = Files.createTempFile("graphrag-network-ui-", ".ttl");
+        Files.writeString(assembler, """
+                @prefix fuseki: <http://jena.apache.org/fuseki#> .
+                @prefix tdb2: <http://jena.apache.org/2016/tdb#> .
+
+                [] a fuseki:Server .
+                <#service> a fuseki:Service ;
+                    fuseki:name "ds" ;
+                    fuseki:dataset <#dataset> ;
+                    fuseki:endpoint [ fuseki:operation fuseki:query ] .
+                <#dataset> a tdb2:DatasetTDB2 ;
+                    tdb2:location "MEM" .
+                """);
+        FusekiServer server = GraphRAGNetworkServer.prepare(assembler);
+        try {
+            server.start();
+            HttpResponse<String> root = get(server, "/");
+            assertEquals(200, root.statusCode(),
+                    "En mode network GET / doit retourner l'interface Fuseki");
+            assertTrue(root.body().contains("<!DOCTYPE") || root.body().contains("<html") || root.body().contains("Fuseki"));
+            assertEquals(200, get(server, "/$/ping").statusCode());
+        } finally {
+            server.stop();
+            Files.deleteIfExists(assembler);
         }
     }
 

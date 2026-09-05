@@ -83,6 +83,8 @@ import org.apache.jena.sparql.core.DatasetGraph;
 import org.apache.jena.vocabulary.GRAG;
 import org.apache.jena.vocabulary.RDF;
 import org.apache.jena.web.HttpSC;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Fuseki SPI module that registers optional GraphRAG HTTP operations.
@@ -616,6 +618,7 @@ final class GraphRAGConfigAction extends ActionREST {
 record GraphRAGIndexRequest(String title, String content, String sourceUri) {}
 
 final class GraphRAGIndexingService {
+    private static final Logger LOG = LoggerFactory.getLogger(GraphRAGIndexingService.class);
     private static final String MG_NS = "http://ormynet.com/ns/msft-graphrag#";
     private static final Resource MG_DOCUMENT = ModelFactory.createDefaultModel().createResource(MG_NS + "Document");
     private static final Resource MG_CHUNK = ModelFactory.createDefaultModel().createResource(MG_NS + "Chunk");
@@ -678,6 +681,7 @@ final class GraphRAGIndexingService {
             index(request, taskId);
             taskService.markDone(taskId);
         } catch (RuntimeException ex) {
+            LOG.error("GraphRAG indexing task {} failed", taskId, ex);
             taskService.markFailed(taskId, "echec indexation GraphRAG");
         }
     }

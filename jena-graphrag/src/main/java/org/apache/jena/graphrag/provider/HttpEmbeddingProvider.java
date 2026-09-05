@@ -50,8 +50,9 @@ public final class HttpEmbeddingProvider implements EmbeddingProvider {
     }
 
     private OpenAiEmbeddingModel createModel(int dimension) {
+        URI normalizedEndpoint = normalizeEmbeddingEndpoint(endpoint);
         OpenAiEmbeddingModel.OpenAiEmbeddingModelBuilder builder = OpenAiEmbeddingModel.builder()
-                .baseUrl(endpoint.toString())
+                .baseUrl(normalizedEndpoint.toString())
                 .modelName(modelName)
                 .apiKey(apiKey)
                 .dimensions(dimension)
@@ -59,6 +60,10 @@ public final class HttpEmbeddingProvider implements EmbeddingProvider {
                 .maxRetries(0)
                 .logRequests(false)
                 .logResponses(false);
+
+        Map<String, String> customQueryParams = extractQueryParams(endpoint);
+        if ( !customQueryParams.isEmpty() )
+            builder.customQueryParams(customQueryParams);
 
         if ( usesAzureApiKey(endpoint) )
             builder.customHeaders(Map.of("api-key", apiKey));
@@ -111,5 +116,44 @@ public final class HttpEmbeddingProvider implements EmbeddingProvider {
     private static boolean usesAzureApiKey(URI endpoint) {
         String host = endpoint.getHost();
         return host != null && host.endsWith(AZURE_OPENAI_HOST);
+    }
+
+    private static URI normalizeEmbeddingEndpoint(URI endpoint) {
+        String path = endpoint.getPath();
+        if ( path == null || path.isBlank() )
+            return endpoint;
+
+        String normalizedPath = path;
+        if ( normalizedPath.endsWith("/embeddings") )
+            normalizedPath = normalizedPath.substring(0, normalizedPath.length() - "/embeddings".length());
+
+        try {
+            return new URI(endpoint.getScheme(), endpoint.getUserInfo(), endpoint.getHost(), endpoint.getPort(),
+                    normalizedPath, null, endpoint.getFragment());
+        } catch (java.net.URISyntaxException ex) {
+            throw new IllegalArgumentException("endpoint must be a valid HTTP(S) URI", ex);
+        }
+    }
+
+    private static Map<String, String> extractQueryParams(URI endpoint) {
+        String query = endpoint.getRawQuery();
+        if ( query == null || query.isBlank() )
+            return Map.of();
+
+        return java.util.Arrays.stream(query.split("&"))
+                .map(HttpEmbeddingProvider::splitQueryParam)
+                .collect(java.util.stream.Collectors.toUnmodifiableMap(parts -> decodeQueryComponent(parts[0]),
+                        parts -> decodeQueryComponent(parts[1]), (left, right) -> right));
+    }
+
+    private static String[] splitQueryParam(String entry) {
+        int separator = entry.indexOf('=');
+        if ( separator < 0 )
+            return new String[] { entry, "" };
+        return new String[] { entry.substring(0, separator), entry.substring(separator + 1) };
+    }
+
+    private static String decodeQueryComponent(String value) {
+        return java.net.URLDecoder.decode(value, java.nio.charset.StandardCharsets.UTF_8);
     }
 }
